@@ -281,6 +281,29 @@ function startServer(options) {
         const urlPath = decodeURIComponent(req.url.split('?')[0]);
         const fullPath = path.join(options.directory, urlPath);
 
+        // --- WEBSITE MODE DIRECTORY INDEX SUPPORT ---
+        // S3 Website behavior: /folder/ -> /folder/index.html
+        if (options.mode === 'website') {
+            try {
+                if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
+                    const indexPath = path.join(fullPath, 'index.html');
+
+                    if (fs.existsSync(indexPath)) {
+                        const query = req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+                        const newUrl = path.posix.join(urlPath, 'index.html');
+
+                        if (options.debug) {
+                            console.log(`[Debug] Website mode directory rewrite: ${req.url} -> ${newUrl}`);
+                        }
+
+                        req.url = newUrl + query;
+                    }
+                }
+            } catch (err) {
+                // Ignore stat errors, let serve-handler handle 404s
+            }
+        }
+
         // --- FIDELITY ENFORCEMENT (--mode rest) ---
         const isRestMode = options.mode === 'rest';
         if (options.debug) console.log(`[Debug] Mode: ${options.mode}, isRestMode: ${isRestMode}, URL: ${req.url}, FullPath: ${fullPath}`);
@@ -305,7 +328,7 @@ function startServer(options) {
             // clean-URL redirects. Enabling it creates infinite redirect loops when a
             // Lambda@Edge hook rewrites a path to '/index.html'.
             cleanUrls: false,
-            directoryListing: !isRestMode, // In rest mode, no auto directory listing UI
+            directoryListing: false, // In rest mode, no auto directory listing UI
             rewrites: [
                 { source: '/', destination: '/index.html' },
                 ...(options.single ? [{ source: '**', destination: '/index.html' }] : [])
