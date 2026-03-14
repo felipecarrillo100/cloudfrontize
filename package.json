@@ -1,0 +1,62 @@
+{
+  "name": "cloudfrontize",
+  "description": "High-performance, high-fidelity local emulator for AWS Lambda@Edge and CloudFront Functions. Validate edge logic, catch illegal header mutations, and execute production-grade runtimes on a specialized local static server.",
+  "version": "1.1.0",
+  "type": "commonjs",
+  "main": "dist/cli.js",
+  "bin": {
+    "cloudfrontize": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true})\"",
+    "build": "npm run clean && node scripts/build.js",
+    "prepublishOnly": "npm run build",
+    "test": "jest --forceExit",
+    "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
+    "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-appconfig": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/types": "^3.0.0",
+    "@aws-sdk/util-base64": "^3.0.0",
+    "@aws-sdk/util-utf8": "^3.0.0",
+    "commander": "^11.0.0",
+    "compression": "^1.7.4",
+    "dotenv": "^17.3.1",
+    "serve-handler": "^6.1.6"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3",
+    "jest": "^30.2.0",
+    "supertest": "^7.2.2"
+  },
+  "keywords": [
+    "cloudfront",
+    "aws",
+    "lambda-at-edge",
+    "compression",
+    "brotli",
+    "static-server",
+    "emulator",
+    "local-development"
+  ],
+  "author": "Felipe Carrillo",
+  "license": "SEE LICENSE FILE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/felipecarrillo100/cloudfrontize.git"
+  },
+  "bugs": {
+    "url": "https://github.com/felipecarrillo100/cloudfrontize/issues"
+  },
+  "homepage": "https://github.com/felipecarrillo100/cloudfrontize#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
