@@ -48,4 +48,4 @@ Most examples use the `www` folder as the static directory. This is the **"Paws"
 5. Open `http://localhost:3000` and see your logic in action!
 
 > [!TIP]
-> Stuck? Check the [solutions/](./solutions/) directory for reference implementations of every exercise.
+> Stuck? Check the [solutions/](./solutions/) directory for reference implementations of every exercise. You can also paste the exercise into any major AI assistant to generate a detailed solution or hints.
