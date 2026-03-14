@@ -6,7 +6,7 @@ Your marketing team wants a "localized" experience. Instead of one global `index
 ## 🎯 Your Goal
 Prepend the country code from the `CloudFront-Viewer-Country` header to the URI. 
 
-For this demo, you can use the `www` folder, which already contains subfolders like countries/<code>. You can redirect requests to the appropriate subfolder based on headers['cloudfront-viewer-country']
+For this demo, you can use the `www` folder, which already contains subfolders like countries/code. You can redirect requests to the appropriate subfolder based on headers['cloudfront-viewer-country'].
 
 ## 🛠️ Instructions
 1. Open `tutorial/module-2-origin/exercise-2/index.js`.
@@ -33,14 +33,27 @@ You can inject the country header using the cloudfrontize `--headers` option.
 }
 ```
 2. Run the emulator:
-   ```bash
-   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-2/index.js --headers ./header.json --debug
-   ```
+```bash
+cloudfrontize www --edge ./tutorial/module-2-origin/exercise-2/index.js --headers ./header.json --debug
+```
 3. Open the URL in your browser: http://localhost:3000/index.html. You should be redirected to the France site.
 4. Stop Cloudfrontize, then edit `header.json` to set a different country code (e.g., MX, RU, CN, US).
 5. Repeat the process to test all available countries. If a country is not available, the site defaults to US.
 
 
+### 💡 Pro-Tip: Path Resolution & Website Mode
+
+You may have noticed that we are calling `http://localhost:3000/index.html` explicitly instead of using the root `http://localhost:3000/`. This was done intentionally to keep the tutorial code focused and simple.
+
+In a production **Lambda@Edge** environment, subfolders do not automatically append `/index.html` to the request path. To handle this, you generally have two options:
+
+1. **Custom Logic:** Implement path resolution directly in your function code, as demonstrated in the solution for **Exercise 2.1**.
+2. **Website Mode:** Alternatively, you can instruct **CloudFrontize** to treat your content as a static site by using the `--mode website` flag. This will automatically append `index.html` to directory requests for you.
+
+```bash
+   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-2/index.js --headers ./header.json --debug --mode website
+```
+---
 ## 🎓 Learning More
 - **AWS Reference**: [Localized Content (AWS Docs)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-examples.html#lambda-examples-localized-content)
 - **Keywords**: `CloudFront-Viewer-Country`, `origin-request localization`, `Multi-region content strategies`.
