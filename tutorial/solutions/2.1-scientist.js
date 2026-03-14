@@ -2,6 +2,7 @@
 
 /**
  * CloudFrontize Exercise 2.1: The Scientist
+ * Hook: origin-request
  * Purpose: Internal URI Rewriting for A/B Testing.
  * Logic: Silently routes "Experiment" users to a subfolder without changing the URL in the browser.
  */
@@ -19,7 +20,7 @@ exports.handler = async (event) => {
 
     if (hasExperiment) {
         /**
-         * 2. RECURSIVE REWRITE PREVENTION
+         * 2. REWRITE PREVENTION
          * If the user manually navigates to /experimental/ or if a relative path
          * in the HTML (like <a href="experimental/index.html">) triggers this again,
          * we avoid prefixing it a second time (e.g., /experimental/experimental/).

@@ -16,6 +16,7 @@ exports.handler = async (event) => {
     const request = event.Records[0].cf.request;
 
     // TODO: Inspect body
+    // HINT: The body arrives Base64 encoded from the Edge
     // if (request.body && request.body.data) { ... }
 
     return request;
@@ -32,8 +33,9 @@ exports.handler = async (event) => {
    ```
 5. Send a POST request with the malicious string:
    ```bash
-   curl -X POST -d "param=SQL-INJECTION" http://localhost:3000/api
+   curl -s -i -X POST -d "param=SQL-INJECTION" http://localhost:3000/api
    ```
+>***HINT**: Use `curl` -s -i to silence the progress bar and display the HTTP headers. This allows you to verify the 403 Forbidden status and confirm that your Edge logic successfully intercepted the request before it reached the origin. 
 
 ## 💡 Fidelity Tip
 In AWS, to access the request body, you must check the **Include Body** option in the Lambda association. In the emulator, bodies are included automatically if they are small enough (< 40KB)!

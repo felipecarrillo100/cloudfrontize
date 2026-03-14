@@ -2,6 +2,12 @@
 
 In this module, you'll learn the fundamental patterns of Lambda@Edge: manipulating headers and performing simple redirects. These are the most common tasks performed at the edge.
 
+> **HINT**: Many exercises in this tutorial rely on `curl` for testing. If you are on Windows, the native command prompt may not support all features. You have a several options to get a compatible environment:
+> * **Git for Windows**: Includes **Git Bash**, a Linux-like terminal that comes with a full-featured `curl`.
+> * **WSL (Windows Subsystem for Linux)**: Provides a true Linux environment with native `curl` support.
+> * **GUI Tools**: You can also use tools like **Postman** or **Insomnia** if you prefer a graphical interface.
+>
+
 ## Exercises
 
 ### 1.1 The Security Guard (Viewer Response)
