@@ -58,5 +58,8 @@
   "homepage": "https://github.com/felipecarrillo100/cloudfrontize#readme",
   "engines": {
     "node": ">=20.0.0"
+  },
+  "overrides": {
+    "minimatch": "^9.0.0"
   }
 }
