@@ -1,4 +1,4 @@
-# Exercise 3.1: The Bouncer
+d:# Exercise 3.1: The Bouncer
 
 ## 🎭 The Scenario
 Your `/admin/` dashboard is currently public. You need to add a quick layer of security using Basic Auth, but you don't want to modify your backend code.
@@ -33,6 +33,23 @@ exports.handler = async (event) => {
 4. Visit `http://localhost:3000/admin/`.
 5. Your browser should show a login prompt. Use `admin` / `password`.
 6. Verify you only see the "Unauthorized" message if you cancel the login.
+
+---
+## 🧠 Pro-Knowledge: How Basic Auth Works
+
+When you use Basic Auth, the browser doesn't send your password in "plain text," but it doesn't encrypt it either. It uses **Base64 Encoding**.
+
+1. **Concatenation**: The browser joins the username and password with a colon: `admin:password`.
+2. **Encoding**: It turns that string into Base64: `YWRtaW46cGFzc3dvcmQ=`.
+3. **Header**: It sends it as `Authorization: Basic YWRtaW46cGFzc3dvcmQ=`.
+
+> **⚠️ Security Warning**: Because Base64 can be easily decoded by anyone, **Basic Auth must only be used over HTTPS**. Without SSL/TLS, your "Bouncer" is handing out the keys to anyone with a packet sniffer.
+
+---
+## 💡 Fidelity Tip: Node.js Buffers
+
+In Lambda@Edge (Node.js), we don't have access to the browser's `btoa()` function. Instead, we use `Buffer.from(str).toString('base64')`. This is the standard way to handle binary and encoded data at the Edge.
+
 
 ## 💡 Fidelity Tip
 Lambda@Edge functions have strict limits on response generation. For example, the `body` cannot exceed 1MB. Our emulator enforces these limits in `--strict` mode to prepare you for production!
