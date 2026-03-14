@@ -72,9 +72,9 @@ describe('Tutorial Solutions: Automated Verification', () => {
 
     test('2.2-diplomat: Should prepend country code', async () => {
         const runner = getRunner('2.2-diplomat.js');
-        const headers = { 'cloudfront-viewer-country': [{ key: 'X', value: 'DE' }] };
+        const headers = { 'cloudfront-viewer-country': [{ key: 'X', value: 'MX' }] };
         const res = await runner.runRequestHook({ url: '/page', headers });
-        expect(res.uri).toBe('/DE/page');
+        expect(res.uri).toBe('/countries/MX/page');
     });
 
     test('2.3-cloaker: Should strip origin server headers', async () => {

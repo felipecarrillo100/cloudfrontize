@@ -7,22 +7,16 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
+const { HeaderParser } = require('./headerParser'); // Assuming the filename is HeaderParser.js
 
 function startServer(options) {
     const { edgeRunner, cffRunner, headersPath } = options;
 
-    // 1. Load simulated headers from file (Simulation Truth)
-    let defaultHeaders = options.defaultHeaders || {};
-    if (headersPath && fs.existsSync(headersPath)) {
-        try {
-            const fileData = JSON.parse(fs.readFileSync(headersPath, 'utf8'));
-            // Merge file headers with any headers passed directly via options (for tests)
-            defaultHeaders = { ...fileData, ...defaultHeaders };
-            if (options.debug) console.log(`[CloudFrontize] Loaded headers from: ${headersPath}`);
-        } catch (err) {
-            console.error(`🛑 Error parsing headers file: ${err.message}`);
-        }
-    }
+    // --- NEW: Parse headers into separate buckets ---
+    const parser = new HeaderParser();
+    const { requestHeaders, responseHeaders } = parser.parse(headersPath);
+    // Merge with options.defaultHeaders (likely used in your automated tests)
+    const finalRequestHeaders = { ...requestHeaders, ...(options.defaultHeaders || {}) };
 
     const compressMiddleware = compression({
         filter: (req, res) => {
@@ -35,14 +29,20 @@ function startServer(options) {
         const acceptEncoding = req.headers['accept-encoding'] || '';
         const requestID = crypto.randomBytes(4).toString('hex');
 
-        // === 0. DEFAULT HEADER INJECTION ===
-        if (defaultHeaders) {
-            for (const [key, value] of Object.entries(defaultHeaders)) {
-                const lowerKey = key.toLowerCase();
-                if (req.headers[lowerKey] === undefined) {
-                    req.headers[lowerKey] = value;
-                }
+        // === 0. HEADER INJECTION (Dual Context) ===
+
+        // A. Inject Request Headers (Simulating the Browser/Viewer)
+        for (const [key, value] of Object.entries(finalRequestHeaders)) {
+            const lowerKey = key.toLowerCase();
+            if (req.headers[lowerKey] === undefined) {
+                req.headers[lowerKey] = value;
             }
+        }
+
+        // B. Inject Response Headers (Simulating the Origin)
+        // We set these on 'res' so the Lambda@Edge origin-response hook sees them
+        for (const [key, value] of Object.entries(responseHeaders)) {
+            res.setHeader(key, value);
         }
 
         // === 0. BODY BUFFERING ===
@@ -225,6 +225,19 @@ function startServer(options) {
                 }
 
                 if (hookResponse && hookResponse.headers) {
+                    // 1. Get current headers on the response object
+                    const currentHeaders = res.getHeaderNames();
+
+                    // 2. Identify headers to remove (those present in res but missing in Lambda result)
+                    // We only do this for headers the Lambda is actually allowed to touch
+                    for (const name of currentHeaders) {
+                        const lowerName = name.toLowerCase();
+                        if (!hookResponse.headers[lowerName]) {
+                            res.removeHeader(name);
+                        }
+                    }
+
+                    // 3. Apply/Update the headers returned by the Lambda
                     for (const [k, values] of Object.entries(hookResponse.headers)) {
                         if (values && values.length > 0) {
                             const headerVals = values.map(v => v.value);
