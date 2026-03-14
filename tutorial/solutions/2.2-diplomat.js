@@ -9,7 +9,7 @@ exports.handler = async (event) => {
     const country = (headers['cloudfront-viewer-country'] &&
         headers['cloudfront-viewer-country'][0].value) || 'US';
 
-    request.uri = `/${country}${request.uri}`;
+    request.uri = `/countries/${country}${request.uri}`;
 
     return request;
 };

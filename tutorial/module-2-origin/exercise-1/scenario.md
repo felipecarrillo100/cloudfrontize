@@ -29,10 +29,23 @@ exports.handler = async (event) => {
 3. If `experiment=true` is found, prefix the URI with `/experimental`.
 4. Run the emulator:
    ```bash
-   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-1/index.js
+   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-1/index.js --debug
    ```
-5. Simulate a request with the cookie: `curl -H "Cookie: experiment=true" http://localhost:3000/test.html`.
+   >**Hint**: Enable --debug so you can see the redirects in the console
+5. Simulate a request with the cookie: `curl -H "Cookie: experiment=true" http://localhost:3000/index.html`.
 6. Verify the console output shows the rewritten path.
+
+   >**Pro tip**: Use the cloudfrontize `--headers` option to inject custom headers and test your requests directly from your browser.
+   ```bash
+   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-1/index.js --debug --headers sample_headeers.json
+   ```
+   In this case the header you need is:
+    ```
+    {
+        "Cookie": "experiment=true"
+    }
+    ```
+   Now open the browser and go to http://localhost:3000/index.html 
 
 ## 💡 Fidelity Tip
 `origin-request` happens **after** the cache check if there is a miss. By rewriting the URI here, you are telling CloudFront to fetch a different object from the origin and cache it separately for that specific path!
