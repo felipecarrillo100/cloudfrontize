@@ -5,6 +5,7 @@ const path = require('path');
 const vm = require('vm');
 const dotenv = require('dotenv');
 const { CFF_LIMITS, CFF_RUNTIME } = require('./constants');
+const { CFFValidator } = require('./CFFValidator');
 
 class CFFRunner {
     constructor(sourcePath, options = {}) {
@@ -13,6 +14,9 @@ class CFFRunner {
         this.outputPath = options.outputPath;
         this.bakePath = options.bakePath;
         this.bakeVars = {};
+
+        // 1. Initialize Validator with strictness from options
+        this.validator = new CFFValidator({ strict: !!options.strict });
 
         if (this.bakePath && fs.existsSync(this.bakePath)) {
             this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
@@ -59,15 +63,23 @@ class CFFRunner {
             return;
         }
 
+        // --- STEP 1: LOAD & BAKE ---
         let code = fs.readFileSync(filePath, 'utf8');
         code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
 
+        // --- STEP 2: PRE-VALIDATION (FAIL-FAST) ---
+        // Validate immediately after baking to ensure injected vars don't break ES 5.1
+        const isValid = this.validator.validate(filename, code);
+        if (!isValid && this.options.strict) return; // Validator handles exit(1) internally
+
+        // --- STEP 3: OUTPUT SAVING ---
         if (this.outputPath) {
             fs.mkdirSync(this.outputPath, { recursive: true });
             const outFilePath = path.join(this.outputPath, filename);
             fs.writeFileSync(outFilePath, code);
         }
 
+        // --- STEP 4: RESOURCE CHECK ---
         if (code.length > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
             const msg = `[CFF] Code size (${(code.length / 1024).toFixed(1)}KB) exceeds 10KB limit.`;
             if (this.options.strict) {
@@ -109,13 +121,29 @@ class CFFRunner {
     }
 
     executeSync(fn, event) {
+        // --- STEP 1: ENVIRONMENT LOCKDOWN ---
+        // Explicitly define allowed globals and block Node.js leaks
         const sandbox = {
             event: event,
-            console: console // Allow console.log from CFF for debugging if needed
+            console: console, // Allow console.log from CFF for debugging if needed
+            Math: Math,
+            JSON: JSON,
+            Object: Object,
+            String: String,
+            Array: Array,
+            Number: Number,
+            Date: Date,
+            // Lockdown
+            Buffer: undefined,
+            process: undefined,
+            require: undefined,
+            module: undefined,
+            exports: undefined
         };
 
         const context = vm.createContext(sandbox);
-        
+
+        // --- STEP 2: HANDLER WRAPPING ---
         // Wrap code to ensure we can call the handler
         const scriptCode = `
             ${fn.code}
@@ -153,7 +181,7 @@ class CFFRunner {
     // Bidirectional Mappers
     toCFFEvent(req, bodyBuffer, hookType, resData = null) {
         const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-        
+
         const event = {
             version: '1.0',
             context: {
@@ -242,7 +270,7 @@ class CFFRunner {
             // Priority 1: If it's a viewer-request hook that generated a response, return the response
             if (cffResponse.response && cffResponse.context && cffResponse.context.eventType === 'viewer-request') {
                 target = cffResponse.response;
-            } 
+            }
             // Priority 2: If it's a viewer-response hook, return the response
             else if (cffResponse.response && cffResponse.context && cffResponse.context.eventType === 'viewer-response') {
                 target = cffResponse.response;
