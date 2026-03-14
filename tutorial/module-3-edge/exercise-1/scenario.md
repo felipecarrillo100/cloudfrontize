@@ -48,10 +48,12 @@ When you use Basic Auth, the browser doesn't send your password in "plain text,"
 ---
 ## 💡 Fidelity Tip: Node.js Buffers
 
-In Lambda@Edge (Node.js), we don't have access to the browser's `btoa()` function. Instead, we use `Buffer.from(str).toString('base64')`. This is the standard way to handle binary and encoded data at the Edge.
+Lambda@Edge (Node.js), the browser's btoa() function is unavailable. Instead, use Buffer.from(str).toString('base64'), which is the standard for handling encoded data at the Edge.
+
+To ensure environment fidelity, the `cloudfrontize` emulator will crash if you use btoa, mirroring exactly how a production AWS environment would fail.
 
 
-## 💡 Fidelity Tip
+## 💡 Fidelity Tip: Body limit
 Lambda@Edge functions have strict limits on response generation. For example, the `body` cannot exceed 1MB. Our emulator enforces these limits in `--strict` mode to prepare you for production!
 
 ## 🎓 Learning More
