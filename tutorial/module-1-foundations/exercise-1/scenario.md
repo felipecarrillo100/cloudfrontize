@@ -10,6 +10,16 @@ Inject the following security headers into every response leaving CloudFront:
 
 You can setup the headers programmatically inside a `viewer-response` Lambda@Edge function.
 
+## 🧠 How CloudFront Handles Headers
+
+Before diving into the code, you must understand the **"Fidelity Map"** structure AWS uses. In Lambda@Edge, the `headers` object is a dictionary where:
+
+* **The Map Key is always lowercase**: To access or set a header, you must use the all-lowercase name (e.g., `headers['content-type']`).
+* **The Internal Key preserves fidelity**: Inside the array, the `key` property is what the browser actually sees (e.g., `Content-Type`).
+* **Everything is an Array**: Since HTTP allows multiple headers with the same name (like `Set-Cookie`), CloudFront wraps every header value in an array.
+
+---
+
 ## 📝 Starter Code Template
 ```javascript
 'use strict';
