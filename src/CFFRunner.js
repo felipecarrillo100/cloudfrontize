@@ -210,38 +210,42 @@ class CFFRunner {
                 cookies: {}
             };
 
-            // Response Headers mapping
             for (const [key, value] of Object.entries(resData.headers || {})) {
-                // value might be string or array of strings
                 const val = Array.isArray(value) ? value[0] : value;
                 event.response.headers[key.toLowerCase()] = { value: String(val) };
             }
         }
 
-        // Headers mapping (CFF uses flat { value } per header-name key, multi-value uses multiValue array)
+        // --- RECONCILED HEADER MAPPING ---
+        const reconciledHeaders = {};
+
+        // 1. Parse rawHeaders (Actual Socket Data)
         if (req.rawHeaders) {
-            // Parse rawHeaders to preserve casing and collect all values per header
-            const rawMap = {}; // lowerKey -> [{ key: originalCase, value }]
             for (let i = 0; i < req.rawHeaders.length; i += 2) {
                 const originalKey = req.rawHeaders[i];
                 const lowerKey = originalKey.toLowerCase();
-                if (!rawMap[lowerKey]) rawMap[lowerKey] = [];
-                rawMap[lowerKey].push({ key: originalKey, value: String(req.rawHeaders[i + 1]) });
+                if (!reconciledHeaders[lowerKey]) reconciledHeaders[lowerKey] = [];
+                reconciledHeaders[lowerKey].push({ key: originalKey, value: String(req.rawHeaders[i + 1]) });
             }
-            for (const [lowerKey, entries] of Object.entries(rawMap)) {
-                if (entries.length === 1) {
-                    event.request.headers[lowerKey] = { value: entries[0].value };
-                } else {
-                    event.request.headers[lowerKey] = {
-                        value: entries[0].value,
-                        multiValue: entries.map(e => ({ value: e.value }))
-                    };
-                }
+        }
+
+        // 2. Merge with req.headers (Injected CLI --headers)
+        // Only adds if the header is not already in the raw list (Curl overrides CLI)
+        for (const [lowerKey, v] of Object.entries(req.headers || {})) {
+            if (!reconciledHeaders[lowerKey]) {
+                reconciledHeaders[lowerKey] = [{ key: lowerKey, value: String(v) }];
             }
-        } else {
-            // Fallback for mock requests in tests
-            for (const [key, value] of Object.entries(req.headers || {})) {
-                event.request.headers[key.toLowerCase()] = { value: String(value) };
+        }
+
+        // 3. Map to CFF Object Structure
+        for (const [lowerKey, entries] of Object.entries(reconciledHeaders)) {
+            if (entries.length === 1) {
+                event.request.headers[lowerKey] = { value: entries[0].value };
+            } else {
+                event.request.headers[lowerKey] = {
+                    value: entries[0].value,
+                    multiValue: entries.map(e => ({ value: e.value }))
+                };
             }
         }
 
@@ -250,7 +254,7 @@ class CFFRunner {
             event.request.querystring[key] = { value: value };
         });
 
-        // Cookies mapping (Simple stub)
+        // Cookies mapping
         if (req.headers.cookie) {
             req.headers.cookie.split(';').forEach(c => {
                 const [k, v] = c.trim().split('=');
