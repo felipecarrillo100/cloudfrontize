@@ -18,10 +18,7 @@ class CFFRunner {
         // 1. Initialize Validator with strictness from options
         this.validator = new CFFValidator({ strict: !!options.strict });
 
-        if (this.bakePath && fs.existsSync(this.bakePath)) {
-            this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
-        }
-
+        // Initialize functions
         this.functions = {
             'viewer-request': [],
             'viewer-response': []
@@ -30,10 +27,71 @@ class CFFRunner {
         if (this.sourcePath) {
             this.loadFunctions();
         }
+
+        // If watch enabled
+        if (options.watch !== false) {
+            this._watch();
+        }
     }
 
-    loadFunctions() {
-        console.log(`🔄 [CFF] Reloading functions from: ${this.sourcePath}`);
+    _loadBakeVars() {
+        // 1. Clear the "Ghost" state immediately
+        this.bakeVars = {};
+
+        // 2. Only fill it if the file actually exists
+        if (this.bakePath && fs.existsSync(this.bakePath)) {
+            try {
+                const raw = fs.readFileSync(this.bakePath, 'utf8');
+                this.bakeVars = dotenv.parse(raw);
+
+                if (this.options.debug) {
+                    console.log(`🔐 [CFF] Bake variables synchronized.`);
+                }
+            } catch (err) {
+                console.error(`🛑 [CFF] Failed to parse bake file: ${err.message}`);
+            }
+        } else if (this.bakePath) {
+            // 3. Inform the user that the variables are now gone
+            console.warn(`⚠️  [CFF] Bake file not found at ${this.bakePath}. All __PLACEHOLDERS__ will remain unreplaced.`);
+        }
+    }
+
+    // Enable watch
+    _watch() {
+        if (!this.sourcePath) return;
+
+        // Resolve path once to avoid Windows slash issues
+        const targetPath = path.resolve(this.sourcePath);
+
+        fs.watch(targetPath, { recursive: true }, (eventType, filename) => {
+            // filename might be null or just the name; we use sourcePath as fallback
+            const changedFile = filename || path.basename(targetPath);
+
+            // This is what triggers the 🔄 messages you want to see!
+            this.loadFunctions(changedFile);
+        });
+
+        // Watch also bake file
+        if (this.bakePath) {
+            fs.watch(path.resolve(this.bakePath), () => this.loadFunctions('bake-vars'));
+        }
+    }
+
+    loadFunctions(changedFile) {
+        if (changedFile) {
+            console.log(`\x1b[36m🔄 [CFF] Hot-Reload triggered by: ${changedFile}\x1b[0m`);
+        } else {
+            console.log(`🚀 [CFF] Initializing functions from: ${this.sourcePath}`);
+        }
+
+        // ALWAYS refresh bake variables before reloading functions
+        this._loadBakeVars();
+        // Reset state before reloading
+        this.functions = {
+            'viewer-request': [],
+            'viewer-response': []
+        };
+
         if (!fs.existsSync(this.sourcePath)) {
             console.warn(`⚠️  [CFF] Path not found: ${this.sourcePath}`);
             return;
