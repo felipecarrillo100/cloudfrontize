@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paws Academy - Promo</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+
+<body class="experimental">
+    <header>
+        <h1>🐶 Paws Academy: Promo</h1>
+    </header>
+    <main>
+        <section class="hero">
+            <h2>Welcome to the Promo! 🧪</h2>
+            <p>If you're seeing this page, your CFF "The Traffic Director" successfully redirected you!</p>
+            <div class="dog-grid">
+                <div class="dog-card">
+                    <img src="/assets/promo.png" alt="Promo">
+                    <p>This dog is here for the cheap prices.</p>
+                </div>
+            </div>
+            <a href="../index.html" class="btn">Back to Normal Site</a>
+        </section>
+    </main>
+    <section class="debug-panel">
+        <h3>Active Query Parameters</h3>
+        <div id="query-display" style="background: #f4f4f4; border: 1px solid #ccc; padding: 10px; max-height: 150px; overflow-y: auto; font-family: monospace; border-radius: 4px;">
+            <ul id="params-list" style="list-style: none; margin: 0; padding: 0;">
+                <li><em>No parameters detected.</em></li>
+            </ul>
+        </div>
+    </section>
+
+    <script>
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const list = document.getElementById('params-list');
+
+            if (params.toString()) {
+                list.innerHTML = ''; // Clear "No parameters" message
+                params.forEach((value, key) => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = "1px solid #ddd";
+                    li.style.padding = "5px 0";
+                    li.innerHTML = `<strong>${key}:</strong> <span>${value}</span>`;
+                    list.appendChild(li);
+                });
+            }
+        })();
+    </script>
+</body>
+
+</html>
