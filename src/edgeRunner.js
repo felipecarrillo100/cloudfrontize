@@ -49,7 +49,14 @@ class EdgeRunner {
        FIDELITY: LOAD & SANDBOX (Checklist Item 9)
     ========================================================= */
 
-    _load() {
+    _load(changedFile) {
+        // Notify Hot reload to user
+        if (changedFile) {
+            console.log(`\x1b[36m🔄 [EdgeRunner] Hot Reload triggered by: ${changedFile}\x1b[0m`);
+        } else {
+            console.log(`\x1b[36m🚀 [EdgeRunner] Initializing edge modules...\x1b[0m`);
+        }
+
         Object.keys(this.modules).forEach(k => this.modules[k] = []);
         if (!fs.existsSync(this.edgePath)) return;
 
@@ -74,7 +81,7 @@ class EdgeRunner {
 
         if (this.outputPath) {
             const isSourceDir = fs.statSync(this.edgePath).isDirectory();
-            
+
             // If the user specified a file path (has extension) AND source is not a dir, use it directly.
             // Otherwise (user specified a dir, or source is a dir containing multiple files), append the filename.
             const outFilePath = (isSourceDir || !path.extname(this.outputPath))
@@ -129,8 +136,8 @@ class EdgeRunner {
                 }
 
                 // Check built-in and SDK whitelists
-                const isAllowed = allowed.includes(id) || 
-                                 id.startsWith('node:') || 
+                const isAllowed = allowed.includes(id) ||
+                                 id.startsWith('node:') ||
                                  (id.startsWith('@aws-sdk/client-') && (hookType?.startsWith('origin-')));
 
                 if (!id.startsWith('.') && !isAllowed) {
@@ -170,7 +177,7 @@ class EdgeRunner {
                 const originalHeaders = this._deepClone(request.headers);
 
                 // Invoke the Lambda handler within the log context
-                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () => 
+                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
                     this._invoke(mod.handler, request, type)
                 );
 
@@ -227,14 +234,14 @@ class EdgeRunner {
         for (const type of ['origin-response', 'viewer-response']) {
             for (const mod of this.modules[type]) {
                 const originalHeaders = this._deepClone(response.headers);
-                
-                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () => 
+
+                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
                     this._invoke(mod.handler, { request, response }, type)
                 );
 
                 // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return null
                 if (result === null && this.strict) return null;
-                
+
                 response = result?.response || result || response;
 
                 if (response.headers) {
@@ -284,14 +291,14 @@ class EdgeRunner {
             try {
                 const handleResult = (res) => {
                     if (resolved) return;
-                    
+
                     // In strict mode, if we already timed out, we MUST NOT resolve with the result.
                     // The timeout handler already resolved with null.
                     if (timedOut && this.strict) return;
-                    
+
                     resolved = true;
                     clearTimeout(timer);
-                    
+
                     if (timedOut && !this.strict) {
                         const ctx = this.logContext.getStore() || { requestId: 'UNKNOWN', hookType: type };
                         console.warn(`⚠️  [${ctx.requestId}] [${ctx.hookType}] Fidelity Warning: Handler took ${((Date.now() - startTime) / 1000).toFixed(2)}s, exceeding the AWS ${limit / 1000}s limit.`);
@@ -356,14 +363,14 @@ class EdgeRunner {
 
     _parseIncomingHeaders(req) {
         const headers = {};
-        
+
         // 1. Parse rawHeaders to preserve exact original casing and arrays
         if (req.rawHeaders) {
             for (let i = 0; i < req.rawHeaders.length; i += 2) {
                 const originalKey = req.rawHeaders[i];
                 const value = req.rawHeaders[i + 1];
                 const lowerKey = originalKey.toLowerCase();
-                
+
                 if (!headers[lowerKey]) {
                     headers[lowerKey] = [];
                 }
@@ -388,7 +395,7 @@ class EdgeRunner {
             }
         }
 
-        // 2. Reconcile with req.headers to catch any internal mutations 
+        // 2. Reconcile with req.headers to catch any internal mutations
         // (like --default-headers or CFF mutations that happen before EdgeRunner)
         for (const [lowerKey, v] of Object.entries(req.headers || {})) {
             if (!headers[lowerKey]) {
@@ -413,7 +420,7 @@ class EdgeRunner {
         for (const k in input) {
             const lowerKey = k.toLowerCase();
             const valueOpt = input[k];
-            
+
             // AWS requires an array of objects: { key: 'Original-Case', value: 'val' }
             if (Array.isArray(valueOpt)) {
                 headers[lowerKey] = valueOpt.map(v => {
@@ -501,7 +508,7 @@ class EdgeRunner {
 
     _watch() {
         [this.edgePath, this.envPath, this.bakePath].filter(Boolean).forEach(t => {
-            if (fs.existsSync(t)) this.watchers.push(fs.watch(t, () => this._load()));
+            if (fs.existsSync(t)) this.watchers.push(fs.watch(t, (eventType, filename) => this._load(filename)));
         });
     }
 

@@ -33,6 +33,7 @@ class CFFRunner {
     }
 
     loadFunctions() {
+        console.log(`🔄 [CFF] Reloading functions from: ${this.sourcePath}`);
         if (!fs.existsSync(this.sourcePath)) {
             console.warn(`⚠️  [CFF] Path not found: ${this.sourcePath}`);
             return;
@@ -71,6 +72,9 @@ class CFFRunner {
         // Validate immediately after baking to ensure injected vars don't break ES 5.1
         const isValid = this.validator.validate(filename, code);
         if (!isValid && this.options.strict) return; // Validator handles exit(1) internally
+
+        // Add this log here:
+        console.log(`✅ [CFF] Registered and Baked: ${filename}`);
 
         // --- STEP 3: OUTPUT SAVING ---
         if (this.outputPath) {
