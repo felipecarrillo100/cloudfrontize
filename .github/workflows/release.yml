@@ -13,6 +13,10 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: google-github-actions/release-please-action@v4
+      # 1. Switched to 'googleapis' (the new official repo)
+      # 2. Added the Env var to use Node 24 (future-proofing)
+      - uses: googleapis/release-please-action@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           release-type: node
