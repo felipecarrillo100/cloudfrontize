@@ -54,7 +54,7 @@ tutorial/module-5-cff/intermediate/viewer-request-query-normalizer.js
 3. Start the CloudFrontize emulator:
 
 ```bash
-cloudfrontize www --cff ./tutorial-cff/intermediate/viewer-request-query-normalizer.js --debug --mode website
+cloudfrontize www --cff ./tutorial/module-5-cff/intermediate/viewer-request-query-normalizer.js --debug --mode website
 ```
 
 ---
