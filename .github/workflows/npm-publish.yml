@@ -2,22 +2,26 @@ name: Release & Publish
 
 on:
   release:
-    types: [published] # Changed from 'created' for better reliability
-  workflow_dispatch: # To have a button for manual publish on click
+    types: [published]
+  workflow_dispatch:
+
+# This tells the GitHub runner to use Node 24 for the Actions themselves
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # Required if you want to use --provenance for security
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24 # Changed from 20 to 24 to match the new standard
           registry-url: https://registry.npmjs.org/
 
       - name: Install Dependencies
