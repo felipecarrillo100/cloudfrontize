@@ -8,35 +8,63 @@
 
 ---
 
-#### A high-performance, high-fidelity local emulator for AWS Lambda@Edge and CloudFront Functions.
+#### A high-fidelity local development server for AWS Lambda@Edge and CloudFront Functions.
 
+Test your Edge logic locally in milliseconds instead of waiting 15 minutes for CloudFront deployments.
 
+![Cloudfrontize Banner](./assets/cloudfrontize.png)
 ---
 ## 📦 Getting started
 Get up and running in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
 
-### Install it **Globally:**
+### Install **globally:**
 
 ```bash
 npm install -g cloudfrontize
 ```
-Once installed, you can rule the Edge from any directory by simply typing `cloudfrontize ./www` (specifying your static folder).
+Once installed, you can run CloudFrontize from any directory: by simply typing `cloudfrontize ./www` (specifying your static folder).
 
-Point it at your static files  folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
+Point it at your static files folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
 
-```bash
-cloudfrontize ./folder --edge ./lambda-at-age-logic.js
+## ⚡ Quick Example
+
+1️⃣ Create a simple Lambda@Edge function, for instance: `viewer-request-rewrite.js`
+
+```javascript
+exports.hookType = 'viewer-request';
+
+exports.handler = (event, context, callback) => {
+    const request = event.Records[0].cf.request;
+    console.log("Original request", request.uri);
+    request.uri = "/index-alt.html";
+    callback(null, request);
+};
 ```
-OR
-```bash
-npx cloudfrontize ./folder --edge ./lambda-at-age-logic.js
+
+2️⃣ Run CloudFrontize
+
+```
+cloudfrontize ./www --edge ./viewer-request-rewrite.js --debug
+```
+For this sample, place two HTML files inside the `www` folder: `index.html` and `index-alt.html`.
+
+3️⃣ Open
+
+Open your browser and navigate to: http://localhost:3000
+
+Because the `viewer-request` hook is active, every request is rewritten to `/index-alt.html`. As a result, the browser will display the contents of that file regardless of the requested path.
+
+Check the CloudFrontize terminal output. You should see a log entry confirming the internal URI rewrite:
+```text
+2026-03-16T22:18:51.465Z  [44ff0e42] [viewer-request]  Original request /
+[Debug] Mode: rest, isRestMode: true, URL: /index-alt.html, FullPath: C:\tmp\www\index-alt.html
 ```
 
 ---
 
-## 📣 Stop bowing to the deployment bar! 
+## 📣 Stop waiting for CloudFront deployments! 
 
-**Rule the Edge** and become the Hero of the Cloud. **Escape the "Deploy-and-Pray" cycle.** We’ve all been there: you tweak one security header, hit "Deploy," and... **you wait.** For 15 agonizing minutes, you watch a spinning "In Progress" status as AWS propagates your code globally. If there’s a tiny typo? You won't know until you hit a **502 Bad Gateway** and go hunting through CloudWatch logs buried in a random region.
+**Take control** of your Edge development workflow. **Escape the "Deploy-and-Pray" cycle.** We’ve all been there: you tweak one security header, hit "Deploy," and... **you wait.** For 15 agonizing minutes, you watch a spinning "In Progress" status as AWS propagates your code globally. If there’s a tiny typo? You won't know until you hit a **502 Bad Gateway** and go hunting through CloudWatch logs buried in a random region.
 
 It’s a workflow that kills momentum and turns "quick fixes" into afternoon-long ordeals.
 
@@ -58,7 +86,7 @@ The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation 
 
 **CloudFrontize** eliminates the wait and the risk:
 
-* **Zero-Config Integration:** If you know how to use Vercel's [serve](https://www.npmjs.com/package/serve)) package, you already know how to use `cloudfrontize`.
+* **Zero-Config Integration:** If you know how to use Vercel's [serve](https://www.npmjs.com/package/serve) package, you already know how to use `cloudfrontize`.
 * **Real-Time Hot Reloading:** Tweak your URI rewrites or security headers and see the results instantly on browser refresh. No packaging, no uploading, no waiting for the "In Progress" spinner.
 * **Debug directly to the console:** Stop hunting for logs in hidden CloudWatch streams across random regions. See your console.log outputs and execution errors live **in your terminal**. 
 * **Production Fidelity:** Emulates in detail CloudFront-specific features & quirks, like the **10MB auto-compression limit**, header blacklisting, and URI normalization.
@@ -208,13 +236,13 @@ Then run
 cloudfrontize ./www -e ./samples/medium/lambda-edge-authorization.js -d -C
 ```
 * The `www` folder contains the sample files (html, js, css, etc.)
-* The `lambda-edge-authorization.js` contains the lambda@edge logic
+* The `lambda-edge-authorization.js` file contains the lambda@edge logic
 * The `-d` option enables debug messages while `-C` enables CORS
 * Default port is 3000, you can now open your browser at http://localhost:3000/
-* The user: admin and the password: password as you see in the Lambda@Edge logic.  
+* The username is `admin` and the password is `password`, as defined in the Lambda@Edge logic.  
 
 ### A CFF Example
-Your file must start with `viewer-request` or `viewer-response` to let the simulator know the type of CFF we want to execute. In this case we have called it:`viewer-request-redirect.js`
+Your file must start with `viewer-request` or `viewer-response` to let the simulator know the type of CFF we want to execute. In this case we have called it: `viewer-request-redirect.js`
 ```javascript
 function handler(event) {
     var request = event.request;
@@ -239,21 +267,21 @@ Run with:
 ```bash
 cloudfrontize ./www --cff ./samples/cff/viewer-request-redirect.js -d --mode website
 ```
-* `-d` Enabled debug, and `--mode website` takes care of appending `index.html` to folders
+* `-d` Enables debug, and `--mode website` takes care of appending `index.html` to folders
 * Open in browser  http://localhost:3000/promo
-* You will be redirected tot http://localhost:3000/summer-sale
+* You will be redirected to http://localhost:3000/summer-sale
 ---
 
 ## 🎓 CloudFrontize Academy (Tutorial)
 
 New to Lambda@Edge? We've built a comprehensive, hands-on tutorial to take you from **Newbie to Production Pro**.
 
-Our **[CloudFrontize Academy](./tutorial/README.md)** includes 10 thematic exercises covering:
+Our **[CloudFrontize Academy](./tutorial/README.md)** includes 20+ thematic exercises covering:
 * **Module 1: Foundations** (Security Headers, Redirects, Normalization)
 * **Module 2: Origin Intelligence** (A/B Testing, Geo-Localization, Header Cleaning)
 * **Module 3: Edge Computing** (Custom Auth, Maintenance Pages, Payload Inspection)
 * **Module 4: Production Workflows** (Variable Baking & Deployment)
-* **Module 5: Cloud Front Functions** (CFF)
+* **Module 5: CloudFront Functions** (CFF)
 
 Each exercise comes with a **Business Scenario**, **Starter Template**, and **Full Solution**.
 
@@ -261,10 +289,10 @@ Each exercise comes with a **Business Scenario**, **Starter Template**, and **Fu
 
 ### License
 
-**CloudFrontize** is licensed under the **[PolyForm Noncommercial 1.0.0](https://www.google.com/search?q=https://polyformproject.org/licenses/noncommercial/1.0.0/)**. For the full legal text and specific terms, please refer to the [LICENSE](https://www.google.com/search?q=./LICENSE) file in this package.
+**CloudFrontize** is licensed under the **[PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)**. For the full legal text and specific terms, please refer to the [LICENSE](https://polyformproject.org/licenses/noncommercial/1.0.0/) file in this package.
 
 * **✅ Free for Individuals & Education:** 100% free for personal projects, open-source contributions, students, and researchers. This includes full access to the **CloudFrontize Academy**.
-* **💼 Requires a Commercial License:** Use by for-profit organizations, or for work performed on behalf of a for-profit entity, requires a paid Commercial License.
+* **💼 Requires a Commercial License:** Use by for-profit organizations, or work performed on behalf of a for-profit entity, requires a commercial license.
 * **⏳ 30-Day Business Trial:** We offer a one-month free evaluation period for professional teams. Integrate CloudFrontize into your workflow, experience the "Zero-Wait" deployment cycle, and measure your team's productivity gains before committing.
 
 
@@ -279,7 +307,7 @@ Maintaining high-fidelity AWS emulation takes significant time. If your company 
 **THE SOFTWARE IS PROVIDED "AS IS"**, WITHOUT WARRANTY OF ANY KIND. Testing on CloudFrontize does not guarantee success on live AWS infrastructure. The author is not liable for any production downtime, data loss, or financial damages resulting from the use of this tool. Always validate your logic in an AWS staging environment before a full production rollout.
 
 ---
-# Donations & Sponsoring
+# Support the Project
 [<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" name="buy-me-a-coffee" alt="Buy Me A Coffee" width="180">](https://buymeacoffee.com/felipecarrillo100)
 
 Creating and maintaining open-source libraries is a passion of mine. If you find this `cloudfrontize` useful and it saves you time, please consider supporting its development. Your contributions help keep the project active and motivated!
