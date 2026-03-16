@@ -1,8 +1,40 @@
 # cloudfrontize
-[![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ff69b4?style=for-the-badge&logo=github)](https://github.com/sponsors/felipecarrillo100)
 
-A high-performance, high-fidelity local emulator for AWS Lambda@Edge and CloudFront Functions. 
-### 📣 Stop bowing to the deployment bar! 
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ff69b4?style=for-the-badge&logo=github)](https://github.com/sponsors/felipecarrillo100)
+![npm](https://img.shields.io/npm/v/cloudfrontize)
+![node](https://img.shields.io/node/v/cloudfrontize)
+
+📜 **Changelog:** See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+---
+
+#### A high-performance, high-fidelity local emulator for AWS Lambda@Edge and CloudFront Functions.
+
+
+---
+## 📦 Getting started
+Get up and running in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
+
+### Install it **Globally:**
+
+```bash
+npm install -g cloudfrontize
+```
+Once installed, you can rule the Edge from any directory by simply typing `cloudfrontize ./www` (specifying your static folder).
+
+Point it at your static files  folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
+
+```bash
+cloudfrontize ./folder --edge ./lambda-at-age-logic.js
+```
+OR
+```bash
+npx cloudfrontize ./folder --edge ./lambda-at-age-logic.js
+```
+
+---
+
+## 📣 Stop bowing to the deployment bar! 
 
 **Rule the Edge** and become the Hero of the Cloud. **Escape the "Deploy-and-Pray" cycle.** We’ve all been there: you tweak one security header, hit "Deploy," and... **you wait.** For 15 agonizing minutes, you watch a spinning "In Progress" status as AWS propagates your code globally. If there’s a tiny typo? You won't know until you hit a **502 Bad Gateway** and go hunting through CloudWatch logs buried in a random region.
 
@@ -26,7 +58,7 @@ The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation 
 
 **CloudFrontize** eliminates the wait and the risk:
 
-* **Zero-Config Integration:** If you know how to use Vercel's [serve](https://www.google.com/search?q=%5Bhttps://www.npmjs.com/package/serve%5D(https://www.npmjs.com/package/serve)) package, you already know how to use `cloudfrontize`.
+* **Zero-Config Integration:** If you know how to use Vercel's [serve](https://www.npmjs.com/package/serve)) package, you already know how to use `cloudfrontize`.
 * **Real-Time Hot Reloading:** Tweak your URI rewrites or security headers and see the results instantly on browser refresh. No packaging, no uploading, no waiting for the "In Progress" spinner.
 * **Debug directly to the console:** Stop hunting for logs in hidden CloudWatch streams across random regions. See your console.log outputs and execution errors live **in your terminal**. 
 * **Production Fidelity:** Emulates in detail CloudFront-specific features & quirks, like the **10MB auto-compression limit**, header blacklisting, and URI normalization.
@@ -50,48 +82,11 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 
 **CloudFrontize** is not just a runner; it's a **Linter at the Edge**, ensuring your code is valid *before* the 15-minute propagation wait.
 
-
----
-
-## 📦 Install & Go
-Get up and running in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
-
-### Install it **Globally:**
-
-```bash
-npm install -g cloudfrontize
-```
-Once installed, you can rule the Edge from any directory by simply typing `cloudfrontize ./www` (specifying your static folder).
-
-Point it at your static files  folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
-
-```bash
-cloudfrontize ./folder --edge ./lambda-at-age-logic.js
-```
-OR
-```bash
-npx cloudfrontize ./folder --edge ./lambda-at-age-logic.js
-```
-
----
-
-## 🎓 CloudFrontize Academy (Tutorial)
-
-New to Lambda@Edge? We've built a comprehensive, hands-on tutorial to take you from **Newbie to Production Pro**.
-
-Our **[CloudFrontize Academy](./tutorial/README.md)** includes 10 thematic exercises covering:
-* **Module 1: Foundations** (Security Headers, Redirects, Normalization)
-* **Module 2: Origin Intelligence** (A/B Testing, Geo-Localization, Header Cleaning)
-* **Module 3: Edge Computing** (Custom Auth, Maintenance Pages, Payload Inspection)
-* **Module 4: Production Workflows** (Variable Baking & Deployment)
-
-Each exercise comes with a **Business Scenario**, **Starter Template**, and **Full Solution**.
-
 ---
 
 ## 🛠️ CLI Options & Configuration
 
-`cloudfrontize` is designed to be a drop-in replacement for the popular [serve](https://www.google.com/search?q=%5Bhttps://www.npmjs.com/package/serve%5D(https://www.npmjs.com/package/serve)), we all know and love, but with "Edge Superpowers!"
+`cloudfrontize` is designed to be a drop-in replacement for the popular [serve](https://www.npmjs.com/package/serve), we all know and love, but with "Edge Superpowers!"
 
 | Flag | Description                                                                                                                                                                                                                                                                   | Default                                                                                            |
 | --- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
@@ -116,6 +111,7 @@ Each exercise comes with a **Business Scenario**, **Starter Template**, and **Fu
 
 ---
 
+
 ## 🚀 Lambda@Edge Integration
 
 Since there is no AWS CloudFront Console to configure your triggers locally, **it is mandatory to include `exports.hookType` in your JavaScript file.** If this line is missing, CloudFrontize will not know when to fire your function and will ignore the file.
@@ -139,27 +135,15 @@ When pointing `--cff` to a directory, files must follow a strict naming conventi
 
 Files within a directory are executed in **lexicographical order**.
 
-### CFF Example (`viewer-request-redirect.js`)
+## 🛡️ Engineered for Fidelity
 
-```javascript
-function handler(event) {
-    var request = event.request;
-    var uri = request.uri;
+Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror the high-stakes environment of a live AWS PoP (Point of Presence).
 
-    // Direct response (short-circuits the pipeline)
-    if (uri === '/old-path') {
-        return {
-            statusCode: 301,
-            statusDescription: 'Moved Permanently',
-            headers: {
-                'location': { value: '/new-path' }
-            }
-        };
-    }
-
-    return request;
-}
-```
+* **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
+* **🧩 Multi-Hook Testing:** Pass a directory to `--edge` and CloudFrontize will automatically mount every valid Lambda it finds. Orchestrate your **Viewer Request**, **Origin Request**, and **Response** hooks in one unified local environment.
+* **📦 RequestBody Access:** Use `event.Records[0].cf.request.body` to access base64 encoded payloads. We support the standard AWS buffering logic.
+* **🚫 Strict Header & Body Validation:** Use `--strict` to identify "Read-only" or "Forbidden" headers for **both request and response hooks**, as well as the **40KB viewer-request body limit** and the **1MB generated response limit** in real-time. We trigger **502 Bad Gateway** errors locally for the same illegal mutations that fail in production.
+* **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
 
 ---
 
@@ -168,19 +152,11 @@ function handler(event) {
 
 We’ve bundled a complete, interactive sample to show you the power of **CloudFrontize**. It protects a premium dog photography gallery using a `viewer-request` authentication gate.
 
-### Launch the Secure Demo
+### Lambda@Edge sample
 Clone the GitHub repo 
 ```shell
 git clone https://github.com/felipecarrillo100/cloudfrontize.git
 ```
-Then run 
-```bash
-cloudfrontize ./www -e ./samples/medium/lambda-edge-authorization.js -d -C
-```
-* The `www` folder contains the sample files (html, js, css, etc.)
-* The `lambda-edge-authorization.js` contains the lambda@edge logic
-* The `-d` option enables debug messages while `-C` enables CORS
-* Default port is 3000, you can now open your browser at http://localhost:3000/
 
 ### The Sample Logic (`lambda-edge-authorization.js`)
 
@@ -200,7 +176,7 @@ exports.handler = (event, context, callback) => {
 
     // Credentials for demo purposes
     const user = "admin";
-    const password = "pass";
+    const password = "password";
 
     const authString = "Basic " + Buffer.from(user + ":" + password).toString("base64");
 
@@ -227,26 +203,65 @@ exports.handler = (event, context, callback) => {
     callback(null, request);
 };
 ```
+Then run
+```bash
+cloudfrontize ./www -e ./samples/medium/lambda-edge-authorization.js -d -C
+```
+* The `www` folder contains the sample files (html, js, css, etc.)
+* The `lambda-edge-authorization.js` contains the lambda@edge logic
+* The `-d` option enables debug messages while `-C` enables CORS
+* Default port is 3000, you can now open your browser at http://localhost:3000/
+* The user: admin and the password: password as you see in the Lambda@Edge logic.  
 
+### A CFF Example
+Your file must start with `viewer-request` or `viewer-response` to let the simulator know the type of CFF we want to execute. In this case we have called it:`viewer-request-redirect.js`
+```javascript
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+
+    // Direct response (short-circuits the pipeline)
+    if (uri === '/promo') {
+        return {
+            statusCode: 301,
+            statusDescription: 'Moved Permanently',
+            headers: {
+                'location': { value: '/summer-sale' }
+            }
+        };
+    }
+
+    return request;
+}
+```
+
+Run with:
+```bash
+cloudfrontize ./www --cff ./samples/cff/viewer-request-redirect.js -d --mode website
+```
+* `-d` Enabled debug, and `--mode website` takes care of appending `index.html` to folders
+* Open in browser  http://localhost:3000/promo
+* You will be redirected tot http://localhost:3000/summer-sale
 ---
 
-### 🛡️ Engineered for Fidelity 
+## 🎓 CloudFrontize Academy (Tutorial)
 
-Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror the high-stakes environment of a live AWS PoP (Point of Presence).
+New to Lambda@Edge? We've built a comprehensive, hands-on tutorial to take you from **Newbie to Production Pro**.
 
-* **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
-* **🧩 Multi-Hook Testing:** Pass a directory to `--edge` and CloudFrontize will automatically mount every valid Lambda it finds. Orchestrate your **Viewer Request**, **Origin Request**, and **Response** hooks in one unified local environment.
-* **📦 RequestBody Access:** Use `event.Records[0].cf.request.body` to access base64 encoded payloads. We support the standard AWS buffering logic.
-* **🚫 Strict Header & Body Validation:** Use `--strict` to identify "Read-only" or "Forbidden" headers for **both request and response hooks**, as well as the **40KB viewer-request body limit** and the **1MB generated response limit** in real-time. We trigger **502 Bad Gateway** errors locally for the same illegal mutations that fail in production.
-* **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
+Our **[CloudFrontize Academy](./tutorial/README.md)** includes 10 thematic exercises covering:
+* **Module 1: Foundations** (Security Headers, Redirects, Normalization)
+* **Module 2: Origin Intelligence** (A/B Testing, Geo-Localization, Header Cleaning)
+* **Module 3: Edge Computing** (Custom Auth, Maintenance Pages, Payload Inspection)
+* **Module 4: Production Workflows** (Variable Baking & Deployment)
+* **Module 5: Cloud Front Functions** (CFF)
+
+Each exercise comes with a **Business Scenario**, **Starter Template**, and **Full Solution**.
 
 ---
-
 
 ### License
 
 **CloudFrontize** is licensed under the **[PolyForm Noncommercial 1.0.0](https://www.google.com/search?q=https://polyformproject.org/licenses/noncommercial/1.0.0/)**. For the full legal text and specific terms, please refer to the [LICENSE](https://www.google.com/search?q=./LICENSE) file in this package.
-
 
 * **✅ Free for Individuals & Education:** 100% free for personal projects, open-source contributions, students, and researchers. This includes full access to the **CloudFrontize Academy**.
 * **💼 Requires a Commercial License:** Use by for-profit organizations, or for work performed on behalf of a for-profit entity, requires a paid Commercial License.

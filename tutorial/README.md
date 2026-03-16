@@ -28,6 +28,11 @@ The tutorial is organized into four thematic modules. Each module contains real-
 *Baking code for the real world.*
 - **4.1 The Baker**: Using `.env` variables and code baking.
 
+### [Module 5: Cloud Front Functions (CFF)](./module-5-cff/README.md)
+*A completely new tutorial focused only on Cloud Front Functions.*
+
+---
+
 ### 📂 The `www` Directory
 Most examples use the `www` folder as the static directory. This is the **"Paws" Dog Adoption** sample project provided with the CloudFrontize repository. 
 
