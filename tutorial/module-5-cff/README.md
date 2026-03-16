@@ -62,7 +62,7 @@ All solutions are organized by level in the `solutions` folder:
 ## 🔗 Resources
 
 - [AWS CloudFront Functions Documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html)
-- [CloudFrontize Emulator GitHub](https://github.com/felipecarrillo100/cloudfrontize-lambda-at-edge) – Run CFF locally for testing.
+- [CloudFrontize Emulator GitHub](https://github.com/felipecarrillo100/cloudfrontize) – Run CFF locally for testing.
 - [JavaScript EC5 Reference](https://www.ecma-international.org/ecma-262/5.1/) – Compatible JS version for CFF.
 
 ---
