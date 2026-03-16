@@ -379,11 +379,27 @@ class CFFRunner {
         // If it's a response object (now or after extraction)
         if (target.statusCode) {
             const headers = {};
+
+            // 1. Existing Header Logic
             if (target.headers) {
                 for (const [k, v] of Object.entries(target.headers)) {
                     headers[k.toLowerCase()] = [{ key: k, value: v.value }];
                 }
             }
+
+            // NEW: Serialize the CFF cookie object into actual Set-Cookie headers
+            if (target.cookies) {
+                if (!headers['set-cookie']) headers['set-cookie'] = [];
+
+                for (const [cookieName, cookieObj] of Object.entries(target.cookies)) {
+                    let cookieStr = `${cookieName}=${cookieObj.value}`;
+                    if (cookieObj.attributes) cookieStr += `; ${cookieObj.attributes}`;
+
+                    headers['set-cookie'].push({ key: 'Set-Cookie', value: cookieStr });
+                }
+            }
+
+            // Return
             return {
                 status: target.statusCode,
                 statusDescription: target.statusDescription || 'OK',
