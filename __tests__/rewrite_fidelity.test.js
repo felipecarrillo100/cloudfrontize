@@ -19,7 +19,7 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
 
         // Original file exists
         fs.writeFileSync(path.join(tmpDir, 'test.js'), 'console.log("original")');
-        
+
         // Rewritten file DOES NOT exist initially
         // We will mock an edge function that rewrites /test.js -> /test.js.br
         fs.writeFileSync(path.join(edgeDir, 'rewrite.js'), `
@@ -42,14 +42,24 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
 
     afterEach(async () => {
         if (server) await server.closeGracefully();
+        // CRITICAL: Stop the runner to release Windows file handles
+        if (edgeRunner) edgeRunner.close();
     });
 
     test('Default Mode: Should warn and fallback to original file if rewritten target is missing', async () => {
         const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-        server = startServer({ directory: tmpDir, port, edgeRunner, noRequestLogging: true });
-        
+
+        // Pass watch: false here so the INTERNAL CFFRunner also stays disabled
+        server = startServer({
+            directory: tmpDir,
+            port,
+            edgeRunner,
+            watch: false, // <--- ADD THIS LINE
+            noRequestLogging: true
+        });
+
         const res = await request(server).get('/test.js').set('Accept-Encoding', 'br');
-        
+
         expect(res.status).toBe(200);
         expect(spy).toHaveBeenCalledWith(expect.stringContaining('Lambda rewritten URI to "/test.js.br" but file was not found'));
         spy.mockRestore();
@@ -58,9 +68,9 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
     test('Strict Mode: Should return 404 if rewritten target is missing', async () => {
         const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
         server = startServer({ directory: tmpDir, port, edgeRunner, strict: true, noRequestLogging: true });
-        
+
         const res = await request(server).get('/test.js').set('Accept-Encoding', 'br');
-        
+
         // serve-handler should 404 because /test.js.br doesn't exist and we didn't fallback
         expect(res.status).toBe(404);
         spy.mockRestore();
@@ -70,15 +80,15 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
         const zlib = require('zlib');
         const content = 'brotli compressed content';
         const compressed = zlib.brotliCompressSync(Buffer.from(content));
-        
+
         fs.writeFileSync(path.join(tmpDir, 'test.js.br'), compressed);
-        
+
         server = startServer({ directory: tmpDir, port, edgeRunner, noRequestLogging: true });
-        
+
         const res = await request(server)
             .get('/test.js')
             .set('Accept-Encoding', 'br');
-        
+
         expect(res.status).toBe(200);
         expect(res.header['content-encoding']).toBe('br');
         expect(res.text).toBe(content);

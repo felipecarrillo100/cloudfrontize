@@ -37,7 +37,6 @@ class EdgeRunner {
         this.watchers = [];
         this.whitelist = [...AWS_RUNTIME.ENV_WHITELIST];
 
-        this._loadFidelityFiles();
         this._load();
 
         if (options.watch !== false) {
@@ -51,12 +50,16 @@ class EdgeRunner {
 
     _load(changedFile) {
         // Notify Hot reload to user
-        if (changedFile) {
+        if (changedFile && this.debug) { // Only log if debug is true
             console.log(`\x1b[36m🔄 [EdgeRunner] Hot Reload triggered by: ${changedFile}\x1b[0m`);
-        } else {
+        } else if (this.debug) {
             console.log(`\x1b[36m🚀 [EdgeRunner] Initializing edge modules...\x1b[0m`);
         }
 
+        // CRITICAL: Refresh variables from disk BEFORE processing JS files
+        this._loadFidelityFiles();
+
+        // Reset module registry
         Object.keys(this.modules).forEach(k => this.modules[k] = []);
         if (!fs.existsSync(this.edgePath)) return;
 
@@ -493,22 +496,44 @@ class EdgeRunner {
         try { return JSON.parse(JSON.stringify(obj)); } catch (e) { return { ...obj }; }
     }
 
+    /* Update _loadFidelityFiles to clear old state (prevents "ghost" vars) */
     _loadFidelityFiles() {
+        // Reset to defaults so deleted vars actually disappear
+        this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV };
+        this.bakeVars = {};
+
         if (this.envPath && fs.existsSync(this.envPath)) {
-            const raw = dotenv.parse(fs.readFileSync(this.envPath));
-            for (const [k, v] of Object.entries(raw)) {
-                if (!this.whitelist.includes(k)) throw new Error(`Restricted Variable: "${k}"`);
-                this.envVars[k] = v;
+            try {
+                const raw = dotenv.parse(fs.readFileSync(this.envPath));
+                for (const [k, v] of Object.entries(raw)) {
+                    if (!this.whitelist.includes(k)) throw new Error(`Restricted Variable: "${k}"`);
+                    this.envVars[k] = v;
+                }
+            } catch (err) {
+                console.error(`🛑 [EdgeRunner] Env Load Error: ${err.message}`);
+                throw err; // <--- THIS IS THE MISSING PIECE, allowed so the test pass
             }
         }
+
         if (this.bakePath && fs.existsSync(this.bakePath)) {
-            this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
+            try {
+                this.bakeVars = dotenv.parse(fs.readFileSync(this.bakePath));
+            } catch (err) {
+                console.error(`🛑 [EdgeRunner] Bake Load Error: ${err.message}`);
+            }
         }
     }
 
     _watch() {
         [this.edgePath, this.envPath, this.bakePath].filter(Boolean).forEach(t => {
-            if (fs.existsSync(t)) this.watchers.push(fs.watch(t, (eventType, filename) => this._load(filename)));
+            if (fs.existsSync(t)) {
+                const w = fs.watch(t, (eventType, filename) => {
+                    // Windows Safety: If the path is being deleted, abort the reload
+                    if (!fs.existsSync(t)) return;
+                    this._load(filename);
+                });
+                this.watchers.push(w);
+            }
         });
     }
 

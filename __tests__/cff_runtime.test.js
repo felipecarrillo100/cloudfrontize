@@ -7,20 +7,40 @@ const path = require('path');
 describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
     const rootDir = path.resolve(__dirname, '..');
     const baseDir = path.join(rootDir, 'tmp_test', 'cff_fidelity');
+    let runner =  null; // Store current runner here
 
     beforeAll(() => {
         if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
         fs.mkdirSync(baseDir, { recursive: true });
     });
 
+    afterEach(() => {
+        if (runner && typeof runner.close === 'function') {
+            runner.close();
+            runner=null;
+        }
+    });
+
     afterAll(() => {
-        if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
+        if (fs.existsSync(baseDir)) {
+            // recursive: true is good, but on Windows, retries are the secret sauce
+            try {
+                fs.rmSync(baseDir, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 5,
+                    retryDelay: 100
+                });
+            } catch (e) {
+                console.warn(`Final cleanup warning: ${e.message}`);
+            }
+        }
     });
 
     test('🛡️ CFF Sandbox: Should NOT have access to require', async () => {
         const testDir = path.join(baseDir, 'sandbox');
         fs.mkdirSync(testDir, { recursive: true });
-        
+
         fs.writeFileSync(path.join(testDir, 'viewer-request-jail.js'), `
             function handler(event) {
                 var status = "shield_held";
@@ -30,7 +50,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
             }
         `);
 
-        const runner = new CFFRunner(testDir);
+        runner = new CFFRunner(testDir);
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
         const result = await runner.runChain('viewer-request', event);
 
@@ -40,7 +60,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
     test('⚡ CFF CPU Limit: Should warn when exceeding 1ms', async () => {
         const testDir = path.join(baseDir, 'cpu');
         fs.mkdirSync(testDir, { recursive: true });
-        
+
         // Loop for ~2ms
         fs.writeFileSync(path.join(testDir, 'viewer-request-slow.js'), `
             function handler(event) {
@@ -51,7 +71,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
         `);
 
         const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-        const runner = new CFFRunner(testDir);
+        runner = new CFFRunner(testDir);
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
         await runner.runChain('viewer-request', event);
 
@@ -62,7 +82,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
     test('📂 CFF Lexicographical Chaining: Should execute in order', async () => {
         const testDir = path.join(baseDir, 'ordering');
         fs.mkdirSync(testDir, { recursive: true });
-        
+
         fs.writeFileSync(path.join(testDir, 'viewer-request-01.js'), `
             function handler(event) {
                 event.request.headers['x-order'] = { value: (event.request.headers['x-order'] ? event.request.headers['x-order'].value : '') + '1' };
@@ -76,7 +96,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
             }
         `);
 
-        const runner = new CFFRunner(testDir, { debug: true });
+        runner = new CFFRunner(testDir, { debug: true });
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
         const result = await runner.runChain('viewer-request', event);
 
@@ -84,7 +104,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
     });
 
     test('🔄 CFF Event Mapping: Bidirectional validation', () => {
-        const runner = new CFFRunner();
+        runner = new CFFRunner();
         const req = {
             method: 'POST',
             url: '/test?foo=bar',
@@ -116,9 +136,9 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
         const testDir = path.join(baseDir, 'baking');
         const outputDir = path.join(testDir, '_output');
         const bakeFile = path.join(testDir, 'vars.env');
-        
+
         fs.mkdirSync(testDir, { recursive: true });
-        
+
         fs.writeFileSync(bakeFile, 'API_KEY=xyz123\nDEBUG=true');
         fs.writeFileSync(path.join(testDir, 'viewer-request-bake.js'), `
             function handler(event) {
@@ -129,7 +149,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
             }
         `);
 
-        const runner = new CFFRunner(testDir, {
+        runner = new CFFRunner(testDir, {
             bakePath: bakeFile,
             outputPath: outputDir
         });

@@ -374,6 +374,7 @@ function startServer(options) {
     server.closeGracefully = function () {
         return new Promise(resolve => {
             if (edgeRunner) edgeRunner.close();
+            if (cffRunner) cffRunner.close();
             for (const socket of sockets) socket.destroy();
             server.close(() => resolve());
         });

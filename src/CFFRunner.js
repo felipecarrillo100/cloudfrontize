@@ -14,6 +14,7 @@ class CFFRunner {
         this.outputPath = options.outputPath;
         this.bakePath = options.bakePath;
         this.bakeVars = {};
+        this.watchers = [];
 
         // 1. Initialize Validator with strictness from options
         this.validator = new CFFValidator({ strict: !!options.strict });
@@ -59,22 +60,28 @@ class CFFRunner {
     // Enable watch
     _watch() {
         if (!this.sourcePath) return;
-
-        // Resolve path once to avoid Windows slash issues
         const targetPath = path.resolve(this.sourcePath);
 
-        fs.watch(targetPath, { recursive: true }, (eventType, filename) => {
-            // filename might be null or just the name; we use sourcePath as fallback
-            const changedFile = filename || path.basename(targetPath);
+        // 1. Initial check
+        if (!fs.existsSync(targetPath)) return;
 
-            // This is what triggers the 🔄 messages you want to see!
+        const watcher = fs.watch(targetPath, { recursive: true }, (eventType, filename) => {
+            // 2. THE CRITICAL FIX: If the directory was just deleted, Windows
+            // will fire this event. If we don't return here, the next line
+            // (loadFunctions) will crash the entire process.
+            if (!fs.existsSync(targetPath)) return;
+
+            const changedFile = filename || path.basename(targetPath);
             this.loadFunctions(changedFile);
         });
 
-        // Watch also bake file
-        if (this.bakePath) {
-            fs.watch(path.resolve(this.bakePath), () => this.loadFunctions('bake-vars'));
-        }
+        // Handle internal errors so they don't crash Node
+        watcher.on('error', (err) => {
+            if (err.code === 'EPERM') return; // Ignore Windows delete-race errors
+            console.error('Watcher error:', err);
+        });
+
+        this.watchers.push(watcher);
     }
 
     loadFunctions(changedFile) {
@@ -387,6 +394,13 @@ class CFFRunner {
         }
 
         return null;
+    }
+
+    close() {
+        if (this.watchers) {
+            this.watchers.forEach(w => w.close());
+            this.watchers = [];
+        }
     }
 }
 
