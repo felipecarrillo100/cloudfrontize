@@ -387,7 +387,7 @@ class CFFRunner {
                 }
             }
 
-            // NEW: Fix serialize the CFF cookie object into actual Set-Cookie headers
+            // NEW: Fixed serialize the CFF cookie object into actual Set-Cookie headers
             if (target.cookies) {
                 if (!headers['set-cookie']) headers['set-cookie'] = [];
 
