@@ -19,4 +19,5 @@ jobs:
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
+          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
           release-type: node

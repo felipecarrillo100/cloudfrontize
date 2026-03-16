@@ -3,6 +3,7 @@ name: Release & Publish
 on:
   release:
     types: [published] # Changed from 'created' for better reliability
+  workflow_dispatch: # To have a button for manual publish on click
 
 jobs:
   publish:
