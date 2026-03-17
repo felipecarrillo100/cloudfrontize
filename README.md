@@ -12,7 +12,9 @@
 
 Test your Edge logic locally in milliseconds instead of waiting 15 minutes for CloudFront deployments.
 
-![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png)
+<img alt="Cloudfrontize Banner" src="https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png" width="45%" />
+<img alt="Cloudfrontize Web UI" src="https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg" width="45%" />
+
 ---
 ## 📦 Getting started
 Get up and running in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
