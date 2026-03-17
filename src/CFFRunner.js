@@ -138,9 +138,7 @@ class CFFRunner {
         const isValid = this.validator.validate(filename, code);
         if (!isValid && this.options.strict) return; // Validator handles exit(1) internally
 
-        // Add this log here:
-        console.log(`✅ [CFF] Registered and Baked: ${filename}`);
-
+        
         // --- STEP 3: OUTPUT SAVING ---
         if (this.outputPath) {
             fs.mkdirSync(this.outputPath, { recursive: true });
@@ -167,9 +165,12 @@ class CFFRunner {
 
     async runChain(type, initialEvent) {
         let currentEvent = initialEvent;
+        let totalCpuTimeMs = 0;
 
         for (const fn of this.functions[type]) {
-            const result = this.executeSync(fn, currentEvent);
+            const { result, cpuTimeMs } = this.executeSync(fn, currentEvent);
+            totalCpuTimeMs += cpuTimeMs;
+
             if (result) {
                 if (result.method || result.uri) {
                     currentEvent.request = result;
@@ -186,6 +187,9 @@ class CFFRunner {
             }
         }
 
+        if (currentEvent) {
+            currentEvent.totalCpuTimeMs = totalCpuTimeMs;
+        }
         return currentEvent;
     }
 
@@ -240,10 +244,10 @@ class CFFRunner {
                 console.warn(`⚠️  [CFF] ${fn.name} exceeded 1ms CPU limit (Used: ${cpuTimeMs.toFixed(2)}ms). AWS may throttle this function.`);
             }
 
-            return result;
+            return { result, cpuTimeMs };
         } catch (err) {
             console.error(`🛑 [CFF] Execution Error in ${fn.name}: ${err.message}`);
-            return null;
+            return { result: null, cpuTimeMs: 0 };
         }
     }
 

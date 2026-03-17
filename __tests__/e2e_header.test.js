@@ -44,7 +44,14 @@ describe('E2E: Header Handshake & Hook Fidelity', () => {
         const res_code = `
             exports.hookType = 'origin-response';
             exports.handler = async (event) => {
+                const request = event.Records[0].cf.request;
                 const response = event.Records[0].cf.response;
+                
+                // Fidelity: If request had x-verified, mirror it to response
+                if (request.headers['x-verified']) {
+                    response.headers['x-verified'] = request.headers['x-verified'];
+                }
+
                 if (response.headers['server']) delete response.headers['server'];
                 return response;
             };

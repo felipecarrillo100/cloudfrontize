@@ -8,7 +8,8 @@
     "cloudfrontize": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/ui"
   ],
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true})\"",

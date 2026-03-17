@@ -174,18 +174,21 @@ class EdgeRunner {
 
     async runRequestHook(req, bodyBuffer, requestID = 'UNKNOWN') {
         let request = this._buildRequestRecord(req, bodyBuffer);
+        let totalDurationMs = 0;
 
         for (const type of ['viewer-request', 'origin-request']) {
             for (const mod of this.modules[type]) {
                 const originalHeaders = this._deepClone(request.headers);
 
                 // Invoke the Lambda handler within the log context
-                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
+                const { result, durationMs } = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
                     this._invoke(mod.handler, request, type)
                 );
+                
+                totalDurationMs += durationMs;
 
-                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return null
-                if (result === null && this.strict) return null;
+                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return a timeout marker
+                if (result === null && this.strict) return { _timeout: true, totalDurationMs };
                 if (!result) continue;
 
                 // Short-circuit: Response returned instead of request mutation
@@ -193,6 +196,7 @@ class EdgeRunner {
                     const finalResponse = this._flatten(result);
                     finalResponse._isResponse = true;
                     finalResponse.type = type;
+                    finalResponse.totalDurationMs = totalDurationMs;
                     return finalResponse;
                 }
 
@@ -219,7 +223,11 @@ class EdgeRunner {
             }
         }
 
-        return this._flatten(request);
+        const flattened = this._flatten(request);
+        if (flattened) {
+            flattened.totalDurationMs = totalDurationMs;
+        }
+        return flattened;
     }
 
     /* =========================================================
@@ -228,6 +236,7 @@ class EdgeRunner {
 
     async runResponseHook(req, resData, requestID = 'UNKNOWN') {
         const request = this._buildRequestRecord(req);
+        let totalDurationMs = 0;
         let response = {
             status: String(resData.status || 200),
             statusDescription: 'OK',
@@ -238,12 +247,13 @@ class EdgeRunner {
             for (const mod of this.modules[type]) {
                 const originalHeaders = this._deepClone(response.headers);
 
-                const result = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
+                const { result, durationMs } = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
                     this._invoke(mod.handler, { request, response }, type)
                 );
+                totalDurationMs += durationMs;
 
-                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return null
-                if (result === null && this.strict) return null;
+                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return a timeout marker
+                if (result === null && this.strict) return { _timeout: true, totalDurationMs };
 
                 response = result?.response || result || response;
 
@@ -253,7 +263,11 @@ class EdgeRunner {
                 }
             }
         }
-        return this._flatten(response);
+        const flattened = this._flatten(response);
+        if (flattened) {
+            flattened.totalDurationMs = totalDurationMs;
+        }
+        return flattened;
     }
 
     /* =========================================================
@@ -287,7 +301,7 @@ class EdgeRunner {
 
                 if (this.strict) {
                     resolved = true;
-                    resolve(null); // Abort execution in strict mode
+                    resolve({ result: null, durationMs: Date.now() - startTime }); // Abort execution in strict mode
                 }
             }, limit);
 
@@ -302,11 +316,12 @@ class EdgeRunner {
                     resolved = true;
                     clearTimeout(timer);
 
+                    const durationMs = Date.now() - startTime;
                     if (timedOut && !this.strict) {
                         const ctx = this.logContext.getStore() || { requestId: 'UNKNOWN', hookType: type };
-                        console.warn(`⚠️  [${ctx.requestId}] [${ctx.hookType}] Fidelity Warning: Handler took ${((Date.now() - startTime) / 1000).toFixed(2)}s, exceeding the AWS ${limit / 1000}s limit.`);
+                        console.warn(`⚠️  [${ctx.requestId}] [${ctx.hookType}] Fidelity Warning: Handler took ${(durationMs / 1000).toFixed(2)}s, exceeding the AWS ${limit / 1000}s limit.`);
                     }
-                    resolve(res);
+                    resolve({ result: res, durationMs });
                 };
 
                 const result = handler(event, context, (err, res) => {

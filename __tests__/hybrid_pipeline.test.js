@@ -35,9 +35,11 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
         fs.writeFileSync(path.join(edgeDir, 'response.js'), `
             exports.hookType = 'viewer-response';
             exports.handler = async (event) => {
+                const req = event.Records[0].cf.request;
                 const res = event.Records[0].cf.response;
-                res.headers['x-pipeline'] = [{key: 'x-pipeline', value: (res.headers['x-pipeline'] ? res.headers['x-pipeline'][0].value : '') + ' -> L@E-RES'}];
-                return event.Records[0].cf;
+                const prev = res.headers['x-pipeline'] ? res.headers['x-pipeline'][0].value : (req.headers['x-pipeline'] ? req.headers['x-pipeline'][0].value : '');
+                res.headers['x-pipeline'] = [{key: 'x-pipeline', value: prev + ' -> L@E-RES'}];
+                return res;
             };
         `);
 
@@ -51,8 +53,10 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
         `);
         fs.writeFileSync(path.join(cffDir, 'viewer-response-main.js'), `
             function handler(event) {
+                var req = event.request;
                 var res = event.response;
-                res.headers['x-pipeline'] = { value: (res.headers['x-pipeline'] ? res.headers['x-pipeline'].value : '') + ' -> CFF-RES' };
+                var prev = res.headers['x-pipeline'] ? res.headers['x-pipeline'].value : (req.headers['x-pipeline'] ? req.headers['x-pipeline'].value : '');
+                res.headers['x-pipeline'] = { value: prev + ' -> CFF-RES' };
                 return res;
             }
         `);
@@ -61,8 +65,9 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
             port: 0,
             directory: wwwDir,
             edgeRunner: new EdgeRunner(edgeDir, { watch: false }),
-            cffRunner: new CFFRunner(cffDir),
-            noRequestLogging: true
+            cffRunner: new CFFRunner(cffDir, { debug: true }),
+            noRequestLogging: false,
+            debug: true
         });
     });
 
@@ -80,7 +85,12 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
     });
 
     test('🛑 CFF Short-circuit: Should skip L@E if CFF returns response', async () => {
-        fs.writeFileSync(path.join(cffDir, 'viewer-request-redirect.js'), `
+        // Create a separate CFF directory for this test's unique short-circuit behavior
+        const cffDirShort = path.join(baseDir, 'cff_short');
+        if (fs.existsSync(cffDirShort)) fs.rmSync(cffDirShort, { recursive: true, force: true });
+        fs.mkdirSync(cffDirShort, { recursive: true });
+
+        fs.writeFileSync(path.join(cffDirShort, 'viewer-request-redirect.js'), `
             function handler(event) {
                 if (event.request.uri === '/redirect') {
                     return {
@@ -96,9 +106,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
             }
         `);
         
-        // Restart server or just update runner if it watched (but we disabled watch for edge, CFF doesn't have watch yet)
-        // Actually, just creating a new server for this test case is cleaner
-        const cffRunnerShort = new CFFRunner(cffDir);
+        const cffRunnerShort = new CFFRunner(cffDirShort);
         const serverShort = startServer({
             port: 0,
             directory: wwwDir,

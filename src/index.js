@@ -7,16 +7,27 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
-const { HeaderParser } = require('./headerParser'); // Assuming the filename is HeaderParser.js
+const { HeaderParser } = require('./headerParser'); 
+const EventEmitter = require('events');
+
 
 function startServer(options) {
     const { edgeRunner, cffRunner, headersPath } = options;
+
+    // --- RE-INITIALIZE STATE ON EACH START ---
+    const localHistory = new Map();
+    const localOverrides = { request: {}, response: {} };
+    const localEvents = new EventEmitter();
 
     // --- NEW: Parse headers into separate buckets ---
     const parser = new HeaderParser();
     const { requestHeaders, responseHeaders } = parser.parse(headersPath);
     // Merge with options.defaultHeaders (likely used in your automated tests)
     const finalRequestHeaders = { ...requestHeaders, ...(options.defaultHeaders || {}) };
+
+    // Initialize header overrides from the file defaults if available
+    localOverrides.request = { ...finalRequestHeaders };
+    localOverrides.response = { ...responseHeaders };
 
     const compressMiddleware = compression({
         filter: (req, res) => {
@@ -29,22 +40,6 @@ function startServer(options) {
         const acceptEncoding = req.headers['accept-encoding'] || '';
         const requestID = crypto.randomBytes(4).toString('hex');
 
-        // === 0. HEADER INJECTION (Dual Context) ===
-
-        // A. Inject Request Headers (Simulating the Browser/Viewer)
-        for (const [key, value] of Object.entries(finalRequestHeaders)) {
-            const lowerKey = key.toLowerCase();
-            if (req.headers[lowerKey] === undefined) {
-                req.headers[lowerKey] = value;
-            }
-        }
-
-        // B. Inject Response Headers (Simulating the Origin)
-        // We set these on 'res' so the Lambda@Edge origin-response hook sees them
-        for (const [key, value] of Object.entries(responseHeaders)) {
-            res.setHeader(key, value);
-        }
-
         // === 0. BODY BUFFERING ===
         let bodyBuffer = null;
         if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -56,6 +51,63 @@ function startServer(options) {
             });
         }
 
+        // Telemetry Data (Initialized after bodyBuffer)
+        const telemetry = {
+            id: requestID,
+            method: req.method,
+            path: req.url,
+            steps: [{ uri: req.url, label: 'Viewer Request' }],
+            status: 200,
+            cpu: 0,
+            violation: null,
+            headers: {
+                request: { viewer: { ...req.headers }, origin: {} },
+                response: { origin: {}, viewer: {} }
+            },
+            bodySnippet: bodyBuffer ? bodyBuffer.toString('utf8', 0, 1024) : null
+        };
+
+        const broadcast = () => {
+            // Final Capture: What actually reaches the client
+            telemetry.headers.response.viewer = res.getHeaders();
+            localHistory.set(requestID, { ...telemetry, timestamp: new Date().toISOString() });
+            if (localHistory.size > 50) {
+                const firstKey = localHistory.keys().next().value;
+                localHistory.delete(firstKey);
+            }
+
+            setImmediate(() => localEvents.emit('log', telemetry));
+        };
+
+        // === 0. HEADER INJECTION (Dual Context) ===
+
+        // A. Inject Request Headers (Simulating the Browser/Viewer)
+        const activeReqHeaders = { ...finalRequestHeaders, ...localOverrides.request };
+        for (const [key, value] of Object.entries(activeReqHeaders)) {
+            const lowerKey = key.toLowerCase();
+            if (value === null) {
+                // Explicit Suppression (Deletion)
+                delete req.headers[lowerKey];
+            } else if (req.headers[lowerKey] === undefined || localOverrides.request[key] !== undefined) {
+                // Inject if missing OR explicitly overridden in UI
+                req.headers[lowerKey] = value;
+            }
+        }
+
+        // B. Inject Response Headers (Simulating the Origin)
+        const activeResHeaders = { ...responseHeaders, ...localOverrides.response };
+        for (const [key, value] of Object.entries(activeResHeaders)) {
+            if (value === null) {
+                res.removeHeader(key);
+            } else {
+                res.setHeader(key, value);
+            }
+        }
+
+        // Bridge: Capture "Origin Request" state (After overrides, before hooks)
+        // We will update this again after viewer-request hooks if they run.
+        telemetry.headers.request.origin = { ...req.headers };
+
         // === 1. REQUEST HOOKS ===
 
         // --- 1a. CloudFront Functions (viewer-request) ---
@@ -63,6 +115,8 @@ function startServer(options) {
             try {
                 const cffEvent = cffRunner.toCFFEvent(req, bodyBuffer, 'viewer-request');
                 const cffResult = await cffRunner.runChain('viewer-request', cffEvent);
+                const totalCpuTimeMs = cffResult?.totalCpuTimeMs || 0;
+                telemetry.cpu += totalCpuTimeMs;
                 const mappedResult = cffRunner.fromCFFEvent(cffResult);
 
                 if (mappedResult) {
@@ -78,23 +132,31 @@ function startServer(options) {
                         }
                         res.writeHead(status);
                         res.end(mappedResult.body || '');
+                        telemetry.status = status;
+                        broadcast();
                         return;
                     }
 
-                    if (mappedResult.url) req.url = mappedResult.url;
+                    if (mappedResult.url) {
+                        req.url = mappedResult.url;
+                        telemetry.steps.push({ uri: req.url, label: '[CFF] viewer-request rewrite' });
+                    }
                     if (mappedResult.headers) {
                         for (const [k, values] of Object.entries(mappedResult.headers)) {
                             if (values && values.length > 0) {
-                                // Sync first value to req.headers for downstream L@E access
-                                req.headers[k.toLowerCase()] = values[0].value;
-                                const headerVals = values.map(v => v.value);
-                                res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                                // Sync values to req.headers for downstream L@E access
+                                // This is for THE ORIGIN request, not the response back to user.
+                                const lowerKey = k.toLowerCase();
+                                req.headers[lowerKey] = values.map(v => v.value).join(', ');
                             }
                         }
                     }
                 }
+                // Capture mutations after CFF viewer-request
+                telemetry.headers.request.origin = { ...req.headers };
             } catch (err) {
                 console.error(`🛑 [CFF] viewer-request error: ${err.message}`);
+                telemetry.violation = `CFF Error: ${err.message}`;
             }
         }
 
@@ -107,6 +169,9 @@ function startServer(options) {
                     console.error(`🛑 ${msg} - AWS would reject this request via viewer-request.`);
                     res.writeHead(502, { 'Content-Type': 'text/plain' });
                     res.end('Bad Gateway (Body too large for viewer-request)');
+                    telemetry.status = 502;
+                    telemetry.violation = 'Body too large for viewer-request';
+                    broadcast();
                     return;
                 }
                 console.warn(`⚠️  ${msg}. This is allowed locally but AWS will reject it.`);
@@ -114,11 +179,16 @@ function startServer(options) {
 
             try {
                 const hookResult = await edgeRunner.runRequestHook(req, bodyBuffer, requestID);
+                const totalDurationMs = hookResult?.totalDurationMs || 0;
+                telemetry.cpu += totalDurationMs; 
 
-                if (hookResult === null && options.strict) {
+                if (hookResult?._timeout && options.strict) {
                     console.error('🛑 Strict Mode Violation: Lambda execution timed out and was aborted.');
+                    telemetry.violation = 'Lambda Execution Timeout';
                     res.writeHead(502, { 'Content-Type': 'text/plain' });
                     res.end('Bad Gateway (Lambda Execution Timeout)');
+                    telemetry.status = 502;
+                    broadcast();
                     return;
                 }
 
@@ -131,10 +201,14 @@ function startServer(options) {
                             const msg = `[CloudFrontize] Generated response exceeds 1MB limit (Current: ${(bodySize / (1024 * 1024)).toFixed(2)}MB)`;
                             if (options.strict) {
                                 console.error(`🛑 ${msg} - AWS would reject this response.`);
+                                telemetry.violation = 'Generated response too large (>1MB)';
                                 res.writeHead(502, { 'Content-Type': 'text/plain' });
                                 res.end('Bad Gateway (Generated response too large)');
+                                telemetry.status = 502;
+                                broadcast();
                                 return;
                             }
+                            telemetry.violation = 'Fidelity Warning: Generated response too large (>1MB)';
                             console.warn(`⚠️  ${msg}. This is allowed locally but AWS will reject it.`);
                         }
 
@@ -149,11 +223,14 @@ function startServer(options) {
                         }
                         res.writeHead(status);
                         res.end(body);
+                        telemetry.status = status;
+                        broadcast();
                         return;
                     }
 
                     // === FIDELITY: REWRITE HANDLING ===
                     if (hookResult.url) {
+                        telemetry.steps.push({ uri: hookResult.url, label: 'L@E viewer/origin-request' });
                         const potentialPath = path.join(options.directory, decodeURIComponent(hookResult.url.split('?')[0]));
                         const exists = fs.existsSync(potentialPath);
 
@@ -171,21 +248,23 @@ function startServer(options) {
                                 // In strict mode, we apply the rewrite anyway. serve-handler will then 404.
                                 // This matches AWS behavior where a missing rewrite target results in a 404.
                                 req.url = hookResult.url;
+                                telemetry.steps.push({ uri: req.url, label: 'L@E rewrite (applied)' });
                             } else {
                                 // Default mode: Safety fallback to the original file to prevent local 404s.
                                 // But we MUST warn the user that this is non-fidelity behavior.
+                                telemetry.violation = 'Fidelity Warning: Rewrite target not found';
                                 console.warn(`⚠️  [CloudFrontize] Lambda rewritten URI to "${hookResult.url}" but file was not found at "${potentialPath}".`);
                                 console.warn(`   Falling back to original file. (Note: AWS Lambda@Edge would return a 404 for this request).`);
                             }
                         }
                     }
 
-                    // Sync custom headers (Mobile/Geo/Security)
+                    // Sync custom headers (Mobile/Geo/Security) to the REQUEST
                     if (hookResult.headers) {
                         for (const [k, values] of Object.entries(hookResult.headers)) {
                             if (values && values.length > 0) {
-                                const headerVals = values.map(v => v.value);
-                                res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
+                                const lowerKey = k.toLowerCase();
+                                req.headers[lowerKey] = values.map(v => v.value).join(', ');
                             }
                         }
                     }
@@ -193,8 +272,11 @@ function startServer(options) {
             } catch (err) {
                 if (options.strict && err.message.includes('Forbidden:')) {
                     console.error(`🛑 Strict Mode Violation: ${err.message}`);
+                    telemetry.violation = err.message;
                     res.writeHead(502, { 'Content-Type': 'text/plain' });
                     res.end('Bad Gateway (Forbidden Header Mutation)');
+                    telemetry.status = 502;
+                    broadcast();
                     return;
                 }
                 throw err;
@@ -211,16 +293,24 @@ function startServer(options) {
             if (req.headers.range) initialStatus = 206;
             if (!fs.existsSync(fullPath)) initialStatus = 404;
 
+            // Capture "Origin Response" state (after static serve or redirect, before hooks)
+            telemetry.headers.response.origin = res.getHeaders();
+
             try {
                 const hookResponse = await edgeRunner.runResponseHook(req, {
                     status: initialStatus,
                     headers: res.getHeaders()
                 }, requestID);
+                const totalDurationMs = hookResponse?.totalDurationMs || 0;
+                telemetry.cpu += totalDurationMs;
 
-                if (hookResponse === null && options.strict) {
+                if (hookResponse?._timeout && options.strict) {
                     console.error('🛑 Strict Mode Violation: Lambda execution timed out and was aborted.');
+                    telemetry.violation = 'Lambda Execution Timeout (Response)';
                     res.writeHead(502, { 'Content-Type': 'text/plain' });
                     res.end('Bad Gateway (Lambda Execution Timeout)');
+                    telemetry.status = 502;
+                    broadcast();
                     return;
                 }
 
@@ -248,8 +338,11 @@ function startServer(options) {
             } catch (err) {
                 if (options.strict && err.message.includes('Forbidden:')) {
                     console.error(`🛑 Strict Mode Violation (Response): ${err.message}`);
+                    telemetry.violation = err.message;
                     res.writeHead(502, { 'Content-Type': 'text/plain' });
                     res.end('Bad Gateway (Forbidden Response Header Mutation)');
+                    telemetry.status = 502;
+                    broadcast();
                     return;
                 }
                 throw err;
@@ -271,6 +364,8 @@ function startServer(options) {
                 });
 
                 const cffResult = await cffRunner.runChain('viewer-response', cffEvent);
+                const totalCpuTimeMs = cffResult?.totalCpuTimeMs || 0;
+                telemetry.cpu += totalCpuTimeMs;
                 const mappedResult = cffRunner.fromCFFEvent(cffResult);
 
                 if (mappedResult && mappedResult.headers) {
@@ -288,6 +383,11 @@ function startServer(options) {
             } catch (err) {
                 console.error(`🛑 [CFF] viewer-response error: ${err.message}`);
             }
+        }
+
+        // Finalize "Origin Request" state if not already set (safety)
+        if (!telemetry.headers.request.origin || Object.keys(telemetry.headers.request.origin).length === 0) {
+            telemetry.headers.request.origin = { ...req.headers };
         }
 
         // === 3. STATIC FILE SERVING ===
@@ -310,6 +410,7 @@ function startServer(options) {
                         }
 
                         req.url = newUrl + query;
+                        telemetry.steps.push({ uri: req.url, label: 'Website mode index rewrite' });
                     }
                 }
             } catch (err) {
@@ -325,8 +426,11 @@ function startServer(options) {
             try {
                 if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isDirectory()) {
                     if (options.debug) console.log(`[Debug] Triggering 403 for directory: ${fullPath}`);
+                    telemetry.violation = 'Directory indexing forbidden in rest mode';
                     res.writeHead(403, { 'Content-Type': 'text/plain' });
                     res.end('403 Forbidden - Directory indexing is disabled in --mode rest. Use a Lambda@Edge origin-request hook to append index.html to the URI.');
+                    telemetry.status = 403;
+                    broadcast();
                     return;
                 }
             } catch (err) {
@@ -341,7 +445,7 @@ function startServer(options) {
             // clean-URL redirects. Enabling it creates infinite redirect loops when a
             // Lambda@Edge hook rewrites a path to '/index.html'.
             cleanUrls: false,
-            directoryListing: false, // In rest mode, no auto directory listing UI
+            directoryListing: options.mode !== 'rest', // In rest mode, no auto directory listing UI
             rewrites: [
                 { source: '/', destination: '/index.html' },
                 ...(options.single ? [{ source: '**', destination: '/index.html' }] : [])
@@ -359,9 +463,20 @@ function startServer(options) {
         }
 
         if (shouldCompress) {
-            compressMiddleware(req, res, runHandler);
+            compressMiddleware(req, res, () => {
+                runHandler();
+                telemetry.status = res.statusCode;
+                broadcast();
+            });
         } else {
             runHandler();
+            // serve-handler might be async, but we can't easily await it here without changing its call.
+            // For telemetry, we hook into res.end in a more robust way if needed, 
+            // but for now, we'll assume the standard flow.
+            res.on('finish', () => {
+                telemetry.status = res.statusCode;
+                broadcast();
+            });
         }
     });
 
@@ -371,10 +486,86 @@ function startServer(options) {
         socket.once('close', () => sockets.delete(socket));
     });
 
+    // --- NEW: Optional Control Plane (Web UI) ---
+    let uiServer = null;
+    if (options.webui) {
+        const uiPort = parseInt(options.webui);
+        uiServer = http.createServer(async (req, res) => {
+            // Management API
+            if (req.url === '/events') {
+                res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                });
+                const initData = JSON.stringify({
+                    type: 'init',
+                    port: options.port,
+                    headerState: localOverrides
+                });
+                res.write(`data: ${initData}\n\n`);
+                const onLog = (data) => res.write(`data: ${JSON.stringify({ type: 'request', request: data })}\n\n`);
+                localEvents.on('log', onLog);
+                req.on('close', () => localEvents.removeListener('log', onLog));
+                return;
+            }
+
+            if (req.url.startsWith('/request/')) {
+                const id = req.url.split('/').pop();
+                const detail = localHistory.get(id);
+                if (!detail) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ error: 'Not found' }));
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify(detail));
+            }
+
+            if (req.url === '/headers' && req.method === 'POST') {
+                const body = await new Promise(resolve => {
+                    let b = '';
+                    req.on('data', c => b += c);
+                    req.on('end', () => resolve(b));
+                });
+                try {
+                    const data = JSON.parse(body);
+                    localOverrides.request = data.request || {};
+                    localOverrides.response = data.response || {};
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'ok' }));
+                } catch (e) {
+                    res.writeHead(400).end('Invalid JSON');
+                }
+                return;
+            }
+
+            // Static UI Housing (at /)
+            const cleanPath = req.url.split('?')[0];
+            const assetName = cleanPath === '/' ? 'index.html' : cleanPath.slice(1);
+            const uiAssetPath = path.join(__dirname, 'ui', assetName);
+            
+            if (fs.existsSync(uiAssetPath) && fs.lstatSync(uiAssetPath).isFile()) {
+                const ext = path.extname(uiAssetPath);
+                const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
+                res.writeHead(200, { 'Content-Type': types[ext] || 'text/plain' });
+                fs.createReadStream(uiAssetPath).pipe(res);
+            } else {
+                res.writeHead(404).end('Not Found');
+            }
+        });
+
+        uiServer.listen(uiPort, () => {
+            if (!options.noRequestLogging) {
+                console.log(`🛠️  Developer UI: http://localhost:${uiPort}`);
+            }
+        });
+    }
+
     server.closeGracefully = function () {
         return new Promise(resolve => {
             if (edgeRunner) edgeRunner.close();
             if (cffRunner) cffRunner.close();
+            if (uiServer) uiServer.close();
             for (const socket of sockets) socket.destroy();
             server.close(() => resolve());
         });

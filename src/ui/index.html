@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudFrontize Developer Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body class="dark-mode">
+    <header>
+        <div class="logo">
+            <span class="cloud">☁️</span>
+            <h1>CloudFrontize <span class="badge">PRO</span></h1>
+        </div>
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="label">Server:</span>
+                <span class="value success">Running</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Port:</span>
+                <span id="current-port" class="value">3000</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <aside class="sidebar">
+            <section class="controls">
+                <h2>Header Intelligence</h2>
+                <div class="control-group">
+                    <h3>Simulation Presets</h3>
+                    <div class="preset-grid">
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Is-Mobile-Viewer" data-value="true">Mobile</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="US">USA (US)</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="ES">Spain (ES)</button>
+                        <button class="btn-preset" data-type="response" data-header="X-Cache-Status" data-value="MISS">Cache MISS</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="request-overrides">Viewer Request</button>
+                        <button class="tab-btn" data-tab="response-overrides">Origin Response</button>
+                    </div>
+                    
+                    <div id="request-overrides" class="tab-content active">
+                        <div class="header-list" id="req-header-list">
+                            <!-- Dynamic Header Rows -->
+                        </div>
+                        <button class="btn-add" id="add-req-header">+ Add Header</button>
+                    </div>
+
+                    <div id="response-overrides" class="tab-content">
+                        <div class="header-list" id="res-header-list">
+                            <!-- Dynamic Header Rows -->
+                        </div>
+                        <button class="btn-add" id="add-res-header">+ Add Header</button>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="btn-primary" id="apply-headers">Apply Changes</button>
+                    <button class="btn-secondary" id="reset-headers">Reset to File Defaults</button>
+                </div>
+            </section>
+        </aside>
+
+        <section class="content">
+            <div class="feed-header">
+                <h2>Request Pulse</h2>
+                <div class="filters">
+                    <button class="btn-filter active">All</button>
+                    <button class="btn-filter" data-type="rewrite">Rewrites</button>
+                    <button class="btn-filter" data-type="violation">Violations</button>
+                </div>
+                <button class="btn-clear" id="clear-feed">Clear</button>
+            </div>
+            <div class="request-feed" id="request-feed">
+                <!-- Real-time Request Cards -->
+                <div class="empty-state">
+                    <p>Waiting for requests...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

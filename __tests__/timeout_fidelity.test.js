@@ -29,7 +29,7 @@ describe('Execution Timeout Fidelity', () => {
 
         const runner = new EdgeRunner(testDir, { strict: true, watch: false });
         const result = await runner.runRequestHook({ url: '/' });
-        expect(result).toBeNull();
+        expect(result._timeout).toBe(true);
         runner.close();
     }, 15000);
 
