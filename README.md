@@ -128,6 +128,7 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **`-o, --output <path>`**| Output the baked `.js` file(s) for production deployment                                                                                                                                                                                                                      | `null`                                                                                             |
 | **`-p, --port <number>`** | Port to listen on                                                                                                                                                                                                                                                             | `3000`                                                                                             |
 | **`-l, --listen <uri>`** | Listen URI (overrides `--port`)                                                                                                                                                                                                                                               | `3000`                                                                                             |
+| **`--webui <port>`**    | Enable the visual control plane for real-time traffic inspection and header debugging | `disabled` |
 | **`-s, --single`** | SPA mode — rewrite all 404s to `index.html`                                                                                                                                                                                                                                   | `off`                                                                                              |
 | **`-C, --cors`** | Enable `Access-Control-Allow-Origin: *`                                                                                                                                                                                                                                       | `off`                                                                                              |
 | **`-d, --debug`** | Show Lambda execution logs and URI rewrites                                                                                                                                                                                                                                   | `off`                                                                                              |
@@ -136,6 +137,16 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **`-L, --no-request-logging`** | Mute startup logs                                                                                                                                                                                                                                                             | `off`                                                                                              |
 | **`--strict`** | Enforce strict CloudFront limits (40KB body, 1MB response, headers)                                                                                                                                                                                                           | `off`                                                                                              |
 | **`-V, --version`** | Output the version number                                                                                                                                                                                                                                                     | `off`                                                                                              |
+
+---
+
+## 🖥️ Visual Control Plane (Web UI)
+
+CloudFrontize includes an optional, browser-based UI to help you visualize your edge logic in real-time. Inspect headers, track URI rewrites, and debug Lambda@Edge execution without leaving your browser.
+
+Using the **Header Intelligence** panel, you can inject or override headers on-the-fly to test Geo-routing, Auth tokens, or Security policies without changing a single line of code.
+
+**[👉 Learn how to use the Web UI](docs/web-ui.md)**
 
 ---
 

@@ -52,5 +52,14 @@ Most examples use the `www` folder as the static directory. This is the **"Paws"
    ```
 5. Open `http://localhost:3000` and see your logic in action!
 
+### 🔭 Modern Debugging with the Visual Control Plane
+While you can always check your terminal logs, we highly recommend running your exercises with the Visual Control Plane enabled. This provides a live "Trace View" of your logic and full header visibility:
+
+```bash
+cloudfrontize www --edge ./your-code.js --webui 3001
+```
+
+Using the **Header Intelligence** panel in the UI, you can simulate different countries, user-agents, or auth tokens without ever stopping the emulator.
+
 > [!TIP]
 > Stuck? Check the [solutions/](./solutions/) directory for reference implementations of every exercise. You can also paste the exercise into any major AI assistant to generate a detailed solution or hints.
