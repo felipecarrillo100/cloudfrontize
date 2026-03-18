@@ -146,7 +146,7 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 
 ## 🖥️ Visual Control Plane (Web UI)
 
-CloudFrontize includes an optional, browser-based UI to help you visualize your edge logic in real-time. Inspect headers, track URI rewrites, and debug Lambda@Edge execution without leaving your browser.
+CloudFrontize includes a browser-based UI to help you visualize your edge logic in real-time. Inspect headers, track URI rewrites, and debug Lambda@Edge execution without leaving your browser.
 
 Using the **Header Intelligence** panel, you can inject or override headers on-the-fly to test Geo-routing, Auth tokens, or Security policies without changing a single line of code.
 
