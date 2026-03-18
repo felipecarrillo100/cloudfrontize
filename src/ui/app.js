@@ -50,6 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = JSON.parse(event.data);
         if (data.type === 'init') {
             portDisplay.textContent = data.port;
+            
+            // Dynamic Versioning
+            const versionTag = document.querySelector('.version-tag');
+            if (versionTag && data.version) {
+                 versionTag.textContent = `Developer Edition v${data.version}`;
+            }
+
             // Wipe all local state for a clean slate
             requestFeed.innerHTML = '<div class="empty-state"><p>Waiting for requests...</p></div>';
             loadHeaderState(data.headerState);
@@ -396,4 +403,40 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clear-feed').onclick = () => {
         requestFeed.innerHTML = '<div class="empty-state"><p>Waiting for requests...</p></div>';
     };
+
+    // About Modal Logic
+    const aboutModal = document.getElementById('about-modal');
+    const aboutTrigger = document.getElementById('about-trigger');
+    const closeAbout = document.getElementById('close-about');
+
+    const showAbout = () => {
+        aboutModal.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent background scroll
+    };
+
+    const hideAbout = () => {
+        aboutModal.classList.remove('active');
+        document.body.style.overflow = '';
+    };
+
+    aboutTrigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        showAbout();
+    });
+
+    closeAbout.addEventListener('click', hideAbout);
+
+    // Close on click outside
+    aboutModal.addEventListener('click', (e) => {
+        if (e.target === aboutModal) {
+            hideAbout();
+        }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && aboutModal.classList.contains('active')) {
+            hideAbout();
+        }
+    });
 });

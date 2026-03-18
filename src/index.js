@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
 const { HeaderParser } = require('./headerParser'); 
 const EventEmitter = require('events');
+const pkg = require('../package.json');
 
 
 function startServer(options) {
@@ -501,6 +502,7 @@ function startServer(options) {
                 const initData = JSON.stringify({
                     type: 'init',
                     port: options.port,
+                    version: pkg.version,
                     headerState: localOverrides
                 });
                 res.write(`data: ${initData}\n\n`);

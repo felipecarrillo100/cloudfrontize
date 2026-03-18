@@ -15,13 +15,13 @@
     <meta name="theme-color" content="#1a1a1a"> <meta name="msapplication-config" content="/favicons/browserconfig.xml">
     <meta name="msapplication-TileColor" content="#1a1a1a">
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./style.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body class="dark-mode">
     <header>
-        <div class="logo">
-            <span class="cloud">☁️</span>
+        <div class="logo" id="about-trigger" title="About CloudFrontize PRO">
+            <img class="clipped-logo" src="./assets/cloudfrontize-pro-transparent-512.png" alt="CloudFrontize PRO">
             <h1>CloudFrontize <span class="badge">PRO</span></h1>
         </div>
         <div class="status-bar">
@@ -96,6 +96,33 @@
             </div>
         </section>
     </main>
+
+    <div id="about-modal" class="modal-overlay">
+        <div class="modal-content about-card">
+            <button class="modal-close" id="close-about">&times;</button>
+            <div class="about-header">
+                <img src="./assets/cloudfrontize-pro-transparent-512.png" alt="CloudFrontize PRO" class="about-logo">
+                <h2>CloudFrontize <span class="badge">PRO</span></h2>
+                <p class="version-tag">Developer Edition v1.0.0</p>
+            </div>
+            <div class="about-body">
+                <p>CloudFrontize PRO is the ultimate developer tool for local CloudFront and Lambda@Edge simulation.</p>
+                <div class="feature-pills">
+                    <span class="pill">Edge Runtime</span>
+                    <span class="pill">Header Intelligence</span>
+                    <span class="pill">Fidelity Validation</span>
+                </div>
+                <div class="about-links">
+                    <a href="https://github.com/felipecarrillo100/cloudfrontize" target="_blank" class="about-link">
+                        <span class="material-icons">code</span> Repository
+                    </a>
+                </div>
+            </div>
+            <div class="about-footer">
+                &copy; 2026 Felipe Carrillo. Built for performance.
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
