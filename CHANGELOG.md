@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.4.0...v1.5.0) (2026-03-18)
+
+
+### Features
+
+* **cli:** enhance console logging and UX ([8726fdb](https://github.com/felipecarrillo100/cloudfrontize/commit/8726fdb238eebbea8719951d7c310892cb2a411c))
+
 ## [1.4.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.3.1...v1.4.0) (2026-03-18)
 
 
