@@ -2,9 +2,9 @@
 
 CloudFrontize includes an optional, high-performance browser-based UI designed to give you **instant visibility** into your Edge logic. Instead of just relying on terminal logs, you can watch your traffic flow and manipulate headers in real-time.
 
-<div style="display: flex; justify-content: space-around; align-items: center;">
-<img alt="Cloudfrontize Web UI" src="https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg" width="75%" />
-</div>
+| Visual Control Plane |
+|---------------------|
+| ![CloudFrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg?v=1) |
 
 ---
 

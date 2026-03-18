@@ -14,7 +14,7 @@ Test your Edge logic locally in milliseconds instead of waiting 15 minutes for C
 
 | CloudFrontize Console                                                                                                    | CloudFrontize Web UI |
 |--------------------------------------------------------------------------------------------------------------------------|--------------------|
-| ![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![Cloudfrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg) |
+| ![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![Cloudfrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg?v=1) |
 
 ---
 ## 📦 Getting started
@@ -178,7 +178,7 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 
 ---
 
-## 🖥️ Visual Control Plane (Web UI)
+## 🖥️ Visual Control Plane (Web UI) `New!`
 
 CloudFrontize includes a browser-based UI to help you visualize your edge logic in real-time. Inspect headers, track URI rewrites, and debug Lambda@Edge execution without leaving your browser.
 

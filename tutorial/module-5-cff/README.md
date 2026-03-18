@@ -69,7 +69,10 @@ All solutions are organized by level in the `solutions` folder:
 
 ## 💡 Tips for Success
 
-- **Keep it lightweight:** Functions must stay under 10 KB.
+- **Keep it lightweight:** AWS Cloud Front Functions must stay under 10 KB.
 - **Test locally:** Use CloudFrontize to emulate requests and inspect headers, redirects, or blocked paths.
 - **Edge-first thinking:** CFF runs **before your origin**, so logic applied here prevents unnecessary backend load.
 - **Use console logging sparingly:** Edge logging is limited, keep debug info concise.
+
+---
+[⬅️ Back to Syllabus](../README.md)

@@ -6,6 +6,11 @@ Welcome to the CloudFrontize Academy! This structured, hands-on tutorial is desi
 
 The tutorial is organized into four thematic modules. Each module contains real-world scenarios, architectural explanations, and hands-on exercises.
 
+### [Intro: CloudFrontize Development Environment](./intro/README.md)
+*Learn how to run, test, and debug your Lambda@Edge and CloudFront Functions locally.*
+
+- **Intro – Run & Debug**: Use CloudFrontize to execute your logic and debug it using both the console and the Visual Control Plane (Web UI).
+  
 ### [Module 1: Foundations (Newbie)](./module-1-foundations/README.md)
 *Mastering the basics of headers and redirects.*
 - **1.1 The Security Guard**: Injecting security headers.
@@ -59,10 +64,9 @@ While you can always check your terminal logs, we highly recommend running your 
 cloudfrontize www --edge ./your-code.js --webui 3003
 ```
 
-<div style="display: flex; justify-content: space-around; align-items: center;">
-<img alt="Cloudfrontize Web UI" src="https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg" width="60%" />
-</div>
-
+| Visual Control Plane (Web UI)  |
+|---------------------|
+| ![CloudFrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg?v=1) |
 Using the **Header Intelligence** panel in the UI, you can simulate different countries, user-agents, or auth tokens without ever stopping the emulator.
 
 > [!TIP]
