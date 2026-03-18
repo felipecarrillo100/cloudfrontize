@@ -556,10 +556,21 @@ function startServer(options) {
             }
         });
 
-        uiServer.listen(uiPort, () => {
-            if (!options.noRequestLogging) {
-                console.log(`🛠️  Developer UI: http://localhost:${uiPort}`);
+        uiServer.on('error', (e) => {
+            if (e.code === 'EADDRINUSE') {
+                console.error(`\n🛑 Port Conflict Error\n\n   The WebUI port ${uiPort} is already in use by another process.\n   \n   Action: \n   - Try running Cloudfrontize WebUI on a different port:  \`--webui <new-port>\`\n   - Or, stop the service currently running on port ${uiPort}.\n`);
+                if (process.env.NODE_ENV !== 'test') {
+                    process.exit(1);
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
             }
+        });
+
+        uiServer.listen(uiPort, () => {
+            // Banner printing is consolidated at the end
         });
     }
 
@@ -573,23 +584,69 @@ function startServer(options) {
         });
     };
 
+    server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+            const dir = options.directory ? ` ${options.directory}` : '';
+            console.error(`\n🛑 Port Conflict Error\n\n   The local port ${options.port} is already in use by another process.\n   \n   Action: \n   - Try running Cloudfrontize on a different port:  \`cloudfrontize${dir} --port <new-port>\`\n   - Or, stop the service currently running on port ${options.port}.\n`);
+            if (process.env.NODE_ENV !== 'test') {
+                process.exit(1);
+            } else {
+                throw e;
+            }
+        } else {
+            throw e;
+        }
+    });
+
+    if (!options.noRequestLogging) {
+        localEvents.on('log', (telemetry) => {
+            const method = telemetry.method;
+            const orig = telemetry.steps[0].uri;
+            const final = telemetry.steps[telemetry.steps.length - 1].uri;
+            const rewriteStr = orig !== final ? ` ➔ ${final}` : '';
+            const status = telemetry.status;
+            const timeMs = (telemetry.cpu || telemetry.cpu === 0) ? `  (${telemetry.cpu.toFixed(0)}ms)` : '';
+            
+            let statusColor = '\x1b[32m'; // green 200s
+            if (status >= 300) statusColor = '\x1b[36m'; // cyan 300s
+            if (status >= 400) statusColor = '\x1b[33m'; // yellow 400s
+            if (status >= 500) statusColor = '\x1b[31m'; // red 500s
+            
+            console.log(`\x1b[36m[${method}]\x1b[0m \x1b[2m${orig}\x1b[0m${rewriteStr}  ${statusColor}[${status}]\x1b[0m${timeMs}`);
+        });
+    }
+
     return server.listen(options.port, () => {
         if (!options.noRequestLogging) {
-            console.log(`\n☁️  Cloudfrontize running on http://localhost:${options.port}`);
-            if (edgeRunner) {
-                Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
-                    if (mods.length > 0) {
-                        const filename = path.basename(mods[0].file);
-                        console.log(`⚡ ${hook} (${filename})`);
-                    }
-                });
+            console.log(`\n☁️  \x1b[1mCloudfrontize v${pkg.version}\x1b[0m\n`);
+            
+            console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
+            if (options.webui) {
+                console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${parseInt(options.webui)}/\x1b[0m`);
             }
-            if (cffRunner) {
-                Object.entries(cffRunner.functions).forEach(([hook, fns]) => {
-                    fns.forEach(fn => {
-                        console.log(`⚡ [CFF] ${hook} (${fn.name})`);
+            
+            const modeName = options.mode === 'rest' ? 'REST (Strict Fidelity)' : 'Website (S3 Website Hosting)';
+            console.log(`  ➜ Mode:    ${modeName}\n`);
+
+            if (edgeRunner || cffRunner) {
+                console.log(`  ⚙️  Active Environment`);
+                
+                if (edgeRunner) {
+                    Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
+                        if (mods.length > 0) {
+                            const filename = path.basename(mods[0].file);
+                            console.log(`     - \x1b[35m${hook}\x1b[0m: ${filename}`);
+                        }
                     });
-                });
+                }
+                if (cffRunner) {
+                    Object.entries(cffRunner.functions).forEach(([hook, fns]) => {
+                        fns.forEach(fn => {
+                            console.log(`     - \x1b[35m[CFF] ${hook}\x1b[0m: ${fn.name}`);
+                        });
+                    });
+                }
+                console.log(`     - Strict Limits: ${options.strict ? '\x1b[31mEnabled\x1b[0m' : '\x1b[32mDisabled\x1b[0m'}\n`);
             }
         }
     });
