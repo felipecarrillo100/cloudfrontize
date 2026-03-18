@@ -40,22 +40,38 @@
         <aside class="sidebar">
             <section class="controls">
                 <h2>Header Intelligence</h2>
+
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="request-overrides">Viewer Request</button>
+                    <button class="tab-btn" data-tab="response-overrides">Origin Response</button>
+                </div>
+
                 <div class="control-group">
                     <h3>Simulation Presets</h3>
-                    <div class="preset-grid">
-                        <button class="btn-preset" data-type="request" data-header="CloudFront-Is-Mobile-Viewer" data-value="true">Mobile</button>
+                    <div class="preset-grid" id="preset-grid">
+                        <!-- Request Devices -->
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Is-Mobile-Viewer" data-value="true" data-group="device">Mobile</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Is-Tablet-Viewer" data-value="true" data-group="device">Tablet</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Is-Desktop-Viewer" data-value="true" data-group="device">Desktop</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Is-SmartTV-Viewer" data-value="true" data-group="device">SmartTV</button>
+                        
+                        <div class="preset-divider" data-type="request"></div>
+
+                        <!-- Request Countries -->
                         <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="US">USA (US)</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="MX">Mexico (MX)</button>
                         <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="ES">Spain (ES)</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="DE">Germany (DE)</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="FR">France (FR)</button>
+                        <button class="btn-preset" data-type="request" data-header="CloudFront-Viewer-Country" data-value="JP">Japan (JP)</button>
+
+                        <!-- Response Presets -->
                         <button class="btn-preset" data-type="response" data-header="X-Cache-Status" data-value="MISS">Cache MISS</button>
+                        <button class="btn-preset" data-type="response" data-header="X-Cache-Status" data-value="HIT">Cache HIT</button>
                     </div>
                 </div>
 
                 <div class="control-group">
-                    <div class="tabs">
-                        <button class="tab-btn active" data-tab="request-overrides">Viewer Request</button>
-                        <button class="tab-btn" data-tab="response-overrides">Origin Response</button>
-                    </div>
-
                     <div id="request-overrides" class="tab-content active">
                         <div class="header-list" id="req-header-list">
                             <!-- Dynamic Header Rows -->
@@ -70,6 +86,8 @@
                         <button class="btn-add" id="add-res-header">+ Add Header</button>
                     </div>
                 </div>
+
+                <div class="sidebar-divider"></div>
 
                 <div class="actions">
                     <button class="btn-primary" id="apply-headers">Apply Changes</button>

@@ -790,3 +790,54 @@ main {
 .logo:hover {
     transform: scale(1.02);
 }
+
+/* Header Intelligence Enhancements */
+.hdr-key.input-duplicate {
+    border-color: var(--warning) !important;
+    background: rgba(234, 179, 8, 0.05) !important;
+    box-shadow: 0 0 0 1px var(--warning);
+}
+
+/* Context-Aware Presets */
+.preset-grid button {
+    display: none;
+}
+
+#preset-grid.show-request button[data-type="request"] {
+    display: block;
+}
+
+#preset-grid.show-response button[data-type="response"] {
+    display: block;
+}
+
+.preset-divider {
+    grid-column: 1 / -1;
+    height: 1px;
+    background: var(--border);
+    margin: 0.5rem 0;
+    opacity: 0.5;
+    display: none;
+}
+
+#preset-grid.show-request .preset-divider[data-type="request"] {
+    display: block;
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 1.5rem 0;
+    opacity: 0.3;
+}
+
+/* Animations */
+@keyframes pulse-orange {
+    0% { background: var(--bg-card); }
+    50% { background: var(--primary-glow); border-color: var(--primary); }
+    100% { background: var(--bg-card); }
+}
+
+.pulse-update {
+    animation: pulse-orange 0.6s ease-out;
+}

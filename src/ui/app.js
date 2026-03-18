@@ -11,6 +11,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Tab Switching
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
+    const presetGrid = document.getElementById('preset-grid');
+
+    function syncPresets(tabId) {
+        if (!presetGrid) return;
+        if (tabId === 'request-overrides') {
+            presetGrid.className = 'preset-grid show-request';
+        } else {
+            presetGrid.className = 'preset-grid show-response';
+        }
+    }
 
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -18,9 +28,14 @@ document.addEventListener('DOMContentLoaded', () => {
             tabContents.forEach(c => c.classList.remove('active'));
             
             btn.classList.add('active');
-            document.getElementById(btn.dataset.tab).classList.add('active');
+            const tabId = btn.dataset.tab;
+            document.getElementById(tabId).classList.add('active');
+            syncPresets(tabId);
         });
     });
+
+    // Initial Sync
+    syncPresets('request-overrides');
 
     // Filtering Pulse
     const filterBtns = document.querySelectorAll('.btn-filter');
@@ -96,6 +111,30 @@ document.addEventListener('DOMContentLoaded', () => {
         applyBtn.innerText = 'Applied';
     }
 
+    function checkDuplicates() {
+        const reqKeys = Array.from(document.querySelectorAll('#req-header-list .hdr-key'));
+        const resKeys = Array.from(document.querySelectorAll('#res-header-list .hdr-key'));
+        
+        let hasDuplicate = false;
+
+        const validate = (inputs) => {
+            const seen = new Set();
+            inputs.forEach(input => {
+                const val = input.value.trim().toLowerCase();
+                input.classList.remove('input-duplicate');
+                if (val && seen.has(val)) {
+                    input.classList.add('input-duplicate');
+                    hasDuplicate = true;
+                }
+                if (val) seen.add(val);
+            });
+        };
+
+        validate(reqKeys);
+        validate(resKeys);
+        return hasDuplicate;
+    }
+
     // Header Management
     function createHeaderRow(key = '', value = '', isDelete = false) {
         const row = document.createElement('div');
@@ -117,7 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const valInput = row.querySelector('.hdr-val');
         const keyInput = row.querySelector('.hdr-key');
 
-        const handleChange = () => markDirty();
+        const handleChange = () => {
+            markDirty();
+            checkDuplicates();
+        };
         keyInput.oninput = handleChange;
         valInput.oninput = handleChange;
 
@@ -135,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         row.querySelector('.btn-remove').onclick = () => {
             row.remove();
             markDirty();
+            checkDuplicates();
         };
         return row;
     }
@@ -150,12 +193,61 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Presets
+    const DEVICE_HEADERS = [
+        'CloudFront-Is-Mobile-Viewer',
+        'CloudFront-Is-Tablet-Viewer',
+        'CloudFront-Is-Desktop-Viewer',
+        'CloudFront-Is-SmartTV-Viewer'
+    ];
+
     document.querySelectorAll('.btn-preset').forEach(btn => {
         btn.onclick = () => {
             const listId = btn.dataset.type === 'request' ? 'req-header-list' : 'res-header-list';
             const list = document.getElementById(listId);
-            list.appendChild(createHeaderRow(btn.dataset.header, btn.dataset.value));
+            const targetHeader = btn.dataset.header;
+            const targetValue = btn.dataset.value;
+            const isDevice = btn.dataset.group === 'device';
+
+            // Device Radio Logic: If setting a device to true, others should be false/removed
+            if (isDevice && targetValue === 'true') {
+                DEVICE_HEADERS.forEach(h => {
+                    if (h.toLowerCase() === targetHeader.toLowerCase()) return;
+                    // Find and remove other device headers to simulate mutual exclusivity
+                    const existing = Array.from(list.querySelectorAll('.header-row')).find(row => 
+                        row.querySelector('.hdr-key').value.trim().toLowerCase() === h.toLowerCase());
+                    if (existing) existing.remove();
+                });
+            }
+
+            // Smart Upsert
+            const existingRow = Array.from(list.querySelectorAll('.header-row')).find(row => 
+                row.querySelector('.hdr-key').value.trim().toLowerCase() === targetHeader.toLowerCase());
+
+            if (existingRow) {
+                const valInput = existingRow.querySelector('.hdr-val');
+                const actionBtn = existingRow.querySelector('.btn-toggle-action');
+                
+                // Update value
+                valInput.value = targetValue;
+                
+                // Ensure it's active (not suppressed)
+                if (existingRow.classList.contains('suppressed')) {
+                    existingRow.classList.remove('suppressed');
+                    actionBtn.classList.add('active');
+                    actionBtn.innerHTML = '<span class="material-icons">verified</span>';
+                    valInput.disabled = false;
+                }
+
+                // Visual Feedback
+                existingRow.classList.remove('pulse-update');
+                void existingRow.offsetWidth; // Trigger reflow
+                existingRow.classList.add('pulse-update');
+            } else {
+                list.appendChild(createHeaderRow(targetHeader, targetValue));
+            }
+            
             markDirty();
+            checkDuplicates();
         };
     });
 
@@ -170,6 +262,17 @@ document.addEventListener('DOMContentLoaded', () => {
     applyBtn.onclick = async () => {
         const state = { request: {}, response: {} };
         let hasValidationError = false;
+        const hasDuplicates = checkDuplicates();
+
+        if (hasDuplicates) {
+            applyBtn.innerText = '🛑 Duplicate Header Names';
+            applyBtn.classList.add('error-pulse');
+            setTimeout(() => {
+                applyBtn.innerText = isDirty ? 'Save Changes' : 'Applied';
+                applyBtn.classList.remove('error-pulse');
+            }, 3000);
+            return;
+        }
 
         const collect = (listId, target) => {
             document.querySelectorAll(`#${listId} .header-row`).forEach(row => {
@@ -180,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isSuppressed = row.classList.contains('suppressed');
 
                 if (!k) {
-                    // Any dangling row must have a name, or it's a validation error
                     keyInput.classList.add('input-error');
                     hasValidationError = true;
                     return; 
@@ -195,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         collect('res-header-list', state.response);
 
         if (hasValidationError) {
-            applyBtn.innerText = '🛑 Fix Header Names';
+            applyBtn.innerText = '🛑 Fix Missing Names';
             applyBtn.classList.add('error-pulse');
             setTimeout(() => {
                 applyBtn.innerText = isDirty ? 'Save Changes' : 'Applied';
