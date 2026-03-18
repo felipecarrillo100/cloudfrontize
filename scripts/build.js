@@ -33,10 +33,16 @@ async function build() {
         }
     });
 
-    // 3. Ensure executable permissions for CLI use
+    // 3. Copy WebUI assets to dist for portability
+    const uiSrc = path.join(__dirname, '../src/ui');
+    const uiDest = path.join(dist, 'ui');
+    console.log(`📦 Copying WebUI assets to ${uiDest}...`);
+    fs.cpSync(uiSrc, uiDest, { recursive: true });
+
+    // 4. Ensure executable permissions for CLI use
     fs.chmodSync(path.join(dist, 'cli.js'), 0o755);
 
-    console.log('✅ Build successful: dist/cli.js is ready.');
+    console.log('✅ Build successful: dist/cli.js and dist/ui/ are ready.');
 }
 
 build().catch(err => {
