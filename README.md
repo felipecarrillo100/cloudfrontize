@@ -12,10 +12,9 @@
 
 Test your Edge logic locally in milliseconds instead of waiting 15 minutes for CloudFront deployments.
 
-<div style="display: flex; justify-content: space-around; align-items: center;">
-<img alt="Cloudfrontize Banner" src="https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png" width="45%" />
-<img alt="Cloudfrontize Web UI" src="https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg" width="45%" />
-</div>
+| CloudFrontize Console                                                                                                    | CloudFrontize Web UI |
+|--------------------------------------------------------------------------------------------------------------------------|--------------------|
+| ![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![Cloudfrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg) |
 
 ---
 ## 📦 Getting started
