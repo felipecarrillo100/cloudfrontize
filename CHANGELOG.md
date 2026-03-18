@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.2.0...v1.3.0) (2026-03-18)
+
+
+### Features
+
+* add WebUI for CloudFrontize ([f773f81](https://github.com/felipecarrillo100/cloudfrontize/commit/f773f81e97260cf1728bc7386da9a6789efc74d1))
+
 ## [1.2.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.1.7...v1.2.0) (2026-03-16)
 
 ### Features
