@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.3.0...v1.3.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* WebUI Logo and About Form ([8a49fef](https://github.com/felipecarrillo100/cloudfrontize/commit/8a49fef1983c23ed30f6a7a2186e9a4c55724239))
+
 ## [1.3.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.2.0...v1.3.0) (2026-03-18)
 
 
