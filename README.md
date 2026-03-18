@@ -19,17 +19,31 @@ Test your Edge logic locally in milliseconds instead of waiting 15 minutes for C
 
 ---
 ## 📦 Getting started
-Get up and running in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
 
-### Install **globally:**
+Run a local CloudFront simulation in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
+
+### ⚡ Try instantly (no install)
+```bash
+npx --yes cloudfrontize ./www --edge ./viewer-request-rewrite.js
+```
+
+### 📦 Or install globally
 
 ```bash
 npm install -g cloudfrontize
 ```
-Once installed, you can run CloudFrontize from any directory: by simply typing `cloudfrontize ./www` (specifying your static folder).
 
-Point it at your static files folder (`./www`, `./dist` or `./public`) and point to your Lambda@Edge `.js` file. CloudFrontize handles the rest.
+Once installed, run CloudFrontize from any directory:
 
+```bash
+cloudfrontize ./www --edge ./viewer-request-rewrite.js
+```
+
+Point it at your static files folder (`./www`, `./dist`, or `./public`) and your Lambda@Edge `.js` file—CloudFrontize handles the rest.
+
+> 💡 Tip: Add `--webui 3001` to enable the **[Visual Control Plane](docs/web-ui.md)** for live debugging in your browser.
+
+---
 ## ⚡ Quick Example
 
 1️⃣ Create a simple Lambda@Edge function, for instance: `viewer-request-rewrite.js`
@@ -96,6 +110,27 @@ The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation 
 * **Production Fidelity:** Emulates in detail CloudFront-specific features & quirks, like the **10MB auto-compression limit**, header blacklisting, and URI normalization.
 * **RequestBody Support:** Access the request payload in your hooks for webhook validation or body-based routing.
 * **The "Safety Net":** Catch forbidden header mutations or invalid response structures locally. Use `--strict` to auto-fail requests that violate AWS limits (40KB body, 1MB generated response).
+
+---
+
+## 🧩 Real-World Use Cases
+
+Bring your Edge logic to life with scenarios you actually face in production:
+
+* **A/B testing without cache fragmentation**
+  Run experiments at the edge without destroying cache efficiency or increasing origin load.
+
+* **Geo-based content routing**
+  Serve localized content instantly using `CloudFront-Viewer-Country`—no backend needed.
+
+* **Auth at the edge**
+  Protect routes with Basic Auth, JWT validation, or custom logic *before* requests hit your origin.
+
+* **Security header enforcement**
+  Inject and validate headers like CSP, HSTS, and CORS consistently across all responses.
+
+
+> 💡 All of these are covered step-by-step in the **[CloudFrontize Academy](./tutorial/README.md)**
 
 ---
 
