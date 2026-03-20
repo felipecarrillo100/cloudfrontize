@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.4](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.3...v1.6.4) (2026-03-20)
+
+
+### Bug Fixes
+
+* **cli:** pass strict flag to EdgeRunner constructor ([22a8a5c](https://github.com/felipecarrillo100/cloudfrontize/commit/22a8a5cf6dd876d889b593c9056d8aa6c398d061))
+* pass strict flag to EdgeRunner constructor ([df9fc0d](https://github.com/felipecarrillo100/cloudfrontize/commit/df9fc0d61da30e0dc930f603af9069ae2058f954))
+
 ## [1.6.3](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.2...v1.6.3) (2026-03-20)
 
 
