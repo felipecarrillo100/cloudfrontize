@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.1...v1.6.2) (2026-03-20)
+
+
+### Bug Fixes
+
+* standardize hot-reload error reporting ([cc37338](https://github.com/felipecarrillo100/cloudfrontize/commit/cc37338d76f12891bab07d917132d966bd359635))
+
 ## [1.6.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.0...v1.6.1) (2026-03-20)
 
 
