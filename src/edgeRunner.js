@@ -159,14 +159,25 @@ class EdgeRunner extends EventEmitter {
         vm.createContext(sandbox);
 
         try {
-            new vm.Script(code).runInContext(sandbox);
+            new vm.Script(code, { filename: filePath }).runInContext(sandbox);
+            const wasError = !!this.compileError;
             this.compileError = null;
+            if (wasError) {
+                console.log(`\n\x1b[32m✅ [Build Recovered]\x1b[0m Lambda@Edge script compiled successfully!`);
+                console.log(`   File: ${filePath}\n`);
+            }
             this.emit('build_success', { type: 'edge', file: filePath });
         } catch (err) {
             this.compileError = err.stack || err.message;
+            // Extract line number from the stack trace for a clear user-facing label
+            const lineMatch = (err.stack || '').match(new RegExp(path.basename(filePath).replace('.', '\\.') + ':(\\d+)'));
+            const lineInfo = lineMatch ? `\x1b[33mLine ${lineMatch[1]}\x1b[0m` : 'unknown line';
+            const codeLines = code.split('\n');
+            const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
+            const snippet = lineNum ? `\n      ${codeLines[lineNum - 1]?.trim()}` : '';
             console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in Lambda@Edge script!`);
-            console.error(`   File: ${filePath}`);
-            console.error(`   Error: ${err.message}\n`);
+            console.error(`   File: ${path.basename(filePath)} at ${lineInfo}${snippet}`);
+            console.error(`   ${err.message}\n`);
             console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
             this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
             return;
