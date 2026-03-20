@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.0...v1.6.1) (2026-03-20)
+
+
+### Bug Fixes
+
+* improve hot-reload error reporting in EdgeRunner and CFFRunner ([d6af72a](https://github.com/felipecarrillo100/cloudfrontize/commit/d6af72ad544f6f1741bbe7e98e2b5e5b66433b1c))
+
 ## [1.6.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.5.0...v1.6.0) (2026-03-20)
 
 
