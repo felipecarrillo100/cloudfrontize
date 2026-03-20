@@ -210,7 +210,7 @@ class EdgeRunner extends EventEmitter {
                 const { result, durationMs } = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
                     this._invoke(mod.handler, request, type)
                 );
-                
+
                 totalDurationMs += durationMs;
 
                 // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return a timeout marker
@@ -334,6 +334,18 @@ class EdgeRunner extends EventEmitter {
             try {
                 const handleResult = (res) => {
                     if (resolved) return;
+
+                    // FIDELITY CHECK: CloudFront returns 502 if the response is not an object
+                    if (res !== undefined && (res === null || typeof res !== 'object')) {
+                        const msg = `[CloudFrontize] 502 Error: Lambda returned a ${typeof res} instead of an Object.`;
+
+                        console.error(`\x1b[31m🛑 502 Bad Gateway:\x1b[0m ${msg}`);
+
+                        resolved = true;
+                        clearTimeout(timer);
+                        // This REJECT is what stops the flow and prevents the browser from getting a 200
+                        return reject(new Error(msg));
+                    }
 
                     // In strict mode, if we already timed out, we MUST NOT resolve with the result.
                     // The timeout handler already resolved with null.
