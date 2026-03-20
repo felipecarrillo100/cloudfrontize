@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.4...v1.6.5) (2026-03-20)
+
+
+### Bug Fixes
+
+* **server:** unify telemetry broadcast via finish event ([2b556ed](https://github.com/felipecarrillo100/cloudfrontize/commit/2b556edb22ac549fd44d98cf0d384684ff423df9))
+
 ## [1.6.4](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.3...v1.6.4) (2026-03-20)
 
 
