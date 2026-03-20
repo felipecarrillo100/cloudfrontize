@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { AWS_LIMITS } = require('./constants');
-const { HeaderParser } = require('./headerParser'); 
+const { HeaderParser } = require('./headerParser');
 const EventEmitter = require('events');
 const pkg = require('../package.json');
 
@@ -79,10 +79,17 @@ function startServer(options) {
             bodySnippet: bodyBuffer ? bodyBuffer.toString('utf8', 0, 1024) : null
         };
 
+        let broadcasted = false;
+
         const broadcast = () => {
-            // Final Capture: What actually reaches the client
+            if (broadcasted) return;
+            broadcasted = true;
+
             telemetry.headers.response.viewer = res.getHeaders();
+            telemetry.status = res.statusCode;
+
             localHistory.set(requestID, { ...telemetry, timestamp: new Date().toISOString() });
+
             if (localHistory.size > 50) {
                 const firstKey = localHistory.keys().next().value;
                 localHistory.delete(firstKey);
@@ -90,6 +97,8 @@ function startServer(options) {
 
             setImmediate(() => localEvents.emit('log', telemetry));
         };
+
+        res.on('finish', broadcast);
 
         // === 0. HEADER INJECTION (Dual Context) ===
 
@@ -216,7 +225,7 @@ function startServer(options) {
             try {
                 const hookResult = await edgeRunner.runRequestHook(req, bodyBuffer, requestID);
                 const totalDurationMs = hookResult?.totalDurationMs || 0;
-                telemetry.cpu += totalDurationMs; 
+                telemetry.cpu += totalDurationMs;
 
                 if (hookResult?._timeout && options.strict) {
                     console.error('🛑 Strict Mode Violation: Lambda execution timed out and was aborted.');
@@ -521,13 +530,11 @@ function startServer(options) {
         if (shouldCompress) {
             compressMiddleware(req, res, () => {
                 runHandler();
-                telemetry.status = res.statusCode;
-                broadcast();
             });
         } else {
             runHandler();
             // serve-handler might be async, but we can't easily await it here without changing its call.
-            // For telemetry, we hook into res.end in a more robust way if needed, 
+            // For telemetry, we hook into res.end in a more robust way if needed,
             // but for now, we'll assume the standard flow.
             res.on('finish', () => {
                 telemetry.status = res.statusCode;
@@ -564,11 +571,11 @@ function startServer(options) {
                 const onLog = (data) => res.write(`data: ${JSON.stringify({ type: 'request', request: data })}\n\n`);
                 const onBuildError = (data) => res.write(`data: ${JSON.stringify({ type: 'build_error', payload: data })}\n\n`);
                 const onBuildSuccess = (data) => res.write(`data: ${JSON.stringify({ type: 'build_success', payload: data })}\n\n`);
-                
+
                 localEvents.on('log', onLog);
                 localEvents.on('build_error', onBuildError);
                 localEvents.on('build_success', onBuildSuccess);
-                
+
                 req.on('close', () => {
                     localEvents.removeListener('log', onLog);
                     localEvents.removeListener('build_error', onBuildError);
@@ -610,7 +617,7 @@ function startServer(options) {
             const cleanPath = req.url.split('?')[0];
             const assetName = cleanPath === '/' ? 'index.html' : cleanPath.slice(1);
             const uiAssetPath = path.join(__dirname, 'ui', assetName);
-            
+
             if (fs.existsSync(uiAssetPath) && fs.lstatSync(uiAssetPath).isFile()) {
                 const ext = path.extname(uiAssetPath);
                 const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
@@ -671,12 +678,12 @@ function startServer(options) {
             const rewriteStr = orig !== final ? ` ➔ ${final}` : '';
             const status = telemetry.status;
             const timeMs = (telemetry.cpu || telemetry.cpu === 0) ? `  (${telemetry.cpu.toFixed(0)}ms)` : '';
-            
+
             let statusColor = '\x1b[32m'; // green 200s
             if (status >= 300) statusColor = '\x1b[36m'; // cyan 300s
             if (status >= 400) statusColor = '\x1b[33m'; // yellow 400s
             if (status >= 500) statusColor = '\x1b[31m'; // red 500s
-            
+
             console.log(`\x1b[36m[${method}]\x1b[0m \x1b[2m${orig}\x1b[0m${rewriteStr}  ${statusColor}[${status}]\x1b[0m${timeMs}`);
         });
     }
@@ -684,18 +691,18 @@ function startServer(options) {
     return server.listen(options.port, () => {
         if (!options.noRequestLogging) {
             console.log(`\n☁️  \x1b[1mCloudfrontize v${pkg.version}\x1b[0m\n`);
-            
+
             console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
             if (options.webui) {
                 console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${parseInt(options.webui)}/\x1b[0m`);
             }
-            
+
             const modeName = options.mode === 'rest' ? 'REST (Strict Fidelity)' : 'Website (S3 Website Hosting)';
             console.log(`  ➜ Mode:    ${modeName}\n`);
 
             if (edgeRunner || cffRunner) {
                 console.log(`  ⚙️  Active Environment`);
-                
+
                 if (edgeRunner) {
                     Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
                         if (mods.length > 0) {
