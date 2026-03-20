@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.3](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.2...v1.6.3) (2026-03-20)
+
+
+### Bug Fixes
+
+* enforce CloudFront response contract for 502 errors ([e1b009c](https://github.com/felipecarrillo100/cloudfrontize/commit/e1b009ca121a60c54193a35752af201e0887dee3))
+* **simulator:** enforce CloudFront response contract for 502 errors ([68c43d9](https://github.com/felipecarrillo100/cloudfrontize/commit/68c43d95b56f987c4bc28ce065eedf25dc0e124c))
+
 ## [1.6.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.1...v1.6.2) (2026-03-20)
 
 
