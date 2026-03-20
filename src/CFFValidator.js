@@ -41,56 +41,79 @@ class CFFValidator {
     }
 
     validate(filename, code) {
-        let isStrictlyValid = true;
+        const violations = [];
 
         // --- Layer 1: Structural Parsing (Syntax) ---
         try {
             acorn.parse(code, { ecmaVersion: 5, sourceType: 'script' });
         } catch (err) {
-            const locationMatch = err.message.match(/\(\d+:\d+\)$/);
-            const location = locationMatch ? locationMatch[0] : '';
-            let message = err.message;
+            const locationMatch = err.message.match(/(\d+):\d+\)$/);
+            const lineNum = locationMatch ? parseInt(locationMatch[1], 10) : null;
+            let message = err.message.replace('Unexpected token', 'Syntax Error');
 
+            let hint = null;
             for (let trap of this.syntaxTraps) {
                 if (trap.regex.test(code)) {
-                    message = `Forbidden ES6+ Syntax: ${trap.label} ${location}`;
+                    message = `CloudFront Functions requires ES 5.1 — '${trap.label}' is not allowed`;
+                    hint = this._getHint(trap.label);
                     break;
                 }
             }
-            return this.handleViolation(filename, message, 'error');
+            violations.push({ level: 'error', message, lineNum, hint });
+            return { valid: false, violations };
         }
 
         // --- Layer 2: Policy Scan (Preserving Line Numbers) ---
-        // Instead of deleting, we overwrite comments/strings with spaces of the same length
-        // to keep the line/column counts perfectly aligned with the original file.
         const cleanCode = code
             .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => ' '.repeat(match.length))
             .replace(/'(?:\\'|.)*?'|"(?:\\"|.)*?"/g, (match) => ' '.repeat(match.length))
             .replace(/\/(?![*+?])(?:[^\r\n\[/\\]|\\.|\[(?:[^\r\n\]\\]|\\.)*\])+\//g, (match) => ' '.repeat(match.length));
 
+        let isStrictlyValid = true;
+
         // Check for "Valid ES5 but Forbidden in CFF"
         for (let trap of this.syntaxTraps) {
             if (trap.regex.test(cleanCode)) {
-                const violationResult = this.handleViolation(filename, `Forbidden pattern: ${trap.label}`, 'error');
-                if (!violationResult) isStrictlyValid = false;
+                violations.push({
+                    level: 'error',
+                    message: `CloudFront Functions requires ES 5.1 — '${trap.label}' is not allowed`,
+                    lineNum: null,
+                    hint: this._getHint(trap.label)
+                });
+                isStrictlyValid = false;
             }
         }
 
         // Check for Policy Warnings
         for (let trap of this.policyTraps) {
-            // Reset regex index for global flags if any, though here we just need the first match
             const match = trap.regex.exec(cleanCode);
             if (match) {
-                // Now match.index is IDENTICAL to the position in the original code!
                 const lineNum = code.substring(0, match.index).split('\n').length;
-                const message = `${trap.label} is ES6 and ${trap.hint} (Line ${lineNum})`;
-                this.handleViolation(filename, message, 'warn');
+                violations.push({
+                    level: 'warn',
+                    message: `${trap.label} is ES6 and ${trap.hint}`,
+                    lineNum
+                });
             }
         }
 
-        return isStrictlyValid;
+        return { valid: isStrictlyValid, violations };
     }
 
+    _getHint(label) {
+        const hints = {
+            'const': "Use 'var' instead.",
+            'let': "Use 'var' instead.",
+            'Arrow Function (=>)': "Use a regular function expression: function(x) { return x; }",
+            'Template Literal': "Use string concatenation: 'Hello ' + name",
+            'class': "Use constructor functions and prototype inheritance.",
+            'eval()': "eval() is forbidden in CloudFront Functions.",
+            'new Function()': "new Function() is forbidden in CloudFront Functions."
+        };
+        return hints[label] || null;
+    }
+
+    // Legacy method kept for backwards compatibility with tests that check console output
     handleViolation(filename, message, level = 'error') {
         const cleanMessage = message.replace('Unexpected token', 'Syntax Error');
 
