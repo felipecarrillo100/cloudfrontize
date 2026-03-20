@@ -60,7 +60,7 @@ program
             if (edgePath) {
                 edgeRunner = new EdgeRunner(edgePath, {
                     debug: options.debug,
-                    strict: options.strict, // <--- ADD THIS LINE HERE
+                    strict: options.strict, // <--- Make sure strict is passed
                     logPath: options.log ? path.resolve(options.log) : null,
                     envPath: options.env ? path.resolve(options.env) : null,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
