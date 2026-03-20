@@ -96,10 +96,6 @@ class CFFValidator {
 
         if (level === 'error') {
             const errorMsg = `🛑 [CFF] ES 5.1 ERROR in ${filename}: ${cleanMessage}`;
-            if (this.options.strict) {
-                console.error(errorMsg);
-                process.exit(1);
-            }
             console.error(errorMsg);
             return false;
         } else {

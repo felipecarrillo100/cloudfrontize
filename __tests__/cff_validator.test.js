@@ -41,23 +41,23 @@ describe('CFFValidator: The "No-Mercy" Fidelity Suite', () => {
 
     test('❌ Should fail on Object Property Shorthand', () => {
         const code = "var a = 1; var obj = { a };";
-        validator.validate('shorthand.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('shorthand.js', code);
+        expect(isValid).toBe(false);
         // Updated to match our new Syntax Error label
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Syntax Error'));
     });
 
     test('❌ Should fail on For-Of loops', () => {
         const code = "var arr = [1, 2]; for (var x of arr) {}";
-        validator.validate('forof.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('forof.js', code);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Syntax Error'));
     });
 
     test('❌ Should fail on Template Literals', () => {
         const code = "var x = `Outer ${ `Inner` }`;";
-        validator.validate('nested_template.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('nested_template.js', code);
+        expect(isValid).toBe(false);
         // Matches our custom label from the post-mortem loop
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Forbidden ES6+ Syntax: Template Literal'));
     });
@@ -66,22 +66,22 @@ describe('CFFValidator: The "No-Mercy" Fidelity Suite', () => {
 
     test('❌ Should fail on "const"', () => {
         const code = "const x = 1;";
-        validator.validate('const.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('const.js', code);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Forbidden ES6+ Syntax: const'));
     });
 
     test('❌ Should fail on "let"', () => {
         const code = "let x = 1;";
-        validator.validate('let.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('let.js', code);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Forbidden ES6+ Syntax: let'));
     });
 
     test('❌ Should fail on Arrow Functions', () => {
         const code = "var f = function() { return x => x; }";
-        validator.validate('arrow.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('arrow.js', code);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Arrow Function (=>)'));
     });
 
@@ -108,19 +108,19 @@ describe('CFFValidator: The "No-Mercy" Fidelity Suite', () => {
 
     test('❌ Should fail on eval() usage', () => {
         const code = "eval('var x = 1');";
-        validator.validate('eval.js', code);
+        const isValid = validator.validate('eval.js', code);
 
         // This is caught by Layer 2 as an 'error' level by default
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[CFF] ES 5.1 ERROR'));
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('eval()'));
     });
 
     test('❌ Should fail on new Function()', () => {
         const code = "var f = new Function('return 1');";
-        validator.validate('func.js', code);
+        const isValid = validator.validate('func.js', code);
 
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('new Function()'));
     });
 
@@ -139,8 +139,8 @@ describe('CFFValidator: The "No-Mercy" Fidelity Suite', () => {
 
     test('❌ Should fail on Async/Await', () => {
         const code = "async function run() { await Promise.resolve(); }";
-        validator.validate('async.js', code);
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        const isValid = validator.validate('async.js', code);
+        expect(isValid).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Syntax Error'));
     });
 });

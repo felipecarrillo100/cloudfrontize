@@ -42,9 +42,8 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         
-        expect(() => {
-            new EdgeRunner(hookPath, { watch: false });
-        }).toThrow(/Forbidden: fs is not available/);
+        const runner = new EdgeRunner(hookPath, { watch: false });
+        expect(runner.compileError).toMatch(/Forbidden: fs is not available/);
     });
 
     test('Origin Request: Allowed to require fs', async () => {
@@ -68,9 +67,8 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         
-        expect(() => {
-            new EdgeRunner(hookPath, { watch: false });
-        }).toThrow(/Forbidden: child_process is restricted/);
+        const runner = new EdgeRunner(hookPath, { watch: false });
+        expect(runner.compileError).toMatch(/Forbidden: child_process is restricted/);
     });
 
     test('CloudFront Fidelity: Detects hookType correctly even with extra spacing', async () => {
@@ -117,8 +115,7 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         
-        expect(() => {
-            new EdgeRunner(hookPath, { watch: false });
-        }).toThrow(/Forbidden: @aws-sdk\/client-s3 is not available/);
+        const runner = new EdgeRunner(hookPath, { watch: false });
+        expect(runner.compileError).toMatch(/Forbidden: @aws-sdk\/client-s3 is not available/);
     });
 });

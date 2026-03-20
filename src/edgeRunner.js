@@ -7,9 +7,11 @@ const dotenv = require('dotenv');
 
 const { AWS_RUNTIME, AWS_HEADERS, AWS_LIMITS } = require('./constants');
 const { AsyncLocalStorage } = require('async_hooks');
+const EventEmitter = require('events');
 
-class EdgeRunner {
+class EdgeRunner extends EventEmitter {
     constructor(edgePath, options = {}) {
+        super();
         this.edgePath = edgePath ? path.resolve(edgePath) : null;
         this.envPath = options.envPath;
         this.bakePath = options.bakePath;
@@ -155,7 +157,20 @@ class EdgeRunner {
 
         sandbox.global = sandbox;
         vm.createContext(sandbox);
-        new vm.Script(code).runInContext(sandbox);
+
+        try {
+            new vm.Script(code).runInContext(sandbox);
+            this.compileError = null;
+            this.emit('build_success', { type: 'edge', file: filePath });
+        } catch (err) {
+            this.compileError = err.stack || err.message;
+            console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in Lambda@Edge script!`);
+            console.error(`   File: ${filePath}`);
+            console.error(`   Error: ${err.message}\n`);
+            console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
+            this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
+            return;
+        }
 
         const mod = mockModule.exports;
         if (mod.handler && mod.hookType) {

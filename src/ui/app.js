@@ -61,6 +61,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Real-time Feed via SSE
     const evtSource = new EventSource('/events');
     
+    // Build Error Overlay (Vite-style)
+    const buildErrorBanner = document.getElementById('build-error-banner');
+    const buildErrorTitle  = document.getElementById('build-error-title');
+    const buildErrorMsg    = document.getElementById('build-error-message');
+
+    function showBuildError(payload) {
+        const label = payload.type === 'cff' ? 'CloudFront Function' : 'Lambda@Edge';
+        buildErrorTitle.textContent = `🛑 Build Failed — ${label}: ${payload.file.split(/[\\/]/).pop()}`;
+        buildErrorMsg.textContent = payload.error;
+        buildErrorBanner.style.display = 'flex';
+    }
+
+    function clearBuildError() {
+        buildErrorBanner.style.display = 'none';
+        buildErrorMsg.textContent = '';
+    }
+
+    // Dismiss on click (so user can inspect dashboard while broken)
+    buildErrorBanner.addEventListener('click', (e) => {
+        if (e.target === buildErrorBanner) clearBuildError();
+    });
+
     evtSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'init') {
@@ -87,6 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (data.type === 'request') {
             addRequestToFeed(data.request);
+        } else if (data.type === 'build_error') {
+            showBuildError(data.payload);
+        } else if (data.type === 'build_success') {
+            clearBuildError();
         }
     };
 

@@ -6,9 +6,11 @@ const vm = require('vm');
 const dotenv = require('dotenv');
 const { CFF_LIMITS, CFF_RUNTIME } = require('./constants');
 const { CFFValidator } = require('./CFFValidator');
+const EventEmitter = require('events');
 
-class CFFRunner {
+class CFFRunner extends EventEmitter {
     constructor(sourcePath, options = {}) {
+        super();
         this.sourcePath = sourcePath ? path.resolve(sourcePath) : null;
         this.options = options;
         this.outputPath = options.outputPath;
@@ -136,7 +138,26 @@ class CFFRunner {
         // --- STEP 2: PRE-VALIDATION (FAIL-FAST) ---
         // Validate immediately after baking to ensure injected vars don't break ES 5.1
         const isValid = this.validator.validate(filename, code);
-        if (!isValid && this.options.strict) return; // Validator handles exit(1) internally
+        if (!isValid) {
+            this.compileError = `ES 5.1 Validation Error in ${filename}`;
+            console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
+            this.emit('build_error', { type: 'cff', file: filePath, error: this.compileError });
+            return; 
+        }
+
+        try {
+            new vm.Script(code);
+            this.compileError = null;
+            this.emit('build_success', { type: 'cff', file: filePath });
+        } catch (err) {
+            this.compileError = err.stack || err.message;
+            console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in CloudFront Function!`);
+            console.error(`   File: ${filePath}`);
+            console.error(`   Error: ${err.message}\n`);
+            console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
+            this.emit('build_error', { type: 'cff', file: filePath, error: this.compileError });
+            return;
+        }
 
         
         // --- STEP 3: OUTPUT SAVING ---
@@ -150,8 +171,10 @@ class CFFRunner {
         if (code.length > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
             const msg = `[CFF] Code size (${(code.length / 1024).toFixed(1)}KB) exceeds 10KB limit.`;
             if (this.options.strict) {
-                console.error(`🛑 ${msg}`);
-                process.exit(1);
+                this.compileError = `Size Limit Exceeded: ${msg}`;
+                console.error(`🛑 [\x1b[31mBuild Error\x1b[0m] ${msg}`);
+                console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
+                return;
             }
             console.warn(`⚠️  ${msg}`);
         }

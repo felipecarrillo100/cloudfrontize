@@ -20,6 +20,17 @@ function startServer(options) {
     const localOverrides = { request: {}, response: {} };
     const localEvents = new EventEmitter();
 
+    // Relay Build Events from Runners to the WebUI
+    const relayBuildEvent = (eventName) => (payload) => localEvents.emit(eventName, payload);
+    if (edgeRunner) {
+        edgeRunner.on('build_error', relayBuildEvent('build_error'));
+        edgeRunner.on('build_success', relayBuildEvent('build_success'));
+    }
+    if (cffRunner) {
+        cffRunner.on('build_error', relayBuildEvent('build_error'));
+        cffRunner.on('build_success', relayBuildEvent('build_success'));
+    }
+
     // --- NEW: Parse headers into separate buckets ---
     const parser = new HeaderParser();
     const { requestHeaders, responseHeaders } = parser.parse(headersPath);
@@ -111,6 +122,25 @@ function startServer(options) {
 
         // === 1. REQUEST HOOKS ===
 
+        // --- 0. Global Compile-Time Safeguards ---
+        if (edgeRunner && edgeRunner.compileError) {
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end(`500 Internal Server Error (Build Failed)\n\nLambda@Edge hook failed to compile:\n${edgeRunner.compileError}`);
+            telemetry.status = 500;
+            telemetry.violation = 'Lambda@Edge Compile Error';
+            broadcast();
+            return;
+        }
+
+        if (cffRunner && cffRunner.compileError) {
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end(`500 Internal Server Error (Build Failed)\n\nCloudFront Function failed to compile:\n${cffRunner.compileError}`);
+            telemetry.status = 500;
+            telemetry.violation = 'CFF Compile Error';
+            broadcast();
+            return;
+        }
+
         // --- 1a. CloudFront Functions (viewer-request) ---
         if (cffRunner) {
             try {
@@ -156,8 +186,13 @@ function startServer(options) {
                 // Capture mutations after CFF viewer-request
                 telemetry.headers.request.origin = { ...req.headers };
             } catch (err) {
-                console.error(`🛑 [CFF] viewer-request error: ${err.message}`);
-                telemetry.violation = `CFF Error: ${err.message}`;
+                console.error(`🛑 [CFF] viewer-request crash: ${err.message}`);
+                telemetry.violation = `CFF Execution Error: ${err.stack || err.message}`;
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('500 Internal Server Error (CloudFront Functions Execution Error)');
+                telemetry.status = 500;
+                broadcast();
+                return;
             }
         }
 
@@ -280,7 +315,13 @@ function startServer(options) {
                     broadcast();
                     return;
                 }
-                throw err;
+                console.error(`🛑 [Lambda@Edge] Request Hook Crash: ${err.message}`);
+                telemetry.violation = `Lambda Execution Error: ${err.stack || err.message}`;
+                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                res.end('502 Bad Gateway (Lambda Execution Error)');
+                telemetry.status = 502;
+                broadcast();
+                return;
             }
         }
 
@@ -346,7 +387,14 @@ function startServer(options) {
                     broadcast();
                     return;
                 }
-                throw err;
+                console.error(`🛑 [Lambda@Edge] Response Hook Crash: ${err.message}`);
+                telemetry.violation = `Lambda Execution Error: ${err.stack || err.message}`;
+                res.getHeaderNames().forEach(h => res.removeHeader(h));
+                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                res.end('502 Bad Gateway (Lambda Execution Error)');
+                telemetry.status = 502;
+                broadcast();
+                return;
             }
         }
 
@@ -382,7 +430,14 @@ function startServer(options) {
                     res.statusCode = parseInt(mappedResult.status);
                 }
             } catch (err) {
-                console.error(`🛑 [CFF] viewer-response error: ${err.message}`);
+                console.error(`🛑 [CFF] viewer-response crash: ${err.message}`);
+                telemetry.violation = `CFF Execution Error: ${err.stack || err.message}`;
+                res.getHeaderNames().forEach(h => res.removeHeader(h));
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('500 Internal Server Error (CloudFront Functions Execution Error)');
+                telemetry.status = 500;
+                broadcast();
+                return;
             }
         }
 
@@ -507,8 +562,18 @@ function startServer(options) {
                 });
                 res.write(`data: ${initData}\n\n`);
                 const onLog = (data) => res.write(`data: ${JSON.stringify({ type: 'request', request: data })}\n\n`);
+                const onBuildError = (data) => res.write(`data: ${JSON.stringify({ type: 'build_error', payload: data })}\n\n`);
+                const onBuildSuccess = (data) => res.write(`data: ${JSON.stringify({ type: 'build_success', payload: data })}\n\n`);
+                
                 localEvents.on('log', onLog);
-                req.on('close', () => localEvents.removeListener('log', onLog));
+                localEvents.on('build_error', onBuildError);
+                localEvents.on('build_success', onBuildSuccess);
+                
+                req.on('close', () => {
+                    localEvents.removeListener('log', onLog);
+                    localEvents.removeListener('build_error', onBuildError);
+                    localEvents.removeListener('build_success', onBuildSuccess);
+                });
                 return;
             }
 
