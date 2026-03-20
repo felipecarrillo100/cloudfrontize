@@ -190,7 +190,7 @@ class CFFRunner extends EventEmitter {
             return;
         }
 
-        
+
         // --- STEP 3: OUTPUT SAVING ---
         if (this.outputPath) {
             fs.mkdirSync(this.outputPath, { recursive: true });
@@ -306,6 +306,13 @@ class CFFRunner extends EventEmitter {
             return { result, cpuTimeMs };
         } catch (err) {
             console.error(`🛑 [CFF] Execution Error in ${fn.name}: ${err.message}`);
+
+            // If we are in strict mode, we MUST fail the request
+            if (this.options.strict) {
+                throw new Error(`CFF Execution Error: ${err.message}`);
+            }
+
+            // Relaxed mode: keep the current "silent failure" behavior
             return { result: null, cpuTimeMs: 0 };
         }
     }

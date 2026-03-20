@@ -197,9 +197,9 @@ function startServer(options) {
             } catch (err) {
                 console.error(`🛑 [CFF] viewer-request crash: ${err.message}`);
                 telemetry.violation = `CFF Execution Error: ${err.stack || err.message}`;
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('500 Internal Server Error (CloudFront Functions Execution Error)');
-                telemetry.status = 500;
+                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                res.end('502 Bad Gateway (CloudFront Functions Execution Error)');
+                telemetry.status = 502;
                 broadcast();
                 return;
             }
@@ -442,9 +442,9 @@ function startServer(options) {
                 console.error(`🛑 [CFF] viewer-response crash: ${err.message}`);
                 telemetry.violation = `CFF Execution Error: ${err.stack || err.message}`;
                 res.getHeaderNames().forEach(h => res.removeHeader(h));
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('500 Internal Server Error (CloudFront Functions Execution Error)');
-                telemetry.status = 500;
+                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                res.end('502 Bad Gateway (CloudFront Functions Execution Error)');
+                telemetry.status = 502;
                 broadcast();
                 return;
             }
