@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.5.0...v1.6.0) (2026-03-20)
+
+
+### Features
+
+* resilient hot-reload with Vite-style WebUI build overlays ([6ba7bd6](https://github.com/felipecarrillo100/cloudfrontize/commit/6ba7bd66e90611fcdb01e57f09ed8e6015ad1c86))
+
 ## [1.5.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.4.0...v1.5.0) (2026-03-18)
 
 
