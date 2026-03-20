@@ -335,7 +335,7 @@ class EdgeRunner extends EventEmitter {
                 const handleResult = (res) => {
                     if (resolved) return;
 
-                    // FIDELITY CHECK: CloudFront returns 502 if the response is not an object
+                    // FIDELITY CHECK: CloudFront returns 502 if the response is not an object.
                     if (res !== undefined && (res === null || typeof res !== 'object')) {
                         const msg = `[CloudFrontize] 502 Error: Lambda returned a ${typeof res} instead of an Object.`;
 
