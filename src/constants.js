@@ -40,21 +40,14 @@ const AWS_HEADERS = {
  * Sandbox & Runtime Configurations
  */
 const AWS_RUNTIME = {
-    // Whitelisted built-ins for ALL hook types (Minimal & Secure)
-    ALLOWED_CORE: ['crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring'],
-    
-    // Viewer hooks: Core + specific utility modules
-    ALLOWED_VIEWER: [
-        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring',
-        '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64'
-    ],
-    
-    // Origin hooks: All viewer modules + S3/DynamoDB/SecretsManager/AppConfig + File System
-    ALLOWED_ORIGIN: [
-        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring',
+    // Unified whitelist for all Lambda@Edge hook types (Viewer & Origin)
+    // AWS technically allows any of these, though they recommend modular v3 for newer runtimes.
+    ALLOWED_LAMBDA: [
+        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring', 'fs', 'stream', 'events',
+        'aws-sdk', // Legacy v2 support
         '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64',
-        'fs',
-        '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig'
+        '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig',
+        '@aws-sdk/lib-dynamodb'
     ],
 
     // Networking modules (only active if --allow-networking is passed)

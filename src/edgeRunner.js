@@ -74,9 +74,14 @@ class EdgeRunner extends EventEmitter {
         });
     }
 
-    _detectHookType(code) {
+    _detectHookType(code, fileName) {
         const match = code.match(/exports\.hookType\s*=\s*['"](.+?)['"]/);
-        return match ? match[1] : null;
+        if (match) return match[1];
+
+        // Fidelity Fallback: Default to viewer-request if missing
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] Missing 'exports.hookType' in ${fileName}.\x1b[0m`);
+        console.warn(`   Defaulting to \x1b[32m'viewer-request'\x1b[0m for simulation. Override this via 'exports.hookType' in your module.`);
+        return 'viewer-request';
     }
 
     _loadFile(filePath) {
@@ -110,7 +115,7 @@ class EdgeRunner extends EventEmitter {
             }
         };
 
-        const hookType = this._detectHookType(code);
+        const hookType = this._detectHookType(code, path.basename(filePath));
 
         const mockModule = { exports: {} };
         const sandbox = {
@@ -132,12 +137,7 @@ class EdgeRunner extends EventEmitter {
                 }
 
                 // 2. Validate against hook-specific whitelist
-                let allowed = AWS_RUNTIME.ALLOWED_CORE;
-                if (hookType === 'origin-request' || hookType === 'origin-response') {
-                    allowed = AWS_RUNTIME.ALLOWED_ORIGIN;
-                } else if (hookType === 'viewer-request' || hookType === 'viewer-response') {
-                    allowed = AWS_RUNTIME.ALLOWED_VIEWER;
-                }
+                let allowed = AWS_RUNTIME.ALLOWED_LAMBDA;
 
                 // 3. Conditional Networking Whitelist
                 const isNetAllowed = this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
@@ -146,7 +146,7 @@ class EdgeRunner extends EventEmitter {
                 const isAllowed = allowed.includes(id) ||
                                  isNetAllowed ||
                                  id.startsWith('node:') ||
-                                 (id.startsWith('@aws-sdk/client-') && (hookType?.startsWith('origin-')));
+                                 id.startsWith('@aws-sdk/client-');
 
                 if (!id.startsWith('.') && !isAllowed) {
                     const isBannedNet = !this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
