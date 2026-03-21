@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.8.0...v1.8.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* **runner:** resolve EdgeRunner crash and stabilize hot-reload ([889c9ad](https://github.com/felipecarrillo100/cloudfrontize/commit/889c9ad0a349446736fee11f2136be93f36a1294))
+
 ## [1.8.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.7.1...v1.8.0) (2026-03-21)
 
 
