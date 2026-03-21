@@ -8,7 +8,7 @@ const fs = require('fs');
 describe('RequestBody & Strict Mode Fidelity', () => {
     let runner;
     let server;
-    const testDir = path.resolve(__dirname, '..', 'tmp_test', 'request_body');
+    const testDir = path.resolve(__dirname, '..', '.tmp/', 'test', 'request_body');
     const port = 9097;
 
     beforeEach(() => {

@@ -42,10 +42,12 @@ const AWS_HEADERS = {
 const AWS_RUNTIME = {
     // Unified whitelist for all Lambda@Edge hook types (Viewer & Origin)
     // AWS technically allows any of these, though they recommend modular v3 for newer runtimes.
-    ALLOWED_LAMBDA: [
+    // AWS strictly restricts built-in access in Viewer Request/Response.
+    // Origin Request/Response have full access to most Node.js built-ins.
+    ALLOWED_VIEWER: ['crypto', 'buffer', 'util', 'url', 'querystring', 'stream', 'events'],
+    ALLOWED_ORIGIN: [
         'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring', 'fs', 'stream', 'events',
-        'aws-sdk', // Legacy v2 support
-        '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64',
+        'aws-sdk', '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64',
         '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig',
         '@aws-sdk/lib-dynamodb'
     ],
@@ -77,4 +79,9 @@ const CFF_RUNTIME = {
     FORBIDDEN_MODULES: ['*'] // Any require() will throw
 };
 
-module.exports = { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME, CFF_LIMITS, CFF_RUNTIME };
+const RESTRICTED_AWS_ENV = [
+    'AWS_ACCOUNT_ID', 'AWS_LAMBDA_FUNCTION_NAME', 'AWS_LAMBDA_FUNCTION_VERSION',
+    'AWS_LAMBDA_FUNCTION_MEMORY_SIZE', 'AWS_EXECUTION_ENV'
+];
+
+module.exports = { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME, CFF_LIMITS, CFF_RUNTIME, RESTRICTED_AWS_ENV };

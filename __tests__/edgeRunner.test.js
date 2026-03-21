@@ -60,16 +60,16 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         // Test Host (Request-only forbidden)
         const reqRunner = new EdgeRunner('./samples/edgecases/queryStringRewriter.js'); // Use any request-compatible handler
         runners.push(reqRunner);
-        // Manually inject a mutation that triggers a warning if possible, 
-        // but better yet, use a dedicated mutator sample.
-
-        const resRunner = new EdgeRunner('./samples/edgecases/blacklistedHeaderMutator.js');
+        const resRunner = new EdgeRunner('./samples/edgecases/blacklistedHeaderMutator.js', { 
+            debug: true, 
+            strict: true,
+            watch: false 
+        });
         runners.push(resRunner);
 
         await resRunner.runResponseHook({ headers: {}, url: '/' }, { status: 200, headers: {} });
 
         // ✅ Spies track the call even though the output is hidden from the terminal
-        // Note: host is now request-only, via is common.
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('via'));
 
         // Add a request-specific check
@@ -81,11 +81,11 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
                 return request;
             };
         `;
-        const tempPath = path.join(__dirname, '..', 'tmp_test', 'runner_host_test.js');
+        const tempPath = path.join(__dirname, '..', '.tmp/', 'test', 'runner_host_test.js');
         if (!fs.existsSync(path.dirname(tempPath))) fs.mkdirSync(path.dirname(tempPath), { recursive: true });
         fs.writeFileSync(tempPath, mutatorCode);
 
-        const hostRunner = new EdgeRunner(tempPath);
+        const hostRunner = new EdgeRunner(tempPath, { debug: true, strict: true, watch: false });
         runners.push(hostRunner);
         await hostRunner.runRequestHook({ headers: {}, url: '/' });
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('host'));

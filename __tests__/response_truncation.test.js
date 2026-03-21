@@ -8,7 +8,7 @@ const fs = require('fs');
 describe('Response Truncation: 1MB Limit Fidelity', () => {
     let runner;
     let server;
-    const testDir = path.resolve(__dirname, '..', 'tmp_test', 'response_truncation');
+    const testDir = path.resolve(__dirname, '..', '.tmp/', 'test', 'response_truncation');
     const port = 9098;
 
     beforeEach(() => {

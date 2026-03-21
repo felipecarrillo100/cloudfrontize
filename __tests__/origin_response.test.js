@@ -8,7 +8,7 @@ const fs = require('fs');
 describe('Origin-Response & Strict Header Fidelity', () => {
     let runner;
     let server;
-    const baseTestDir = path.resolve(__dirname, '..', 'tmp_test', 'origin_response');
+    const baseTestDir = path.resolve(__dirname, '..', '.tmp/', 'test', 'origin_response');
     let currentTestDir;
     const port = 9099;
 
@@ -58,8 +58,9 @@ describe('Origin-Response & Strict Header Fidelity', () => {
             };
         `;
         fs.writeFileSync(path.join(dir, 'safe.js'), code);
-        runner = new EdgeRunner(dir, { watch: false, strict: true });
-        server = startServer({ port, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true });
+        runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
+        runner.load();
+        server = startServer({ port, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
 
         const res = await fetch(`http://localhost:${port}/`);
         expect(res.status).toBe(200);
@@ -77,8 +78,9 @@ describe('Origin-Response & Strict Header Fidelity', () => {
             };
         `;
         fs.writeFileSync(path.join(dir, 'forbidden.js'), code);
-        runner = new EdgeRunner(dir, { watch: false, strict: true });
-        server = startServer({ port: port + 1, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true });
+        runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
+        runner.load();
+        server = startServer({ port: port + 1, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
 
         const res = await fetch(`http://localhost:${port + 1}/`);
         const body = await res.text();
@@ -98,6 +100,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
         `;
         fs.writeFileSync(path.join(dir, 'warn.js'), code);
         runner = new EdgeRunner(dir, { watch: false });
+        runner.load();
         server = startServer({ port: port + 2, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: false });
 
         const res = await fetch(`http://localhost:${port + 2}/`);
@@ -115,8 +118,9 @@ describe('Origin-Response & Strict Header Fidelity', () => {
             };
         `;
         fs.writeFileSync(path.join(dir, 'host_res.js'), code);
-        runner = new EdgeRunner(dir, { watch: false, strict: true });
-        server = startServer({ port: port + 3, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true });
+        runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
+        runner.load();
+        server = startServer({ port: port + 3, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
 
         const res = await fetch(`http://localhost:${port + 3}/`);
         expect(res.status).toBe(200);

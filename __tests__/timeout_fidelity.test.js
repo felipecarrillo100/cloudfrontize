@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Execution Timeout Fidelity', () => {
-    const tmpDir = path.join(__dirname, 'tmp_timeout_test');
+    const tmpDir = path.join(__dirname, '.tmp/', 'timeout_test');
     const port = 3008;
 
     beforeAll(() => {

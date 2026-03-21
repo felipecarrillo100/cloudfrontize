@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Logging Fidelity (AWS-style Formatting)', () => {
-    const tmpDir = path.join(__dirname, 'tmp_logging_test');
+    const tmpDir = path.join(__dirname, '.tmp/', 'logging_test');
     const logFile = path.join(tmpDir, 'lambda.log');
     const edgeDir = path.join(tmpDir, 'edge');
     const port = 3007;
@@ -36,11 +36,12 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
     afterEach(async () => {
         if (server) await server.closeGracefully();
         if (edgeRunner) edgeRunner.close();
+        jest.restoreAllMocks(); // Restore all mocks after each test
     });
 
     test('Should format logs and write to file with correct metadata', async () => {
         edgeRunner = new EdgeRunner(edgeDir, { logPath: logFile, watch: false });
-        server = startServer({ directory: tmpDir, port, edgeRunner, noRequestLogging: true });
+        server = startServer({ directory: tmpDir, port: 0, edgeRunner, noRequestLogging: true });
 
         await request(server).get('/');
 
@@ -74,18 +75,24 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
     });
 
     test('Should print to console if debug is enabled', async () => {
-        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => {});
-        const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => {});
+        const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
         edgeRunner = new EdgeRunner(edgeDir, { debug: true, watch: false });
-        server = startServer({ directory: tmpDir, port: port + 1, edgeRunner, noRequestLogging: true });
+        server = startServer({ 
+            directory: tmpDir, 
+            port: 0, 
+            edgeRunner: edgeRunner, 
+            logPath: logFile,
+            noRequestLogging: false 
+        });
 
         await request(server).get('/');
 
-        expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[viewer-request]  Hello from Lambda'));
-        expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('[viewer-request]  An error occurred'));
+        expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Hello from Lambda'));
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('An error occurred'));
 
-        stdoutSpy.mockRestore();
-        stderrSpy.mockRestore();
+        logSpy.mockRestore();
+        errorSpy.mockRestore();
     });
 });

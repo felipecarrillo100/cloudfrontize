@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Default Header Injection (--headers)', () => {
-    const tmpDir = path.join(__dirname, 'tmp_header_test');
+    const tmpDir = path.join(__dirname, '.tmp/', 'header_test');
     const edgeDir = path.join(tmpDir, 'edge');
     const port = 3008;
 
@@ -55,7 +55,7 @@ describe('Default Header Injection (--headers)', () => {
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
         server = startServer({ 
             directory: tmpDir, 
-            port, 
+            port: 0, 
             edgeRunner, 
             noRequestLogging: true,
             defaultHeaders
@@ -74,7 +74,7 @@ describe('Default Header Injection (--headers)', () => {
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
         server = startServer({ 
             directory: tmpDir, 
-            port: port + 1, 
+            port: 0, 
             edgeRunner, 
             noRequestLogging: true,
             defaultHeaders
@@ -97,7 +97,7 @@ describe('Default Header Injection (--headers)', () => {
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
         server = startServer({ 
             directory: tmpDir, 
-            port: port + 2, 
+            port: 0, 
             edgeRunner, 
             noRequestLogging: true,
             defaultHeaders

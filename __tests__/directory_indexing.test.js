@@ -7,7 +7,7 @@ const path = require('path');
 describe('--mode flag and Directory Indexing Fidelity', () => {
     const port = Math.floor(Math.random() * (40000 - 30000 + 1) + 30000); // Random port for safety
     const rootDir = path.resolve(__dirname, '..');
-    const baseDir = path.join(rootDir, 'tmp_test', 'fidelity_rest');
+    const baseDir = path.join(rootDir, '.tmp/', 'test', 'fidelity_rest');
     const edgeDir = path.join(baseDir, 'edge');
 
     let server;

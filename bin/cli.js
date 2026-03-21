@@ -66,7 +66,8 @@ program
                     logPath: options.log ? path.resolve(options.log) : null,
                     envPath: options.env ? path.resolve(options.env) : null,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
-                    outputPath: options.output ? path.resolve(options.output) : null
+                    outputPath: options.output ? path.resolve(options.output) : null,
+                    watch: !isJustBaking // Disable watch if we are just baking
                 });
             }
 
@@ -79,30 +80,29 @@ program
                     debug: options.debug,
                     strict: options.strict,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
-                    outputPath: cffTargetOutput
+                    outputPath: cffTargetOutput,
+                    watch: !isJustBaking // Disable watch if we are just baking
                 });
             }
 
-            if (isJustBaking) {
-                console.log(`✅ Production-ready file(s) generated at: ${options.output}`);
-                console.log(`ℹ️  Baking complete. No directory provided, so the server will not start.`);
-                process.exit(0);
-            }
-        }
-
-        // 1. Resolve the path to the headers file
-        const headersPath = options.headers ? path.resolve(options.headers) : null;
-
-        // 2. Banner sequence for CLI (Fidelity UX)
-        if (!isJustBaking) {
+            // 2. Banner sequence for CLI (Fidelity UX)
             const displayPort = parseInt(port);
             printTopBanner({ ...options, port: displayPort });
             printBottomBanner({ ...options, port: displayPort, edgeRunner, cffRunner });
-
-            // 3. Trigger initial load (This will now print errors AFTER the environment summary)
-            if (edgeRunner) edgeRunner.load();
-            if (cffRunner) cffRunner.loadFunctions();
         }
+
+        // 3. Trigger initial load (Crucial: Do this BEFORE the baking exit)
+        if (edgeRunner) edgeRunner.load();
+        if (cffRunner) cffRunner.loadFunctions();
+
+        if (isJustBaking) {
+            console.log(`✅ Production-ready file(s) generated at: ${options.output}`);
+            console.log(`ℹ️  Baking complete. No directory provided, so the server will not start.`);
+            process.exit(0);
+        }
+
+        // 4. Resolve the path to the headers file
+        const headersPath = options.headers ? path.resolve(options.headers) : null;
 
         startServer({
             ...options,

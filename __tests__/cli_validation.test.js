@@ -5,7 +5,7 @@ const fs = require('fs');
 const cliPath = path.resolve(__dirname, '../bin/cli.js');
 
 describe('CLI Argument Validation', () => {
-    const tmpDir = path.join(__dirname, 'tmp_cli_test');
+    const tmpDir = path.join(__dirname, '.tmp/', 'cli_test');
     const edgeFile = path.join(tmpDir, 'edge.js');
     const outputFile = path.join(tmpDir, 'output.js');
 

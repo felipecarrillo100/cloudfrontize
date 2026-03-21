@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 describe('Edge Hook Fidelity (Single-Hook Enforcement)', () => {
-    const tmpDir = path.resolve(__dirname, 'tmp_hook_fidelity');
+    const tmpDir = path.resolve(__dirname, '.tmp/', 'hook_fidelity');
     const fileA = path.join(tmpDir, 'a_viewer.js');
     const fileB = path.join(tmpDir, 'b_viewer.js');
 

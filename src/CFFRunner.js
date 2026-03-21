@@ -4,9 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const dotenv = require('dotenv');
-const { CFF_LIMITS, CFF_RUNTIME } = require('./constants');
+const { CFF_LIMITS, CFF_RUNTIME, AWS_HEADERS } = require('./constants');
 const { CFFValidator } = require('./CFFValidator');
 const EventEmitter = require('events');
+const acorn = require('acorn');
 
 class CFFRunner extends EventEmitter {
     constructor(sourcePath, options = {}) {
@@ -28,7 +29,8 @@ class CFFRunner extends EventEmitter {
         };
 
         if (this.sourcePath) {
-            // Initialization moved to explicit loadFunctions() call in CLI
+            // 🚀 Initial load (Ensure hooks are ready for tests/CLI)
+            this.loadFunctions();
         }
 
         // If watch enabled
@@ -196,7 +198,7 @@ class CFFRunner extends EventEmitter {
         if (this.outputPath) {
             fs.mkdirSync(this.outputPath, { recursive: true });
             const outFilePath = path.join(this.outputPath, filename);
-            fs.writeFileSync(outFilePath, code);
+            fs.writeFileSync(outFilePath, this._stripHookType(code));
         }
 
         // --- STEP 4: RESOURCE CHECK ---
@@ -223,11 +225,11 @@ class CFFRunner extends EventEmitter {
         });
     }
 
-    async runChain(type, initialEvent) {
-        let currentEvent = initialEvent;
+    async runChain(hookType, event) {
+        let currentEvent = event;
         let totalCpuTimeMs = 0;
-
-        for (const fn of this.functions[type]) {
+        
+        for (const fn of this.functions[hookType]) {
             const { result, cpuTimeMs } = this.executeSync(fn, currentEvent);
             totalCpuTimeMs += cpuTimeMs;
 
@@ -241,12 +243,12 @@ class CFFRunner extends EventEmitter {
                 }
 
                 // If a viewer-request hook generated a response, CloudFront stops and returns it immediately
-                if (type === 'viewer-request' && currentEvent.response) {
+                if (hookType === 'viewer-request' && currentEvent.response) {
                     break;
                 }
             }
         }
-
+        
         if (currentEvent) {
             currentEvent.totalCpuTimeMs = totalCpuTimeMs;
         }
@@ -298,9 +300,11 @@ class CFFRunner extends EventEmitter {
                 breakOnSigint: true
             });
             const end = process.hrtime.bigint();
-            const cpuTimeMs = Number(end - start) / 1e6;
+            const cpuTimeMs = Number(end - start) / 1e6; // Original calculation
+            // const cpuTimeMs = (end[0] * 1000 + end[1] / 1000000); // Proposed change, but inconsistent with bigint
 
             if (cpuTimeMs > CFF_LIMITS.MAX_CPU_TIME_MS) {
+                // Call global console so Jest spies work
                 console.warn(`⚠️  [CFF] ${fn.name} exceeded 1ms CPU limit (Used: ${cpuTimeMs.toFixed(2)}ms). AWS may throttle this function.`);
             }
 
@@ -321,6 +325,7 @@ class CFFRunner extends EventEmitter {
     // Bidirectional Mappers
     toCFFEvent(req, bodyBuffer, hookType, resData = null) {
         const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const incomingHeaders = this._parseIncomingHeaders(req);
 
         const event = {
             version: '1.0',
@@ -342,6 +347,7 @@ class CFFRunner extends EventEmitter {
             }
         };
 
+
         if (resData) {
             event.response = {
                 statusCode: resData.status || 200,
@@ -357,23 +363,17 @@ class CFFRunner extends EventEmitter {
         }
 
         // --- RECONCILED HEADER MAPPING ---
-        const reconciledHeaders = {};
+        const reconciledHeaders = incomingHeaders;
 
-        // 1. Parse rawHeaders (Actual Socket Data)
-        if (req.rawHeaders) {
-            for (let i = 0; i < req.rawHeaders.length; i += 2) {
-                const originalKey = req.rawHeaders[i];
-                const lowerKey = originalKey.toLowerCase();
-                if (!reconciledHeaders[lowerKey]) reconciledHeaders[lowerKey] = [];
-                reconciledHeaders[lowerKey].push({ key: originalKey, value: String(req.rawHeaders[i + 1]) });
-            }
+        // AWS Fidelity: Strip globally forbidden headers from the CFF event
+        for (const h of AWS_HEADERS.FORBIDDEN) {
+            delete reconciledHeaders[h];
         }
 
-        // 2. Merge with req.headers (Injected CLI --headers)
-        // Only adds if the header is not already in the raw list (Curl overrides CLI)
-        for (const [lowerKey, v] of Object.entries(req.headers || {})) {
-            if (!reconciledHeaders[lowerKey]) {
-                reconciledHeaders[lowerKey] = [{ key: lowerKey, value: String(v) }];
+        // AWS Fidelity: Strip headers that are forbidden to be mutated in REQUEST hooks
+        if (hookType === 'viewer-request') {
+            for (const h of AWS_HEADERS.REQUEST_ONLY_FORBIDDEN) {
+                delete reconciledHeaders[h];
             }
         }
 
@@ -405,6 +405,39 @@ class CFFRunner extends EventEmitter {
         return event;
     }
 
+    _parseIncomingHeaders(req) {
+        const headers = {};
+
+        // 1. Initial population from req.headers (reliable fallback)
+        for (const [k, v] of Object.entries(req.headers || {})) {
+            const lowerKey = k.toLowerCase();
+            if (Array.isArray(v)) {
+                headers[lowerKey] = v.map(val => ({ key: k, value: String(val) }));
+            } else {
+                headers[lowerKey] = [{ key: k, value: String(v) }];
+            }
+        }
+
+        // 2. Overwrite/supplement with rawHeaders to preserve exact casing if available
+        if (req.rawHeaders) {
+            // Reset for raw headers to ensure we use the EXACT casing from the socket where possible
+            const rawParsed = {};
+            for (let i = 0; i < req.rawHeaders.length; i += 2) {
+                const originalKey = req.rawHeaders[i];
+                const value = req.rawHeaders[i + 1];
+                const lowerKey = originalKey.toLowerCase();
+                if (!rawParsed[lowerKey]) rawParsed[lowerKey] = [];
+                rawParsed[lowerKey].push({ key: originalKey, value: String(value) });
+            }
+            // Merge rawParsed into headers (Raw socket data takes precedence for fidelity)
+            for (const [lowerKey, entries] of Object.entries(rawParsed)) {
+                headers[lowerKey] = entries;
+            }
+        }
+
+        return headers;
+    }
+
     fromCFFEvent(cffResponse) {
         if (!cffResponse) return null;
 
@@ -412,20 +445,41 @@ class CFFRunner extends EventEmitter {
         // If it's a full event object, we need to extract the request or response part
         if (cffResponse.request && !cffResponse.method && !cffResponse.statusCode) {
             // Priority 1: If it's a viewer-request hook that generated a response, return the response
-            if (cffResponse.response && cffResponse.context && cffResponse.context.eventType === 'viewer-request') {
+            if (cffResponse.response) {
                 target = cffResponse.response;
             }
-            // Priority 2: If it's a viewer-response hook, return the response
-            else if (cffResponse.response && cffResponse.context && cffResponse.context.eventType === 'viewer-response') {
-                target = cffResponse.response;
-            }
-            // Priority 3: Otherwise return the request
+            // Priority 2: Otherwise return the request
             else {
                 target = cffResponse.request;
             }
         }
 
-        // If it's a request object (now or after extraction), translate back
+        // --- PRECEDENCE FIX: Check for RESPONSE first ---
+        if (target.statusCode || target.status) {
+            const headers = {};
+            if (target.headers) {
+                for (const [k, v] of Object.entries(target.headers)) {
+                    headers[k.toLowerCase()] = [{ key: k, value: v.value }];
+                }
+            }
+            if (target.cookies) {
+                if (!headers['set-cookie']) headers['set-cookie'] = [];
+                for (const [cookieName, cookieObj] of Object.entries(target.cookies)) {
+                    let cookieStr = `${cookieName}=${cookieObj.value}`;
+                    if (cookieObj.attributes) cookieStr += `; ${cookieObj.attributes}`;
+                    headers['set-cookie'].push({ key: 'Set-Cookie', value: cookieStr });
+                }
+            }
+            return {
+                status: target.statusCode || target.status,
+                statusDescription: target.statusDescription || 'OK',
+                headers: headers,
+                body: target.body ? target.body.data : '',
+                _isResponse: true
+            };
+        }
+
+        // --- Fallback: Check for REQUEST mutation ---
         if (target.method || target.uri) {
             let url = target.uri;
             if (target.querystring) {
@@ -437,46 +491,13 @@ class CFFRunner extends EventEmitter {
             const headers = {};
             if (target.headers) {
                 for (const [k, v] of Object.entries(target.headers)) {
-                    headers[k] = [{ key: k, value: v.value }];
+                    headers[k.toLowerCase()] = [{ key: k, value: v.value }];
                 }
             }
             return {
                 url: url,
                 headers: headers,
                 _isResponse: false
-            };
-        }
-
-        // If it's a response object (now or after extraction)
-        if (target.statusCode) {
-            const headers = {};
-
-            // 1. Existing Header Logic
-            if (target.headers) {
-                for (const [k, v] of Object.entries(target.headers)) {
-                    headers[k.toLowerCase()] = [{ key: k, value: v.value }];
-                }
-            }
-
-            // NEW: Fixed serialize the CFF cookie object into actual Set-Cookie headers
-            if (target.cookies) {
-                if (!headers['set-cookie']) headers['set-cookie'] = [];
-
-                for (const [cookieName, cookieObj] of Object.entries(target.cookies)) {
-                    let cookieStr = `${cookieName}=${cookieObj.value}`;
-                    if (cookieObj.attributes) cookieStr += `; ${cookieObj.attributes}`;
-
-                    headers['set-cookie'].push({ key: 'Set-Cookie', value: cookieStr });
-                }
-            }
-
-            // Return
-            return {
-                status: target.statusCode,
-                statusDescription: target.statusDescription || 'OK',
-                headers: headers,
-                body: target.body ? target.body.data : '',
-                _isResponse: true
             };
         }
 
@@ -487,6 +508,47 @@ class CFFRunner extends EventEmitter {
         if (this.watchers) {
             this.watchers.forEach(w => w.close());
             this.watchers = [];
+        }
+    }
+
+    /**
+     * Surgical AST-based removal of Cloudfrontize-specific 'exports.hookType'
+     * This ensures production output is clean AWS code.
+     */
+    _stripHookType(code) {
+        try {
+            const ast = acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'script' });
+            const toRemove = [];
+
+            // Walk top-level nodes only (exports.hookType is always a top-level assignment)
+            for (const node of ast.body) {
+                if (node.type === 'ExpressionStatement' && 
+                    node.expression.type === 'AssignmentExpression') {
+                    
+                    const left = node.expression.left;
+                    // Check if: exports.hookType = ...
+                    if (left.type === 'MemberExpression' &&
+                        left.object.name === 'exports' &&
+                        left.property.name === 'hookType') {
+                        toRemove.push({ start: node.start, end: node.end });
+                    }
+                }
+            }
+
+            // Remove from right-to-left to keep offsets valid
+            let cleanCode = code;
+            for (const range of toRemove.reverse()) {
+                const before = cleanCode.slice(0, range.start);
+                const after = cleanCode.slice(range.end);
+                cleanCode = before + after;
+            }
+
+            // Clean up potentially leftover empty lines
+            return cleanCode.replace(/^\s*[\r\n]/gm, '').trim() + '\n';
+            
+        } catch (err) {
+            // CFF might be ES 5.1, so we use latest parser but fall back if it fails
+            return code;
         }
     }
 }

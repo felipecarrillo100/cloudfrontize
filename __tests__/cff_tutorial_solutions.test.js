@@ -10,7 +10,7 @@ const path = require('path');
 describe('CFF Tutorial Solutions Verification', () => {
     const rootDir = path.resolve(__dirname, '..');
     const solutionsDir = path.join(rootDir, 'tutorial', 'module-5-cff', 'solutions');
-    const baseDir = path.join(rootDir, 'tmp_test', 'cff_tutorial_verification');
+    const baseDir = path.join(rootDir, '.tmp/', 'test', 'cff_tutorial_verification');
     const wwwDir = path.join(baseDir, 'www');
     const edgeDir = path.join(baseDir, 'edge');
     let server;

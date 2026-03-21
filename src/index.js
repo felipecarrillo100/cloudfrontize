@@ -6,10 +6,36 @@ const compression = require('compression');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { AWS_LIMITS } = require('./constants');
+const { AWS_LIMITS, AWS_HEADERS } = require('./constants');
 const { HeaderParser } = require('./headerParser');
 const EventEmitter = require('events');
 const pkg = require('../package.json');
+
+
+/**
+ * AWS Fidelity: Check for forbidden headers in Lambda@Edge results
+ */
+function checkForbiddenHeaders(headers, hookType = 'request', options = {}) {
+    if (!headers) return null;
+    const lowerHeaders = Object.keys(headers).map(k => k.toLowerCase());
+
+    for (const h of AWS_HEADERS.FORBIDDEN) {
+        if (lowerHeaders.includes(h)) {
+            return h;
+        }
+    }
+
+    // 2. Check hook-specific forbidden headers (e.g., 'host' in request hooks)
+    if (hookType === 'request') {
+        for (const h of AWS_HEADERS.REQUEST_ONLY_FORBIDDEN) {
+            if (lowerHeaders.includes(h)) {
+                return h;
+            }
+        }
+    }
+
+    return null;
+}
  
  
 function printTopBanner(options) {
@@ -29,19 +55,21 @@ function printBottomBanner(options) {
     if (!options.noRequestLogging) {
         if (edgeRunner || cffRunner) {
             console.log(`  ⚙️  Active Environment`);
-            if (edgeRunner) {
+            if (edgeRunner && edgeRunner.modules) {
                 Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
-                    if (mods.length > 0) {
+                    if (mods && mods.length > 0) {
                         const filename = path.basename(mods[0].file);
                         console.log(`     - \x1b[35m${hook}\x1b[0m: ${filename}`);
                     }
                 });
             }
-            if (cffRunner) {
+            if (cffRunner && cffRunner.functions) {
                 Object.entries(cffRunner.functions).forEach(([hook, fns]) => {
-                    fns.forEach(fn => {
-                        console.log(`     - \x1b[35m${hook}\x1b[0m: ${fn.name} (VM)`);
-                    });
+                    if (fns && fns.length > 0) {
+                        fns.forEach(fn => {
+                            console.log(`     - \x1b[35m${hook}\x1b[0m: ${fn.name} (VM)`);
+                        });
+                    }
                 });
             }
             const netLabel = options.allowNetworking ? '\x1b[33mEnabled\x1b[0m' : '\x1b[32mDisabled\x1b[0m';
@@ -50,9 +78,6 @@ function printBottomBanner(options) {
             console.log(`     - Strict Limits: ${strictLabel}\n`);
         }
     }
-
-    // --- ALWAYS Flush any initial build errors after the banner (UX) ---
-    // NO LONGER NEEDED: Runners are explicitly loaded by the CLI after the banner
 }
 
 function startServer(options) {
@@ -80,9 +105,9 @@ function startServer(options) {
     // Merge with options.defaultHeaders (likely used in your automated tests)
     const finalRequestHeaders = { ...requestHeaders, ...(options.defaultHeaders || {}) };
 
-    // Initialize header overrides from the file defaults if available
-    localOverrides.request = { ...finalRequestHeaders };
-    localOverrides.response = { ...responseHeaders };
+    // Initialize header overrides as empty (Overrides only come from UI/API)
+    localOverrides.request = {};
+    localOverrides.response = {};
 
     const compressMiddleware = compression({
         filter: (req, res) => {
@@ -349,6 +374,14 @@ function startServer(options) {
 
                     // Sync custom headers (Mobile/Geo/Security) to the REQUEST
                     if (hookResult.headers) {
+                        // Strict Fidelity: Check for forbidden headers in request mutation
+                        if (options.strict) {
+                            const forbidden = checkForbiddenHeaders(hookResult.headers, 'request');
+                            if (forbidden) {
+                                throw new Error(`Forbidden: Request Header Mutation attempted for restricted header: [${forbidden}]`);
+                            }
+                        }
+
                         for (const [k, values] of Object.entries(hookResult.headers)) {
                             if (values && values.length > 0) {
                                 const lowerKey = k.toLowerCase();
@@ -409,20 +442,28 @@ function startServer(options) {
                 }
 
                 if (hookResponse && hookResponse.headers) {
-                    // 1. Get current headers on the response object
+                    // Strict Fidelity: Check for forbidden headers in response mutation
+                    if (options.strict) {
+                        const forbidden = checkForbiddenHeaders(hookResponse.headers, 'response', options);
+                        if (forbidden) {
+                            throw new Error(`Forbidden: Response Header Mutation attempted for restricted header: [${forbidden}]`);
+                        }
+                    }
+
+                    // 1. Snapshot current response state
                     const currentHeaders = res.getHeaderNames();
+                    const nextHeaders = hookResponse.headers;
 
                     // 2. Identify headers to remove (those present in res but missing in Lambda result)
-                    // We only do this for headers the Lambda is actually allowed to touch
                     for (const name of currentHeaders) {
                         const lowerName = name.toLowerCase();
-                        if (!hookResponse.headers[lowerName]) {
+                        if (!nextHeaders[lowerName]) {
                             res.removeHeader(name);
                         }
                     }
 
                     // 3. Apply/Update the headers returned by the Lambda
-                    for (const [k, values] of Object.entries(hookResponse.headers)) {
+                    for (const [k, values] of Object.entries(nextHeaders)) {
                         if (values && values.length > 0) {
                             const headerVals = values.map(v => v.value);
                             res.setHeader(k, headerVals.length === 1 ? headerVals[0] : headerVals);
@@ -742,6 +783,10 @@ function startServer(options) {
             console.log(`\x1b[36m[${method}]\x1b[0m \x1b[2m${orig}\x1b[0m${rewriteStr}  ${statusColor}[${status}]\x1b[0m${timeMs}`);
         });
     }
+
+    // --- RE-INSTATED RUNNER INITIALIZATION ---
+    if (edgeRunner) edgeRunner.load();
+    if (cffRunner) cffRunner.loadFunctions();
 
     return server.listen(options.port, () => {
         if (!options.noBanner) {

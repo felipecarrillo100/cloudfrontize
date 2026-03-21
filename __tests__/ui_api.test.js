@@ -9,7 +9,7 @@ describe('Developer UI API', () => {
     let server;
     const port = 3001;
     const uiPort = 3002;
-    const testDir = path.join(__dirname, 'tmp_ui_test');
+    const testDir = path.join(__dirname, '.tmp/', 'ui_test');
 
     beforeAll(() => {
         if (!fs.existsSync(testDir)) fs.mkdirSync(testDir);

@@ -9,7 +9,7 @@ const path = require('path');
 
 describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
     const rootDir = path.resolve(__dirname, '..');
-    const baseDir = path.join(rootDir, 'tmp_test', 'hybrid_pipeline');
+    const baseDir = path.join(rootDir, '.tmp/', 'test', 'hybrid_pipeline');
     const wwwDir = path.join(baseDir, 'www');
     const edgeDir = path.join(baseDir, 'edge');
     const cffDir = path.join(baseDir, 'cff');
@@ -64,7 +64,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
         server = startServer({
             port: 0,
             directory: wwwDir,
-            edgeRunner: new EdgeRunner(edgeDir, { watch: false }),
+            edgeRunner: new EdgeRunner(edgeDir, { watch: false, debug: true }),
             cffRunner: new CFFRunner(cffDir, { debug: true }),
             noRequestLogging: false,
             debug: true

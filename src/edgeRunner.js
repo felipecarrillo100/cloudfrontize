@@ -8,6 +8,7 @@ const dotenv = require('dotenv');
 const { AWS_RUNTIME, AWS_HEADERS, AWS_LIMITS } = require('./constants');
 const { AsyncLocalStorage } = require('async_hooks');
 const EventEmitter = require('events');
+const acorn = require('acorn');
 
 class EdgeRunner extends EventEmitter {
     constructor(edgePath, options = {}) {
@@ -43,6 +44,9 @@ class EdgeRunner extends EventEmitter {
         if (options.watch !== false) {
             this._watch();
         }
+
+        // 🚀 Initial load (Ensure hooks are ready for tests/CLI)
+        this.load();
     }
 
     /* =========================================================
@@ -50,8 +54,12 @@ class EdgeRunner extends EventEmitter {
     ========================================================= */
 
     load(changedFile) {
+        // Hot reload: refresh env and bake if they changed or on INITIAL load
+        if (!changedFile || changedFile === this.envPath) this._loadEnv(this.envPath);
+        if (!changedFile || changedFile === this.bakePath) this._loadBake(this.bakePath);
+
         // Notify Hot reload to user
-        if (changedFile && this.debug) { // Only log if debug is true
+        if (changedFile && this.debug) {
             console.log(`\x1b[36m🔄 [EdgeRunner] Hot Reload triggered by: ${changedFile}\x1b[0m`);
         } else if (this.debug) {
             console.log(`\x1b[36m🚀 [EdgeRunner] Initializing edge modules...\x1b[0m`);
@@ -74,13 +82,22 @@ class EdgeRunner extends EventEmitter {
         });
     }
 
-    _detectHookType(code, fileName) {
-        const match = code.match(/exports\.hookType\s*=\s*['"](.+?)['"]/);
-        if (match) return match[1];
+    _detectHookType(sandbox, fileName) {
+        const mod = sandbox.module.exports;
+        
+        // Priority 1: Explicit Code Marker (Actually set in code)
+        if (mod.hookType) return mod.hookType;
 
-        // Fidelity Fallback: Default to viewer-request if missing
-        console.warn(`\x1b[33m⚠️  [Fidelity Warning] Missing 'exports.hookType' in ${fileName}.\x1b[0m`);
-        console.warn(`   Defaulting to \x1b[32m'viewer-request'\x1b[0m for simulation. Override this via 'exports.hookType' in your module.`);
+        // Priority 2: Filename Prefix
+        const prefixes = ['viewer-request', 'origin-request', 'viewer-response', 'origin-response'];
+        for (const prefix of prefixes) {
+            if (fileName.toLowerCase().startsWith(prefix)) {
+                return prefix;
+            }
+        }
+
+        // Priority 3: Global Fallback (Default)
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] No hook type detected for ${fileName}. Defaulting to 'viewer-request'.\x1b[0m`);
         return 'viewer-request';
     }
 
@@ -98,7 +115,7 @@ class EdgeRunner extends EventEmitter {
                 : this.outputPath;
 
             fs.mkdirSync(path.dirname(outFilePath), { recursive: true });
-            fs.writeFileSync(outFilePath, code);
+            fs.writeFileSync(outFilePath, this._stripHookType(code));
         }
 
         const logger = (level, ...args) => {
@@ -108,16 +125,20 @@ class EdgeRunner extends EventEmitter {
             const formatted = `${timestamp}  [${ctx.requestId}] [${ctx.hookType}]  ${message}\n`;
 
             if (this.debug) {
-                process[level === 'error' ? 'stderr' : 'stdout'].write(formatted);
+                // Call global console so Jest spies work
+                if (level === 'error') console.error(formatted.trim());
+                else if (level === 'warn') console.warn(formatted.trim());
+                else console.log(formatted.trim());
             }
             if (this.logPath) {
                 fs.appendFileSync(this.logPath, formatted);
             }
         };
 
-        const hookType = this._detectHookType(code, path.basename(filePath));
-
         const mockModule = { exports: {} };
+        // Closure-bound dynamic whitelist (Pivots after detection)
+        let allowed = AWS_RUNTIME.ALLOWED_ORIGIN; 
+
         const sandbox = {
             module: mockModule, exports: mockModule.exports,
             Buffer,
@@ -136,10 +157,11 @@ class EdgeRunner extends EventEmitter {
                     throw new Error(`Forbidden: ${id} is restricted in the Lambda@Edge environment.`);
                 }
 
-                // 2. Validate against hook-specific whitelist
-                let allowed = AWS_RUNTIME.ALLOWED_LAMBDA;
+                // 3. Track and validate later (Contextual Sandbox)
+                if (!sandbox.__usedModules) sandbox.__usedModules = [];
+                sandbox.__usedModules.push(id);
 
-                // 3. Conditional Networking Whitelist
+                // 4. Conditional Networking Whitelist
                 const isNetAllowed = this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
 
                 // Check built-in and SDK whitelists
@@ -153,7 +175,7 @@ class EdgeRunner extends EventEmitter {
                     if (isBannedNet) {
                         throw new Error(`Forbidden: '${id}' is restricted by default for security. Use the --allow-networking flag to enable it.`);
                     }
-                    throw new Error(`Forbidden: ${id} is not available in ${hookType || 'initialization'} context.`);
+                    throw new Error(`Forbidden: ${id} is not available in Lambda@Edge context.`);
                 }
 
                 return id.startsWith('.') ? require(path.resolve(path.dirname(filePath), id)) : require(id);
@@ -167,16 +189,10 @@ class EdgeRunner extends EventEmitter {
 
         try {
             new vm.Script(code, { filename: filePath }).runInContext(sandbox);
-            const wasError = !!this.compileError;
-            this.compileError = null;
-            if (wasError) {
-                console.log(`\n\x1b[32m✅ [Build Recovered]\x1b[0m Lambda@Edge script compiled successfully!`);
-                console.log(`   File: ${filePath}\n`);
-            }
             this.emit('build_success', { type: 'edge', file: filePath });
         } catch (err) {
+            // ... (keep current error handling)
             this.compileError = err.stack || err.message;
-            // Extract line number from the stack trace for a clear user-facing label
             const lineMatch = (err.stack || '').match(new RegExp(path.basename(filePath).replace('.', '\\.') + ':(\\d+)'));
             const lineInfo = lineMatch ? `\x1b[33mLine ${lineMatch[1]}\x1b[0m` : 'unknown line';
             const codeLines = code.split('\n');
@@ -191,14 +207,36 @@ class EdgeRunner extends EventEmitter {
             return;
         }
 
-        const mod = mockModule.exports;
-        if (mod.handler && mod.hookType) {
-            const existing = this.modules[mod.hookType][0];
+        const hookType = this._detectHookType(sandbox, path.basename(filePath));
+
+        // --- CONTEXTUAL SANDBOX ENFORCEMENT ---
+        // Pivot the closure-bound whitelist for subsequent calls inside the handler
+        if (hookType && hookType.startsWith('viewer-')) {
+            allowed = AWS_RUNTIME.ALLOWED_VIEWER;
+            // Retrospectively check if any restricted modules were used during top-level load
+            const used = sandbox.__usedModules || [];
+            for (const id of used) {
+                if (!AWS_RUNTIME.ALLOWED_VIEWER.includes(id) && !id.startsWith('.')) {
+                    const isBannedGlobal = AWS_RUNTIME.FORBIDDEN_MODULES.includes(id);
+                    const msg = isBannedGlobal ? 
+                        `Forbidden: ${id} is restricted in the Lambda@Edge environment.` :
+                        `Forbidden: ${id} is not available in viewer-request scripts.`;
+                    
+                    this.compileError = msg; // Store for tests
+                    console.error(`\n🛑 [\x1b[31mSandbox Error\x1b[0m] ${msg}`);
+                    console.error(`   File: ${path.basename(filePath)}\n`);
+                    return; // Graceful stop
+                }
+            }
+        }
+
+        if (mockModule.exports.handler && hookType) {
+            const existing = this.modules[hookType][0];
             if (existing) {
-                console.warn(`⚠️  [CloudFrontize] Warning: Multiple files found for "${mod.hookType}". Keeping "${path.basename(existing.file)}" and ignoring "${path.basename(filePath)}".`);
+                console.warn(`⚠️  [CloudFrontize] Warning: Multiple files found for "${hookType}". Keeping "${path.basename(existing.file)}" and ignoring "${path.basename(filePath)}".`);
                 return;
             }
-            this.modules[mod.hookType].push({ handler: mod.handler, file: filePath });
+            this.modules[hookType].push({ handler: mockModule.exports.handler, file: filePath });
         }
     }
 
@@ -239,8 +277,10 @@ class EdgeRunner extends EventEmitter {
                 if (result.querystring !== undefined) request.querystring = result.querystring;
 
                 if (result.headers) {
-                    this._validateBlacklistedHeaders(originalHeaders, result.headers, type);
-                    request.headers = this._normalizeHeadersInternal(result.headers);
+                    const mutatedHeaders = this._normalizeHeadersInternal(result.headers);
+                    // FIDELITY: Reconcile and warn in strict mode
+                    this._reconcileHeaders(mutatedHeaders, originalHeaders, type);
+                    request.headers = mutatedHeaders;
                 }
 
                 // Origin Persistence (Fixes Country/Geo routing failures)
@@ -267,36 +307,52 @@ class EdgeRunner extends EventEmitter {
     /* =========================================================
        FIDELITY: RESPONSE PIPELINE (Checklist Item 1)
     ========================================================= */
-
     async runResponseHook(req, resData, requestID = 'UNKNOWN') {
         const request = this._buildRequestRecord(req);
         let totalDurationMs = 0;
-        let response = {
-            status: String(resData.status || 200),
-            statusDescription: 'OK',
-            headers: this._normalizeHeadersInternal(resData.headers || {})
-        };
+        let reconciledHeaders = this._normalizeHeadersInternal(resData.headers || {});
+        
+        // AWS Fidelity: Strip globally forbidden headers from the event object
+        for (const h of AWS_HEADERS.FORBIDDEN) {
+            delete reconciledHeaders[h];
+        }
 
-        for (const type of ['origin-response', 'viewer-response']) {
+        // AWS Fidelity: Strip headers that are forbidden to be mutated in REQUEST hooks
+        for (const h of AWS_HEADERS.REQUEST_ONLY_FORBIDDEN) {
+            delete reconciledHeaders[h];
+        }
+
+        for (const type of ['viewer-response', 'origin-response']) {
             for (const mod of this.modules[type]) {
-                const originalHeaders = this._deepClone(response.headers);
+                const originalHeaders = this._deepClone(reconciledHeaders);
 
+                // Invoke handler
                 const { result, durationMs } = await this.logContext.run({ requestId: requestID, hookType: type }, () =>
-                    this._invoke(mod.handler, { request, response }, type)
+                    this._invoke(mod.handler, { request, response: { status: resData.status, statusDescription: resData.statusDescription, headers: reconciledHeaders } }, type)
                 );
+
                 totalDurationMs += durationMs;
 
-                // STRICT FIDELITY: If the hook was aborted (timeout in strict mode), return a timeout marker
                 if (result === null && this.strict) return { _timeout: true, totalDurationMs };
+                if (!result) continue;
 
-                response = result?.response || result || response;
-
-                if (response.headers) {
-                    this._validateBlacklistedHeaders(originalHeaders, response.headers, type);
-                    response.headers = this._normalizeHeadersInternal(response.headers);
+                if (result.status) resData.status = result.status;
+                if (result.statusDescription) resData.statusDescription = result.statusDescription;
+                if (result.headers) {
+                    const mutatedHeaders = this._normalizeHeadersInternal(result.headers);
+                    // FIDELITY: Reconcile and warn in strict mode
+                    this._reconcileHeaders(mutatedHeaders, originalHeaders, type);
+                    reconciledHeaders = mutatedHeaders;
                 }
             }
         }
+
+        const response = {
+            status: String(resData.status || 200),
+            statusDescription: resData.statusDescription || 'OK',
+            headers: reconciledHeaders
+        };
+
         const flattened = this._flatten(response);
         if (flattened) {
             flattened.totalDurationMs = totalDurationMs;
@@ -416,12 +472,25 @@ class EdgeRunner extends EventEmitter {
         const params = [...urlObj.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0]));
         const normalizedQs = new URLSearchParams(params).toString();
 
+        const headers = this._normalizeHeadersInternal(req.headers || {});
+        
+        // AWS Fidelity: Strip globally forbidden headers from the event object
+        for (const h of AWS_HEADERS.FORBIDDEN) {
+            delete headers[h];
+        }
+
+        // AWS Fidelity: Strip headers that are forbidden to be mutated in REQUEST hooks
+        for (const h of AWS_HEADERS.REQUEST_ONLY_FORBIDDEN) {
+            delete headers[h];
+        }
+
         return {
             method: req.method || 'GET',
             uri: urlObj.pathname,
             querystring: normalizedQs,
-            headers: this._parseIncomingHeaders(req),
-            body
+            headers: headers,
+            body: body,
+            clientIp: req.socket?.remoteAddress || '127.0.0.1'
         };
     }
 
@@ -504,33 +573,6 @@ class EdgeRunner extends EventEmitter {
         return headers;
     }
 
-    _validateBlacklistedHeaders(original, final, hook) {
-        const isResponseHook = hook === 'origin-response' || hook === 'viewer-response';
-
-        // AWS Forbidden/Read-only headers
-        const blacklist = [...AWS_HEADERS.FORBIDDEN];
-
-        // Headers that are forbidden ONLY in Request hooks
-        if (!isResponseHook) {
-            blacklist.push(...AWS_HEADERS.REQUEST_ONLY_FORBIDDEN);
-        }
-
-        blacklist.forEach(key => {
-            const getVal = (headers) => {
-                if (!headers) return null;
-                const actualKey = Object.keys(headers).find(k => k.toLowerCase() === key);
-                return actualKey ? headers[actualKey][0]?.value : null;
-            };
-            if (getVal(original) !== getVal(final)) {
-                const msg = `[CloudFrontize] Forbidden: ${hook} modified blacklisted header "${key}"`;
-                if (this.strict) {
-                    throw new Error(msg);
-                }
-                console.warn(msg);
-            }
-        });
-    }
-
     _flatten(obj) {
         if (!obj) return obj;
         // Shallow copy for output to prevent mutation of internal state
@@ -555,6 +597,27 @@ class EdgeRunner extends EventEmitter {
 
     _deepClone(obj) {
         try { return JSON.parse(JSON.stringify(obj)); } catch (e) { return { ...obj }; }
+    }
+
+    _loadEnv(envPath) {
+        if (!envPath || !fs.existsSync(envPath)) return;
+        const config = dotenv.parse(fs.readFileSync(envPath));
+        const { RESTRICTED_AWS_ENV } = require('./constants');
+        
+        for (const k in config) {
+            if (RESTRICTED_AWS_ENV.includes(k)) {
+                throw new Error(`Restricted Variable: "${k}" cannot be used in .env file (AWS Managed)`);
+            }
+            this.envVars[k] = config[k];
+        }
+    }
+
+    _loadBake(bakePath) {
+        if (!bakePath || !fs.existsSync(bakePath)) return;
+        const config = dotenv.parse(fs.readFileSync(bakePath));
+        for (const k in config) {
+            this.bakeVars[k] = config[k];
+        }
     }
 
     /* Update _loadFidelityFiles to clear old state (prevents "ghost" vars) */
@@ -601,6 +664,70 @@ class EdgeRunner extends EventEmitter {
     close() {
         this.watchers.forEach(w => w.close());
         this.watchers = [];
+    }
+
+    /**
+     * Surgical AST-based removal of Cloudfrontize-specific 'exports.hookType'
+     * This ensures production output is clean AWS code.
+     */
+    _stripHookType(code) {
+        try {
+            const ast = acorn.parse(code, { ecmaVersion: 2022, sourceType: 'script' });
+            const toRemove = [];
+
+            // Walk top-level nodes only (exports.hookType is always a top-level assignment)
+            for (const node of ast.body) {
+                if (node.type === 'ExpressionStatement' && 
+                    node.expression.type === 'AssignmentExpression') {
+                    
+                    const left = node.expression.left;
+                    // Check if: exports.hookType = ...
+                    if (left.type === 'MemberExpression' &&
+                        left.object.name === 'exports' &&
+                        left.property.name === 'hookType') {
+                        toRemove.push({ start: node.start, end: node.end });
+                    }
+                }
+            }
+
+            // Remove from right-to-left to keep offsets valid
+            let cleanCode = code;
+            for (const range of toRemove.reverse()) {
+                const before = cleanCode.slice(0, range.start);
+                const after = cleanCode.slice(range.end);
+                cleanCode = before + after;
+            }
+
+            // Clean up potentially leftover empty lines
+            return cleanCode.replace(/^\s*[\r\n]/gm, '').trim() + '\n';
+            
+        } catch (err) {
+            console.warn(`\x1b[33m⚠️  [Fidelity Warning] AST Stripper failed: ${err.message}. Output might contain internal markers.\x1b[0m`);
+            return code;
+        }
+    }
+
+    _reconcileHeaders(mutatedHeaders, originalHeaders, hookType) {
+        if (!this.strict) return;
+
+        // Internal helper for forbidden check
+        const check = (headers, type) => {
+            const keys = Object.keys(headers).map(k => k.toLowerCase());
+            for (const h of AWS_HEADERS.FORBIDDEN) {
+                if (keys.includes(h)) return h;
+            }
+            if (type.includes('request')) {
+                for (const h of AWS_HEADERS.REQUEST_ONLY_FORBIDDEN) {
+                    if (keys.includes(h)) return h;
+                }
+            }
+            return null;
+        };
+
+        const forbidden = check(mutatedHeaders, hookType);
+        if (forbidden) {
+            console.warn(`⚠️  [Fidelity Warning] (L@E ${hookType}) Forbidden header mutation: "${forbidden}" is restricted by AWS.`);
+        }
     }
 }
 

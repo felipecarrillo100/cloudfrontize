@@ -6,7 +6,7 @@ const path = require('path');
 
 describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
     const rootDir = path.resolve(__dirname, '..');
-    const baseDir = path.join(rootDir, 'tmp_test', 'cff_fidelity');
+    const baseDir = path.join(rootDir, '.tmp/', 'test', 'cff_fidelity');
     let runner =  null; // Store current runner here
 
     beforeAll(() => {

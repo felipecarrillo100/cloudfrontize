@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
-    const tmpDir = path.join(__dirname, 'tmp_rewrite_fidelity');
+    const tmpDir = path.join(__dirname, '.tmp', 'rewrite_fidelity');
     const edgeDir = path.join(tmpDir, 'edge');
     const port = 3006;
 

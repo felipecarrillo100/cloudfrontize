@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 
 describe('Env Var Parity: AWS Mock Environment', () => {
-    const testDir = path.resolve(__dirname, '..', 'tmp_test', 'env_parity');
+    const testDir = path.resolve(__dirname, '..', '.tmp/', 'test', 'env_parity');
 
     beforeEach(() => {
         if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
