@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.7](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.6...v1.6.7) (2026-03-21)
+
+
+### Bug Fixes
+
+* **networking:** networking improvements ([7a3ebfe](https://github.com/felipecarrillo100/cloudfrontize/commit/7a3ebfe91007e99460a6a988afcaf161559fb4a2))
+
 ## [1.6.6](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.5...v1.6.6) (2026-03-20)
 
 
