@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.7.0...v1.7.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* restore simulator integrity and resolve fidelity regressions ([bde352f](https://github.com/felipecarrillo100/cloudfrontize/commit/bde352f04333c38c698c6f955d32bdcc8a3ad4b4))
+
 ## [1.7.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.8...v1.7.0) (2026-03-21)
 
 
