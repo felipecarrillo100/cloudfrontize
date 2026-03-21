@@ -190,29 +190,42 @@ Using the **Header Intelligence** panel, you can inject or override headers on-t
 ---
 
 
-## 🚀 Lambda@Edge Integration
+## 🚀 Lambda@Edge Integration 
 
-Since there is no AWS CloudFront Console to configure your triggers locally, **it is mandatory to include `exports.hookType` in your JavaScript file.** If this line is missing, CloudFrontize will not know when to fire your function and will ignore the file.
+Since there is no AWS Console locally, CloudFrontize uses two methods to identify the correct `hook` to simulate. Use the `--edge` flag to pass your file or directory:
 
-### Exported Hook Types
-* `'origin-request'`: Intercept **before** forwarding to the origin. Often used for URI rewrites.
-* `'viewer-request'`: Intercept **before** cache. Often used for redirects or authentication.
-* `'origin-response'`: Intercept **after** the origin responds. Often used to inject `Cache-Control` headers.
-* `'viewer-response'`: Intercept **before** sending to the viewer. Often used to inject security headers.
+### 1. Detection Methods `New!`
+* **Filename Prefix:** Use a strict naming convention starting with the `hook` name (e.g., `origin-request.auth.js`).
+* **Explicit Export:** Include exports.hookType = HookType in your code (e.g exports.hookType = 'origin-request') 
+
+> **Note:** An explicit `exports.hookType` always overrides a filename prefix.  If unable to identify the hookType , CloudFrontize will default to `viewer-request`
+
+### 2. Available Hooks
+| Hook Type | Execution Timing | Common Use Case |
+| :--- | :--- | :--- |
+| **`viewer-request`** | Before Cache | Auth, Redirects, Bot Blocking |
+| **`origin-request`** | Before Origin | URI Rewrites, Secrets Manager |
+| **`origin-response`** | After Origin | Header Injection, `Cache-Control` |
+| **`viewer-response`** | Before Viewer | Security Headers (HSTS, CSP) |
 
 ---
-
 ## ⚡ CloudFront Functions (CFF) `New!`
 
-CloudFront Functions provide a lightweight, high-performance scripting environment for high-scale transformations. `cloudfrontize` simulates the CFF environment with strict fidelity to AWS limits (1ms CPU, 10KB code size) and restricted module access (no `require`, `fs`, etc.).
+CloudFront Functions provide a lightweight, high-performance environment for high-scale transformations. Use the **`--cff`** flag to pass your file or directory:
 
-### Automatic Hook Detection
-When pointing `--cff` to a directory, files must follow a strict naming convention to be recognized:
-*   `viewer-request*.js`: Executes before Lambda@Edge viewer-request and origin-request.
-*   `viewer-response*.js`: Executes after Lambda@Edge viewer-response.
+### 1. Automatic Hook Detection
+* **Filename Prefix:** Use a strict naming convention starting with the hook name (e.g., `viewer-request.security.js`).
+* **Lexicographical Order:** If pointing to a directory, files are executed in alphabetical order.
 
-Files within a directory are executed in **lexicographical order**.
+> **Note:** CloudFrontize simulates the CFF environment with strict fidelity to AWS limits, including the **1ms CPU limit** and restricted module access (JavaScript ES5.1 only, no `require`, `fs`, or `path`).
 
+### 2. Available Hooks
+| Hook Type | Execution Timing | Common Use Case |
+| :--- | :--- | :--- |
+| **`viewer-request`** | Before Lambda@Edge `viewer-request` | URL Rewrites, Header Manipulation |
+| **`viewer-response`** | After Lambda@Edge `viewer-response` | Security Headers, Cache-Control |
+
+---
 ## 🛡️ Engineered for Fidelity
 
 Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror the high-stakes environment of a live AWS PoP (Point of Presence).
@@ -338,7 +351,7 @@ Each exercise comes with a **Business Scenario**, **Starter Template**, and **Fu
 
 ---
 
-### License
+## 📜License
 
 **CloudFrontize** is licensed under the **[PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)**. For the full legal text and specific terms, please refer to the [LICENSE](https://polyformproject.org/licenses/noncommercial/1.0.0/) file in this package.
 
@@ -358,7 +371,7 @@ Maintaining high-fidelity AWS emulation takes significant time. If your company 
 **THE SOFTWARE IS PROVIDED "AS IS"**, WITHOUT WARRANTY OF ANY KIND. Testing on CloudFrontize does not guarantee success on live AWS infrastructure. The author is not liable for any production downtime, data loss, or financial damages resulting from the use of this tool. Always validate your logic in an AWS staging environment before a full production rollout.
 
 ---
-# Support the Project
+# 🌱 Support the Project
 [<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" name="buy-me-a-coffee" alt="Buy Me A Coffee" width="180">](https://buymeacoffee.com/felipecarrillo100)
 
 Creating and maintaining open-source libraries is a passion of mine. If you find this `cloudfrontize` useful and it saves you time, please consider supporting its development. Your contributions help keep the project active and motivated!
