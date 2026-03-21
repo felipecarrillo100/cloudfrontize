@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.8...v1.7.0) (2026-03-21)
+
+
+### Features
+
+* achieve True AWS Fidelity and refined startup UX ([92aac3a](https://github.com/felipecarrillo100/cloudfrontize/commit/92aac3a1ccea6b59c262b4df0b2a7127c04ea7ec))
+
 ## [1.6.8](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.7...v1.6.8) (2026-03-21)
 
 
