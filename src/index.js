@@ -10,7 +10,50 @@ const { AWS_LIMITS } = require('./constants');
 const { HeaderParser } = require('./headerParser');
 const EventEmitter = require('events');
 const pkg = require('../package.json');
+ 
+ 
+function printTopBanner(options) {
+    if (options.noRequestLogging) return;
+    console.log(`\n☁️  \x1b[1mCloudfrontize v${pkg.version}\x1b[0m\n`);
+    console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
+    if (options.webui) {
+        console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${parseInt(options.webui)}/\x1b[0m`);
+    }
+    const modeName = options.mode === 'rest' ? 'REST (Strict Fidelity)' : 'Website (S3 Website Hosting)';
+    console.log(`  ➜ Mode:    ${modeName}\n`);
+}
 
+function printBottomBanner(options) {
+    const { edgeRunner, cffRunner } = options;
+
+    if (!options.noRequestLogging) {
+        if (edgeRunner || cffRunner) {
+            console.log(`  ⚙️  Active Environment`);
+            if (edgeRunner) {
+                Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
+                    if (mods.length > 0) {
+                        const filename = path.basename(mods[0].file);
+                        console.log(`     - \x1b[35m${hook}\x1b[0m: ${filename}`);
+                    }
+                });
+            }
+            if (cffRunner) {
+                Object.entries(cffRunner.functions).forEach(([hook, fns]) => {
+                    fns.forEach(fn => {
+                        console.log(`     - \x1b[35m${hook}\x1b[0m: ${fn.name} (VM)`);
+                    });
+                });
+            }
+            const netLabel = options.allowNetworking ? '\x1b[33mEnabled\x1b[0m' : '\x1b[32mDisabled\x1b[0m';
+            const strictLabel = options.strict ? '\x1b[31mEnabled\x1b[0m' : '\x1b[32mDisabled\x1b[0m';
+            console.log(`     - Networking:    ${netLabel}`);
+            console.log(`     - Strict Limits: ${strictLabel}\n`);
+        }
+    }
+
+    // --- ALWAYS Flush any initial build errors after the banner (UX) ---
+    // NO LONGER NEEDED: Runners are explicitly loaded by the CLI after the banner
+}
 
 function startServer(options) {
     const { edgeRunner, cffRunner, headersPath } = options;
@@ -133,18 +176,18 @@ function startServer(options) {
 
         // --- 0. Global Compile-Time Safeguards ---
         if (edgeRunner && edgeRunner.compileError) {
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end(`500 Internal Server Error (Build Failed)\n\nLambda@Edge hook failed to compile:\n${edgeRunner.compileError}`);
-            telemetry.status = 500;
+            res.writeHead(502, { 'Content-Type': 'text/plain' });
+            res.end(`502 Bad Gateway\n\nCloudFront could not connect to the origin or the Lambda@Edge function returned an invalid response.`);
+            telemetry.status = 502;
             telemetry.violation = 'Lambda@Edge Compile Error';
             broadcast();
             return;
         }
-
+ 
         if (cffRunner && cffRunner.compileError) {
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end(`500 Internal Server Error (Build Failed)\n\nCloudFront Function failed to compile:\n${cffRunner.compileError}`);
-            telemetry.status = 500;
+            res.writeHead(502, { 'Content-Type': 'text/plain' });
+            res.end(`502 Bad Gateway\n\nCloudFront could not connect to the origin or the CloudFront Function returned an invalid response.`);
+            telemetry.status = 502;
             telemetry.violation = 'CFF Compile Error';
             broadcast();
             return;
@@ -701,39 +744,11 @@ function startServer(options) {
     }
 
     return server.listen(options.port, () => {
-        if (!options.noRequestLogging) {
-            console.log(`\n☁️  \x1b[1mCloudfrontize v${pkg.version}\x1b[0m\n`);
-
-            console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
-            if (options.webui) {
-                console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${parseInt(options.webui)}/\x1b[0m`);
-            }
-
-            const modeName = options.mode === 'rest' ? 'REST (Strict Fidelity)' : 'Website (S3 Website Hosting)';
-            console.log(`  ➜ Mode:    ${modeName}\n`);
-
-            if (edgeRunner || cffRunner) {
-                console.log(`  ⚙️  Active Environment`);
-
-                if (edgeRunner) {
-                    Object.entries(edgeRunner.modules).forEach(([hook, mods]) => {
-                        if (mods.length > 0) {
-                            const filename = path.basename(mods[0].file);
-                            console.log(`     - \x1b[35m${hook}\x1b[0m: ${filename}`);
-                        }
-                    });
-                }
-                if (cffRunner) {
-                    Object.entries(cffRunner.functions).forEach(([hook, fns]) => {
-                        fns.forEach(fn => {
-                            console.log(`     - \x1b[35m[CFF] ${hook}\x1b[0m: ${fn.name}`);
-                        });
-                    });
-                }
-                console.log(`     - Strict Limits: ${options.strict ? '\x1b[31mEnabled\x1b[0m' : '\x1b[32mDisabled\x1b[0m'}\n`);
-            }
+        if (!options.noBanner) {
+            printTopBanner(options);
+            printBottomBanner(options);
         }
     });
 }
-
-module.exports = { startServer };
+ 
+module.exports = { startServer, printTopBanner, printBottomBanner };

@@ -28,7 +28,7 @@ class CFFRunner extends EventEmitter {
         };
 
         if (this.sourcePath) {
-            this.loadFunctions();
+            // Initialization moved to explicit loadFunctions() call in CLI
         }
 
         // If watch enabled
@@ -182,6 +182,7 @@ class CFFRunner extends EventEmitter {
             const codeLines = code.split('\n');
             const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
             const snippet = lineNum ? `\n      ${codeLines[lineNum - 1]?.trim()}` : '';
+
             console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in CloudFront Function!`);
             console.error(`   File: ${path.basename(filePath)} at ${lineInfo}${snippet}`);
             console.error(`   ${err.message}\n`);

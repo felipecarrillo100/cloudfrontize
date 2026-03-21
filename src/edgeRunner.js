@@ -40,8 +40,6 @@ class EdgeRunner extends EventEmitter {
         this.watchers = [];
         this.whitelist = [...AWS_RUNTIME.ENV_WHITELIST];
 
-        this._load();
-
         if (options.watch !== false) {
             this._watch();
         }
@@ -51,21 +49,21 @@ class EdgeRunner extends EventEmitter {
        FIDELITY: LOAD & SANDBOX (Checklist Item 9)
     ========================================================= */
 
-    _load(changedFile) {
+    load(changedFile) {
         // Notify Hot reload to user
         if (changedFile && this.debug) { // Only log if debug is true
             console.log(`\x1b[36m🔄 [EdgeRunner] Hot Reload triggered by: ${changedFile}\x1b[0m`);
         } else if (this.debug) {
             console.log(`\x1b[36m🚀 [EdgeRunner] Initializing edge modules...\x1b[0m`);
         }
-
+ 
         // CRITICAL: Refresh variables from disk BEFORE processing JS files
         this._loadFidelityFiles();
-
+ 
         // Reset module registry
         Object.keys(this.modules).forEach(k => this.modules[k] = []);
         if (!fs.existsSync(this.edgePath)) return;
-
+ 
         const stat = fs.statSync(this.edgePath);
         const files = stat.isDirectory()
             ? fs.readdirSync(this.edgePath).filter(f => f.endsWith('.js'))
@@ -151,6 +149,10 @@ class EdgeRunner extends EventEmitter {
                                  (id.startsWith('@aws-sdk/client-') && (hookType?.startsWith('origin-')));
 
                 if (!id.startsWith('.') && !isAllowed) {
+                    const isBannedNet = !this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
+                    if (isBannedNet) {
+                        throw new Error(`Forbidden: '${id}' is restricted by default for security. Use the --allow-networking flag to enable it.`);
+                    }
                     throw new Error(`Forbidden: ${id} is not available in ${hookType || 'initialization'} context.`);
                 }
 
@@ -180,11 +182,12 @@ class EdgeRunner extends EventEmitter {
             const codeLines = code.split('\n');
             const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
             const snippet = lineNum ? `\n      ${codeLines[lineNum - 1]?.trim()}` : '';
+
+            this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
             console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in Lambda@Edge script!`);
             console.error(`   File: ${path.basename(filePath)} at ${lineInfo}${snippet}`);
             console.error(`   ${err.message}\n`);
             console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
-            this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
             return;
         }
 

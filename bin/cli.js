@@ -1,7 +1,7 @@
 'use strict';
 
 const { Command } = require('commander');
-const { startServer } = require('../src/index.js');
+const { startServer, printTopBanner, printBottomBanner } = require('../src/index.js');
 const { EdgeRunner } = require('../src/edgeRunner.js');
 const { CFFRunner } = require('../src/CFFRunner.js');
 const path = require('path');
@@ -93,13 +93,25 @@ program
         // 1. Resolve the path to the headers file
         const headersPath = options.headers ? path.resolve(options.headers) : null;
 
+        // 2. Banner sequence for CLI (Fidelity UX)
+        if (!isJustBaking) {
+            const displayPort = parseInt(port);
+            printTopBanner({ ...options, port: displayPort });
+            printBottomBanner({ ...options, port: displayPort, edgeRunner, cffRunner });
+
+            // 3. Trigger initial load (This will now print errors AFTER the environment summary)
+            if (edgeRunner) edgeRunner.load();
+            if (cffRunner) cffRunner.loadFunctions();
+        }
+
         startServer({
             ...options,
             port: parseInt(port),
             directory: path.resolve(directory),
             headersPath, // Pass the path to follow the established loading pattern
             edgeRunner,
-            cffRunner
+            cffRunner,
+            noBanner: true // Already printed manually above
         });
     });
 
