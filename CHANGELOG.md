@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.6](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.5...v1.6.6) (2026-03-20)
+
+
+### Bug Fixes
+
+* **cff:** enforce strict execution contract for runtime errors ([e0bdb06](https://github.com/felipecarrillo100/cloudfrontize/commit/e0bdb06dea52d59013427c73647c50763aa7e8cb))
+
 ## [1.6.5](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.4...v1.6.5) (2026-03-20)
 
 
