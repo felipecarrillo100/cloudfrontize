@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.9.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.8.1...v1.9.0) (2026-03-21)
+
+
+### Features
+
+* achieve True AWS Fidelity and refined startup UX ([92aac3a](https://github.com/felipecarrillo100/cloudfrontize/commit/92aac3a1ccea6b59c262b4df0b2a7127c04ea7ec))
+* add web UI preset management and uniqueness validation ([b1a731f](https://github.com/felipecarrillo100/cloudfrontize/commit/b1a731fad085a6b9ed2f31fa6ac068ac8ac8434e))
+* add WebUI for CloudFrontize ([f773f81](https://github.com/felipecarrillo100/cloudfrontize/commit/f773f81e97260cf1728bc7386da9a6789efc74d1))
+* **cli:** enhance console logging and UX ([8726fdb](https://github.com/felipecarrillo100/cloudfrontize/commit/8726fdb238eebbea8719951d7c310892cb2a411c))
+* fully implemented CFF adding response cookie serialization in simulator ([0df19c9](https://github.com/felipecarrillo100/cloudfrontize/commit/0df19c9cc4146ae4458a556d97e9797bd39ff0f6))
+* implement CFF response cookie serialization ([4bc949a](https://github.com/felipecarrillo100/cloudfrontize/commit/4bc949abe68f836f015db2ecf21909c46295ecd0))
+* resilient hot-reload with Vite-style WebUI build overlays ([6ba7bd6](https://github.com/felipecarrillo100/cloudfrontize/commit/6ba7bd66e90611fcdb01e57f09ed8e6015ad1c86))
+
+
+### Bug Fixes
+
+* **cff:** enforce strict execution contract for runtime errors ([e0bdb06](https://github.com/felipecarrillo100/cloudfrontize/commit/e0bdb06dea52d59013427c73647c50763aa7e8cb))
+* **cli:** improve CLI reporting and networking control ([c4801f3](https://github.com/felipecarrillo100/cloudfrontize/commit/c4801f38f7d185e5fb760e2db3529cc01816896c))
+* **cli:** pass strict flag to EdgeRunner constructor ([22a8a5c](https://github.com/felipecarrillo100/cloudfrontize/commit/22a8a5cf6dd876d889b593c9056d8aa6c398d061))
+* enforce CloudFront response contract for 502 errors ([e1b009c](https://github.com/felipecarrillo100/cloudfrontize/commit/e1b009ca121a60c54193a35752af201e0887dee3))
+* improve hot-reload error reporting in EdgeRunner and CFFRunner ([d6af72a](https://github.com/felipecarrillo100/cloudfrontize/commit/d6af72ad544f6f1741bbe7e98e2b5e5b66433b1c))
+* **networking:** networking improvements ([7a3ebfe](https://github.com/felipecarrillo100/cloudfrontize/commit/7a3ebfe91007e99460a6a988afcaf161559fb4a2))
+* pass strict flag to EdgeRunner constructor ([df9fc0d](https://github.com/felipecarrillo100/cloudfrontize/commit/df9fc0d61da30e0dc930f603af9069ae2058f954))
+* restore simulator integrity and resolve fidelity regressions ([bde352f](https://github.com/felipecarrillo100/cloudfrontize/commit/bde352f04333c38c698c6f955d32bdcc8a3ad4b4))
+* **runner:** resolve EdgeRunner crash and stabilize hot-reload ([889c9ad](https://github.com/felipecarrillo100/cloudfrontize/commit/889c9ad0a349446736fee11f2136be93f36a1294))
+* **server:** unify telemetry broadcast via finish event ([2b556ed](https://github.com/felipecarrillo100/cloudfrontize/commit/2b556edb22ac549fd44d98cf0d384684ff423df9))
+* **simulator:** enforce CloudFront response contract for 502 errors ([68c43d9](https://github.com/felipecarrillo100/cloudfrontize/commit/68c43d95b56f987c4bc28ce065eedf25dc0e124c))
+* standardize hot-reload error reporting ([cc37338](https://github.com/felipecarrillo100/cloudfrontize/commit/cc37338d76f12891bab07d917132d966bd359635))
+* update release permissions and implement CFF cookie serialization ([d5b62bf](https://github.com/felipecarrillo100/cloudfrontize/commit/d5b62bffe7e94b6af765d850540c40667d70814f))
+* WebUI Logo and About Form ([8a49fef](https://github.com/felipecarrillo100/cloudfrontize/commit/8a49fef1983c23ed30f6a7a2186e9a4c55724239))
+
 ## [1.8.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.8.0...v1.8.1) (2026-03-21)
 
 
