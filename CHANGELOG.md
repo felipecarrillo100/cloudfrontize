@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.10.0...v1.10.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* **docs:** align README with v1.10.0 ([b979a2a](https://github.com/felipecarrillo100/cloudfrontize/commit/b979a2abf91ada0abddeadba591d6d2de3f0ef4b))
+
 ## [1.10.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.9.0...v1.10.0) (2026-03-21)
 
 
