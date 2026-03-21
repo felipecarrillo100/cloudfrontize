@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.8](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.7...v1.6.8) (2026-03-21)
+
+
+### Bug Fixes
+
+* **cli:** improve CLI reporting and networking control ([c4801f3](https://github.com/felipecarrillo100/cloudfrontize/commit/c4801f38f7d185e5fb760e2db3529cc01816896c))
+
 ## [1.6.7](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.6.6...v1.6.7) (2026-03-21)
 
 
