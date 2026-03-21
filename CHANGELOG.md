@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.9.0...v1.10.0) (2026-03-21)
+
+
+### Features
+
+* atomic hot-reload and debounce logic ([b545493](https://github.com/felipecarrillo100/cloudfrontize/commit/b545493153204c62ae08a2f50f81615f0da67b7e))
+
 ## [1.9.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.8.1...v1.9.0) (2026-03-21)
 
 
