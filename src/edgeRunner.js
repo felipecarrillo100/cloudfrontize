@@ -18,6 +18,7 @@ class EdgeRunner extends EventEmitter {
         this.outputPath = options.outputPath;
         this.strict = options.strict || false;
         this.debug = options.debug || false;
+        this.allowNetworking = options.allowNetworking || false;
         this.logPath = options.logPath;
         this.logContext = new AsyncLocalStorage();
 
@@ -133,15 +134,19 @@ class EdgeRunner extends EventEmitter {
                 }
 
                 // 2. Validate against hook-specific whitelist
-                let allowed = AWS_RUNTIME.ALLOWED_GLOBAL;
+                let allowed = AWS_RUNTIME.ALLOWED_CORE;
                 if (hookType === 'origin-request' || hookType === 'origin-response') {
                     allowed = AWS_RUNTIME.ALLOWED_ORIGIN;
                 } else if (hookType === 'viewer-request' || hookType === 'viewer-response') {
                     allowed = AWS_RUNTIME.ALLOWED_VIEWER;
                 }
 
+                // 3. Conditional Networking Whitelist
+                const isNetAllowed = this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
+
                 // Check built-in and SDK whitelists
                 const isAllowed = allowed.includes(id) ||
+                                 isNetAllowed ||
                                  id.startsWith('node:') ||
                                  (id.startsWith('@aws-sdk/client-') && (hookType?.startsWith('origin-')));
 

@@ -503,6 +503,18 @@ function startServer(options) {
             }
         }
 
+        // FIDELITY: S3 Static Website Hosting returns 405 Method Not Allowed for non-GET/HEAD
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            const msg = `🛑 [Fidelity] 405 Method Not Allowed: S3 Static Website Hosting rejects ${req.method} requests.`;
+            console.error(`\x1b[33m${msg}\x1b[0m`);
+            res.setHeader('Allow', 'GET, HEAD');
+            res.writeHead(405, { 'Content-Type': 'text/plain' });
+            res.end(`405 Method Not Allowed (S3 Static Website Hosting requires GET or HEAD)`);
+            telemetry.status = 405;
+            broadcast();
+            return;
+        }
+
         const runHandler = () => handler(req, res, {
             public: options.directory,
             // cleanUrls is intentionally DISABLED in all modes.

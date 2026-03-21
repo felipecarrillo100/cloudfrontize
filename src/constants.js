@@ -40,10 +40,10 @@ const AWS_HEADERS = {
  * Sandbox & Runtime Configurations
  */
 const AWS_RUNTIME = {
-    // Whitelisted built-ins for ALL hook types
-    ALLOWED_GLOBAL: ['crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring'],
+    // Whitelisted built-ins for ALL hook types (Minimal & Secure)
+    ALLOWED_CORE: ['crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring'],
     
-    // Viewer hooks: Global + specific utility modules (No network/disk I/O)
+    // Viewer hooks: Core + specific utility modules
     ALLOWED_VIEWER: [
         'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring',
         '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64'
@@ -57,7 +57,10 @@ const AWS_RUNTIME = {
         '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig'
     ],
 
-    FORBIDDEN_MODULES: ['child_process', 'os', 'http', 'https', 'net', 'dns'], // Strict global bans
+    // Networking modules (only active if --allow-networking is passed)
+    ALLOWED_NETWORKING: ['http', 'https', 'net', 'tls', 'dns', 'stream', 'punycode', 'string_decoder', 'timers', 'events'],
+
+    FORBIDDEN_MODULES: ['child_process', 'os'], // Strict global bans (Networking removed from here)
     DEFAULT_ENV: {
         'AWS_REGION': 'us-east-1',
         'AWS_DEFAULT_REGION': 'us-east-1',

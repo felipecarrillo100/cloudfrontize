@@ -30,6 +30,7 @@ program
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
     .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
+    .option('--allow-networking', 'enable http/https modules in Lambda@Edge sandbox')
     .option('--webui [port]', 'enable the Developer UI on a dedicated port')
     .option('-m, --mode <mode>', 'routing behavior: website (S3 Website Hosting) or rest (S3 REST/OAC, default)', 'rest')
     .action((directory, options) => {
@@ -60,7 +61,8 @@ program
             if (edgePath) {
                 edgeRunner = new EdgeRunner(edgePath, {
                     debug: options.debug,
-                    strict: options.strict, // <--- Make sure strict is passed
+                    strict: options.strict,
+                    allowNetworking: options.allowNetworking,
                     logPath: options.log ? path.resolve(options.log) : null,
                     envPath: options.env ? path.resolve(options.env) : null,
                     bakePath: options.bake ? path.resolve(options.bake) : null,
