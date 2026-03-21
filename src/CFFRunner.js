@@ -28,6 +28,7 @@ class CFFRunner extends EventEmitter {
             'viewer-response': []
         };
 
+        // This is done twice. No need to do this in constructor (To review)
         if (this.sourcePath) {
             // 🚀 Initial load (Ensure hooks are ready for tests/CLI)
             this.loadFunctions();
@@ -66,20 +67,21 @@ class CFFRunner extends EventEmitter {
         if (!this.sourcePath) return;
         const targetPath = path.resolve(this.sourcePath);
 
-        // 1. Initial check
         if (!fs.existsSync(targetPath)) return;
 
+        let lastReload = 0; // Cooldown Tracker
         const watcher = fs.watch(targetPath, { recursive: true }, (eventType, filename) => {
-            // 2. THE CRITICAL FIX: If the directory was just deleted, Windows
-            // will fire this event. If we don't return here, the next line
-            // (loadFunctions) will crash the entire process.
             if (!fs.existsSync(targetPath)) return;
+
+            // Debounce: prevent multiple reloads for a single save (150ms window)
+            const now = Date.now();
+            if (now - lastReload < 150) return;
+            lastReload = now;
 
             const changedFile = filename || path.basename(targetPath);
             this.loadFunctions(changedFile);
         });
 
-        // Handle internal errors so they don't crash Node
         watcher.on('error', (err) => {
             if (err.code === 'EPERM') return; // Ignore Windows delete-race errors
             console.error('Watcher error:', err);
@@ -89,16 +91,17 @@ class CFFRunner extends EventEmitter {
     }
 
     loadFunctions(changedFile) {
-        if (changedFile) {
+        if (changedFile && this.options.debug) {
             console.log(`\x1b[36m🔄 [CFF] Hot-Reload triggered by: ${changedFile}\x1b[0m`);
-        } else {
+        } else if (this.options.debug) {
             console.log(`🚀 [CFF] Initializing functions from: ${this.sourcePath}`);
         }
 
         // ALWAYS refresh bake variables before reloading functions
         this._loadBakeVars();
-        // Reset state before reloading
-        this.functions = {
+
+        // SURGICAL FIX: Use a staging area to prevent "Registry-Wipe" 502s
+        const stagedFunctions = {
             'viewer-request': [],
             'viewer-response': []
         };
@@ -110,18 +113,29 @@ class CFFRunner extends EventEmitter {
 
         const stats = fs.statSync(this.sourcePath);
         if (stats.isFile()) {
-            this.registerFile(this.sourcePath);
+            this.registerFile(this.sourcePath, stagedFunctions);
         } else if (stats.isDirectory()) {
             const files = fs.readdirSync(this.sourcePath).sort();
             files.forEach(file => {
                 if (file.endsWith('.js')) {
-                    this.registerFile(path.join(this.sourcePath, file));
+                    this.registerFile(path.join(this.sourcePath, file), stagedFunctions);
                 }
             });
         }
+
+        // ATOMIC SWAP: Only update live state if new handlers were successfully registered
+        const totalFound = Object.values(stagedFunctions).flat().length;
+        if (totalFound > 0) {
+            this.functions = stagedFunctions;
+            if (changedFile && this.options.debug) {
+                console.log(`\x1b[32m✅ [CFF] Hot-Reload Success: ${totalFound} handlers active.\x1b[0m`);
+            }
+        } else if (changedFile) {
+            console.error(`\x1b[31m🛑 [CFF] Hot-Reload Failed: Keeping previous valid version active.\x1b[0m`);
+        }
     }
 
-    registerFile(filePath) {
+    registerFile(filePath, registry = this.functions) {
         const filename = path.basename(filePath);
         let type = null;
 
@@ -133,102 +147,92 @@ class CFFRunner extends EventEmitter {
             return;
         }
 
-        // --- STEP 1: LOAD & BAKE ---
-        let code = fs.readFileSync(filePath, 'utf8');
-        code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
-
-        // --- STEP 2: PRE-VALIDATION (FAIL-FAST) ---
-        // Validate immediately after baking to ensure injected vars don't break ES 5.1
-        const { valid, violations } = this.validator.validate(filename, code);
-        const codeLines = code.split('\n');
-
-        // Print all violations (errors and warnings) in the unified format
-        for (const v of violations) {
-            const lineInfo = v.lineNum ? `\x1b[33mLine ${v.lineNum}\x1b[0m` : null;
-            const snippet = v.lineNum ? `\n      ${codeLines[v.lineNum - 1]?.trim()}` : '';
-            const location = lineInfo ? ` at ${lineInfo}${snippet}` : '';
-
-            if (v.level === 'error') {
-                console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] CloudFront Functions requires ES 5.1!`);
-                console.error(`   File: ${filename}${location}`);
-                console.error(`   ${v.message}`);
-                if (v.hint) console.error(`   💡 Hint: ${v.hint}`);
-            } else {
-                const lineLabel = v.lineNum ? ` (Line ${v.lineNum})` : '';
-                console.warn(`\n⚠️  [CFF] Policy Warning in ${filename}${lineLabel}`);
-                console.warn(`   ${v.message}`);
-            }
-        }
-
-        if (!valid) {
-            this.compileError = violations.filter(v => v.level === 'error').map(v => v.message).join('\n');
-            console.error(`\n   ⏳ Waiting for file changes to automatically retry...\n`);
-            this.emit('build_error', { type: 'cff', file: filePath, error: this.compileError });
-            return;
-        }
-
         try {
-            new vm.Script(code, { filename: filePath });
-            const wasError = !!this.compileError;
-            this.compileError = null;
-            if (wasError) {
-                console.log(`\n\x1b[32m✅ [Build Recovered]\x1b[0m CloudFront Function compiled successfully!`);
-                console.log(`   File: ${filePath}\n`);
+            // --- STEP 1: LOAD & BAKE ---
+            // Ensure content is loaded into a local variable to prevent undefined .replace() errors
+            let fileCode = fs.readFileSync(filePath, 'utf8');
+            fileCode = fileCode.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
+
+            // --- STEP 2: PRE-VALIDATION (FAIL-FAST) ---
+            const { valid, violations } = this.validator.validate(filename, fileCode);
+            const codeLines = fileCode.split('\n');
+
+            for (const v of violations) {
+                const lineInfo = v.lineNum ? `\x1b[33mLine ${v.lineNum}\x1b[0m` : null;
+                const snippet = v.lineNum ? `\n      ${codeLines[v.lineNum - 1]?.trim()}` : '';
+                const location = lineInfo ? ` at ${lineInfo}${snippet}` : '';
+
+                if (v.level === 'error') {
+                    console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] CloudFront Functions requires ES 5.1!`);
+                    console.error(`   File: ${filename}${location}`);
+                    console.error(`   ${v.message}`);
+                    if (v.hint) console.error(`   💡 Hint: ${v.hint}`);
+                } else {
+                    const lineLabel = v.lineNum ? ` (Line ${v.lineNum})` : '';
+                    console.warn(`\n⚠️  [CFF] Policy Warning in ${filename}${lineLabel}`);
+                    console.warn(`   ${v.message}`);
+                }
             }
-            this.emit('build_success', { type: 'cff', file: filePath });
-        } catch (err) {
-            this.compileError = err.stack || err.message;
-            // Extract line number from the stack trace for a clear user-facing label
-            const lineMatch = (err.stack || '').match(new RegExp(path.basename(filePath).replace('.', '\\.') + ':(\\d+)'));
-            const lineInfo = lineMatch ? `\x1b[33mLine ${lineMatch[1]}\x1b[0m` : 'unknown line';
-            const codeLines = code.split('\n');
-            const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
-            const snippet = lineNum ? `\n      ${codeLines[lineNum - 1]?.trim()}` : '';
 
-            console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in CloudFront Function!`);
-            console.error(`   File: ${path.basename(filePath)} at ${lineInfo}${snippet}`);
-            console.error(`   ${err.message}\n`);
-            console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
-            this.emit('build_error', { type: 'cff', file: filePath, error: this.compileError });
-            return;
-        }
-
-
-        // --- STEP 3: OUTPUT SAVING ---
-        if (this.outputPath) {
-            fs.mkdirSync(this.outputPath, { recursive: true });
-            const outFilePath = path.join(this.outputPath, filename);
-            fs.writeFileSync(outFilePath, this._stripHookType(code));
-        }
-
-        // --- STEP 4: RESOURCE CHECK ---
-        if (code.length > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
-            const sizeKb = (code.length / 1024).toFixed(1);
-            const msg = `Code size (${sizeKb}KB) exceeds the AWS 10KB limit for CloudFront Functions.`;
-            if (this.options.strict) {
-                this.compileError = msg;
-                console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] CloudFront Functions size limit exceeded!`);
-                console.error(`   File: ${filename}`);
-                console.error(`   ${msg}`);
-                console.error(`   💡 Hint: Minify your code or split logic into multiple smaller functions.`);
-                console.error(`\n   ⏳ Waiting for file changes to automatically retry...\n`);
+            if (!valid) {
+                this.compileError = violations.filter(v => v.level === 'error').map(v => v.message).join('\n');
                 this.emit('build_error', { type: 'cff', file: filePath, error: this.compileError });
                 return;
             }
-            console.warn(`⚠️  [CFF] ${msg}`);
-        }
 
-        this.functions[type].push({
-            name: filename,
-            code: code,
-            path: filePath
-        });
+            // --- STEP 3: VM SYNTAX CHECK ---
+            try {
+                new vm.Script(fileCode, { filename: filePath });
+                this.compileError = null;
+                this.emit('build_success', { type: 'cff', file: filePath });
+            } catch (err) {
+                this.compileError = err.stack || err.message;
+                const lineMatch = (err.stack || '').match(new RegExp(path.basename(filePath).replace('.', '\\.') + ':(\\d+)'));
+                const lineInfo = lineMatch ? `\x1b[33mLine ${lineMatch[1]}\x1b[0m` : 'unknown line';
+                const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
+                const snippet = lineNum ? `\n      ${codeLines[lineNum - 1]?.trim()}` : '';
+
+                console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in CloudFront Function!`);
+                console.error(`   File: ${path.basename(filePath)} at ${lineInfo}${snippet}`);
+                console.error(`   ${err.message}\n`);
+                this.emit('build_error', { type: 'cff', file: filePath, error: this.compileError });
+                return;
+            }
+
+            // --- STEP 4: OUTPUT SAVING ---
+            if (this.outputPath) {
+                fs.mkdirSync(this.outputPath, { recursive: true });
+                const outFilePath = path.join(this.outputPath, filename);
+                fs.writeFileSync(outFilePath, this._stripHookType(fileCode));
+            }
+
+            // --- STEP 5: RESOURCE CHECK ---
+            if (fileCode.length > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
+                const sizeKb = (fileCode.length / 1024).toFixed(1);
+                const msg = `Code size (${sizeKb}KB) exceeds the AWS 10KB limit for CloudFront Functions.`;
+                if (this.options.strict) {
+                    console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] CloudFront Functions size limit exceeded! File: ${filename}`);
+                    return;
+                }
+                console.warn(`⚠️  [CFF] ${msg}`);
+            }
+
+            // --- STEP 6: PUSH TO STAGING REGISTRY ---
+            registry[type].push({
+                name: filename,
+                code: fileCode,
+                path: filePath
+            });
+
+        } catch (err) {
+            console.error(`🛑 [CFF] Unexpected Error loading ${filename}: ${err.message}`);
+        }
     }
 
     async runChain(hookType, event) {
         let currentEvent = event;
         let totalCpuTimeMs = 0;
-        
+
         for (const fn of this.functions[hookType]) {
             const { result, cpuTimeMs } = this.executeSync(fn, currentEvent);
             totalCpuTimeMs += cpuTimeMs;
@@ -248,7 +252,7 @@ class CFFRunner extends EventEmitter {
                 }
             }
         }
-        
+
         if (currentEvent) {
             currentEvent.totalCpuTimeMs = totalCpuTimeMs;
         }
@@ -522,9 +526,9 @@ class CFFRunner extends EventEmitter {
 
             // Walk top-level nodes only (exports.hookType is always a top-level assignment)
             for (const node of ast.body) {
-                if (node.type === 'ExpressionStatement' && 
+                if (node.type === 'ExpressionStatement' &&
                     node.expression.type === 'AssignmentExpression') {
-                    
+
                     const left = node.expression.left;
                     // Check if: exports.hookType = ...
                     if (left.type === 'MemberExpression' &&
@@ -545,7 +549,7 @@ class CFFRunner extends EventEmitter {
 
             // Clean up potentially leftover empty lines
             return cleanCode.replace(/^\s*[\r\n]/gm, '').trim() + '\n';
-            
+
         } catch (err) {
             // CFF might be ES 5.1, so we use latest parser but fall back if it fails
             return code;

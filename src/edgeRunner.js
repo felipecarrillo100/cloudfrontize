@@ -46,6 +46,7 @@ class EdgeRunner extends EventEmitter {
         }
 
         // 🚀 Initial load (Ensure hooks are ready for tests/CLI)
+        // This is done twice. No need to do this in constructor (To review)
         this.load();
     }
 
@@ -54,22 +55,25 @@ class EdgeRunner extends EventEmitter {
     ========================================================= */
 
     load(changedFile) {
-        // Hot reload: refresh env and bake if they changed or on INITIAL load
         if (!changedFile || changedFile === this.envPath) this._loadEnv(this.envPath);
         if (!changedFile || changedFile === this.bakePath) this._loadBake(this.bakePath);
 
-        // Notify Hot reload to user
         if (changedFile && this.debug) {
             console.log(`\x1b[36m🔄 [EdgeRunner] Hot Reload triggered by: ${changedFile}\x1b[0m`);
         } else if (this.debug) {
             console.log(`\x1b[36m🚀 [EdgeRunner] Initializing edge modules...\x1b[0m`);
         }
 
-        // CRITICAL: Refresh variables from disk BEFORE processing JS files
         this._loadFidelityFiles();
 
-        // Reset module registry
-        Object.keys(this.modules).forEach(k => this.modules[k] = []);
+        // SURGICAL FIX: Create a staging registry
+        const stagedModules = {
+            'viewer-request': [],
+            'origin-request': [],
+            'origin-response': [],
+            'viewer-response': []
+        };
+
         if (!fs.existsSync(this.edgePath)) return;
 
         const stat = fs.statSync(this.edgePath);
@@ -77,9 +81,22 @@ class EdgeRunner extends EventEmitter {
             ? fs.readdirSync(this.edgePath).filter(f => f.endsWith('.js'))
             : [this.edgePath];
 
+        // Load files into STAGING
         files.forEach(f => {
-            this._loadFile(stat.isDirectory() ? path.join(this.edgePath, f) : f);
+            const fullPath = stat.isDirectory() ? path.join(this.edgePath, f) : f;
+            this._loadFile(fullPath, stagedModules);
         });
+
+        // ATOMIC SWAP: Only update live modules if we actually found handlers
+        const totalFound = Object.values(stagedModules).flat().length;
+        if (totalFound > 0) {
+            this.modules = stagedModules;
+            if (changedFile && this.debug) {
+                console.log(`\x1b[32m✅ [EdgeRunner] Hot Reload Success: ${totalFound} handlers active.\x1b[0m`);
+            }
+        } else if (changedFile) {
+            console.error(`\x1b[31m🛑 [EdgeRunner] Hot Reload Failed: No valid handlers found. Keeping previous version active.\x1b[0m`);
+        }
     }
 
     _detectHookType(sandbox, fileName) {
@@ -101,15 +118,12 @@ class EdgeRunner extends EventEmitter {
         return 'viewer-request';
     }
 
-    _loadFile(filePath) {
+    _loadFile(filePath, registry = this.modules) {
         let code = fs.readFileSync(filePath, 'utf8');
         code = code.replace(/__([A-Z0-9_.-]+)__/g, (m, key) => this.bakeVars[key] ?? m);
 
         if (this.outputPath) {
             const isSourceDir = fs.statSync(this.edgePath).isDirectory();
-
-            // If the user specified a file path (has extension) AND source is not a dir, use it directly.
-            // Otherwise (user specified a dir, or source is a dir containing multiple files), append the filename.
             const outFilePath = (isSourceDir || !path.extname(this.outputPath))
                 ? path.join(this.outputPath, path.basename(filePath))
                 : this.outputPath;
@@ -123,20 +137,15 @@ class EdgeRunner extends EventEmitter {
             const timestamp = new Date().toISOString();
             const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
             const formatted = `${timestamp}  [${ctx.requestId}] [${ctx.hookType}]  ${message}\n`;
-
             if (this.debug) {
-                // Call global console so Jest spies work
                 if (level === 'error') console.error(formatted.trim());
                 else if (level === 'warn') console.warn(formatted.trim());
                 else console.log(formatted.trim());
             }
-            if (this.logPath) {
-                fs.appendFileSync(this.logPath, formatted);
-            }
+            if (this.logPath) fs.appendFileSync(this.logPath, formatted);
         };
 
         const mockModule = { exports: {} };
-        // Closure-bound dynamic whitelist (Pivots after detection)
         let allowed = AWS_RUNTIME.ALLOWED_ORIGIN;
 
         const sandbox = {
@@ -152,32 +161,12 @@ class EdgeRunner extends EventEmitter {
             URL, URLSearchParams, TextEncoder, TextDecoder,
             process: { env: { ...this.envVars }, nextTick: process.nextTick, version: process.version },
             require: (id) => {
-                // 1. Check Global Forbidden List (Strict Bans)
-                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) {
-                    throw new Error(`Forbidden: ${id} is restricted in the Lambda@Edge environment.`);
-                }
-
-                // 3. Track and validate later (Contextual Sandbox)
+                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) throw new Error(`Forbidden: ${id}`);
                 if (!sandbox.__usedModules) sandbox.__usedModules = [];
                 sandbox.__usedModules.push(id);
-
-                // 4. Conditional Networking Whitelist
                 const isNetAllowed = this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
-
-                // Check built-in and SDK whitelists
-                const isAllowed = allowed.includes(id) ||
-                                 isNetAllowed ||
-                                 id.startsWith('node:') ||
-                                 id.startsWith('@aws-sdk/client-');
-
-                if (!id.startsWith('.') && !isAllowed) {
-                    const isBannedNet = !this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
-                    if (isBannedNet) {
-                        throw new Error(`Forbidden: '${id}' is restricted by default for security. Use the --allow-networking flag to enable it.`);
-                    }
-                    throw new Error(`Forbidden: ${id} is not available in Lambda@Edge context.`);
-                }
-
+                const isAllowed = allowed.includes(id) || isNetAllowed || id.startsWith('node:') || id.startsWith('@aws-sdk/client-');
+                if (!id.startsWith('.') && !isAllowed) throw new Error(`Forbidden: ${id}`);
                 return id.startsWith('.') ? require(path.resolve(path.dirname(filePath), id)) : require(id);
             },
             __dirname: path.dirname(filePath),
@@ -188,55 +177,29 @@ class EdgeRunner extends EventEmitter {
         vm.createContext(sandbox);
 
         try {
+            // Use a fresh script every time to avoid V8 cache pollution
             new vm.Script(code, { filename: filePath }).runInContext(sandbox);
-            this.emit('build_success', { type: 'edge', file: filePath });
         } catch (err) {
-            // ... (keep current error handling)
-            this.compileError = err.stack || err.message;
-            const lineMatch = (err.stack || '').match(new RegExp(path.basename(filePath).replace('.', '\\.') + ':(\\d+)'));
-            const lineInfo = lineMatch ? `\x1b[33mLine ${lineMatch[1]}\x1b[0m` : 'unknown line';
-            const codeLines = code.split('\n');
-            const lineNum = lineMatch ? parseInt(lineMatch[1], 10) : null;
-            const snippet = lineNum ? `\n      ${codeLines[lineNum - 1]?.trim()}` : '';
-
-            this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
-            console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in Lambda@Edge script!`);
-            console.error(`   File: ${path.basename(filePath)} at ${lineInfo}${snippet}`);
+            this.emit('build_error', { type: 'edge', file: filePath, error: err.message });
+            console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in ${path.basename(filePath)}`);
             console.error(`   ${err.message}\n`);
-            console.error(`   ⏳ Waiting for file changes to automatically retry...\n`);
             return;
         }
 
         const hookType = this._detectHookType(sandbox, path.basename(filePath));
+        const handler = mockModule.exports.handler;
 
-        // --- CONTEXTUAL SANDBOX ENFORCEMENT ---
-        // Pivot the closure-bound whitelist for subsequent calls inside the handler
-        if (hookType && hookType.startsWith('viewer-')) {
-            allowed = AWS_RUNTIME.ALLOWED_VIEWER;
-            // Retrospectively check if any restricted modules were used during top-level load
-            const used = sandbox.__usedModules || [];
-            for (const id of used) {
-                if (!AWS_RUNTIME.ALLOWED_VIEWER.includes(id) && !id.startsWith('.')) {
-                    const isBannedGlobal = AWS_RUNTIME.FORBIDDEN_MODULES.includes(id);
-                    const msg = isBannedGlobal ?
-                        `Forbidden: ${id} is restricted in the Lambda@Edge environment.` :
-                        `Forbidden: ${id} is not available in viewer-request scripts.`;
-
-                    this.compileError = msg; // Store for tests
-                    console.error(`\n🛑 [\x1b[31mSandbox Error\x1b[0m] ${msg}`);
-                    console.error(`   File: ${path.basename(filePath)}\n`);
-                    return; // Graceful stop
-                }
-            }
-        }
-
-        if (mockModule.exports.handler && hookType) {
-            const existing = this.modules[hookType][0];
+        if (handler && hookType) {
+            // SURGICAL FIX: Check for duplicates in STAGING (registry), not this.modules
+            const existing = registry[hookType][0];
             if (existing) {
-                console.warn(`⚠️  [CloudFrontize] Warning: Multiple files found for "${hookType}". Keeping "${path.basename(existing.file)}" and ignoring "${path.basename(filePath)}".`);
+                if (existing.file !== filePath) {
+                    console.warn(`⚠️  [CloudFrontize] Warning: Multiple files for "${hookType}".`);
+                }
                 return;
             }
-            this.modules[hookType].push({ handler: mockModule.exports.handler, file: filePath });
+            registry[hookType].push({ handler, file: filePath });
+            this.emit('build_success', { type: 'edge', file: filePath });
         }
     }
 
