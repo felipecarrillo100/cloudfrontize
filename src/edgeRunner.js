@@ -64,14 +64,14 @@ class EdgeRunner extends EventEmitter {
         } else if (this.debug) {
             console.log(`\x1b[36m🚀 [EdgeRunner] Initializing edge modules...\x1b[0m`);
         }
- 
+
         // CRITICAL: Refresh variables from disk BEFORE processing JS files
         this._loadFidelityFiles();
- 
+
         // Reset module registry
         Object.keys(this.modules).forEach(k => this.modules[k] = []);
         if (!fs.existsSync(this.edgePath)) return;
- 
+
         const stat = fs.statSync(this.edgePath);
         const files = stat.isDirectory()
             ? fs.readdirSync(this.edgePath).filter(f => f.endsWith('.js'))
@@ -84,7 +84,7 @@ class EdgeRunner extends EventEmitter {
 
     _detectHookType(sandbox, fileName) {
         const mod = sandbox.module.exports;
-        
+
         // Priority 1: Explicit Code Marker (Actually set in code)
         if (mod.hookType) return mod.hookType;
 
@@ -137,7 +137,7 @@ class EdgeRunner extends EventEmitter {
 
         const mockModule = { exports: {} };
         // Closure-bound dynamic whitelist (Pivots after detection)
-        let allowed = AWS_RUNTIME.ALLOWED_ORIGIN; 
+        let allowed = AWS_RUNTIME.ALLOWED_ORIGIN;
 
         const sandbox = {
             module: mockModule, exports: mockModule.exports,
@@ -218,10 +218,10 @@ class EdgeRunner extends EventEmitter {
             for (const id of used) {
                 if (!AWS_RUNTIME.ALLOWED_VIEWER.includes(id) && !id.startsWith('.')) {
                     const isBannedGlobal = AWS_RUNTIME.FORBIDDEN_MODULES.includes(id);
-                    const msg = isBannedGlobal ? 
+                    const msg = isBannedGlobal ?
                         `Forbidden: ${id} is restricted in the Lambda@Edge environment.` :
                         `Forbidden: ${id} is not available in viewer-request scripts.`;
-                    
+
                     this.compileError = msg; // Store for tests
                     console.error(`\n🛑 [\x1b[31mSandbox Error\x1b[0m] ${msg}`);
                     console.error(`   File: ${path.basename(filePath)}\n`);
@@ -311,7 +311,7 @@ class EdgeRunner extends EventEmitter {
         const request = this._buildRequestRecord(req);
         let totalDurationMs = 0;
         let reconciledHeaders = this._normalizeHeadersInternal(resData.headers || {});
-        
+
         // AWS Fidelity: Strip globally forbidden headers from the event object
         for (const h of AWS_HEADERS.FORBIDDEN) {
             delete reconciledHeaders[h];
@@ -473,7 +473,7 @@ class EdgeRunner extends EventEmitter {
         const normalizedQs = new URLSearchParams(params).toString();
 
         const headers = this._normalizeHeadersInternal(req.headers || {});
-        
+
         // AWS Fidelity: Strip globally forbidden headers from the event object
         for (const h of AWS_HEADERS.FORBIDDEN) {
             delete headers[h];
@@ -603,7 +603,7 @@ class EdgeRunner extends EventEmitter {
         if (!envPath || !fs.existsSync(envPath)) return;
         const config = dotenv.parse(fs.readFileSync(envPath));
         const { RESTRICTED_AWS_ENV } = require('./constants');
-        
+
         for (const k in config) {
             if (RESTRICTED_AWS_ENV.includes(k)) {
                 throw new Error(`Restricted Variable: "${k}" cannot be used in .env file (AWS Managed)`);
@@ -649,15 +649,39 @@ class EdgeRunner extends EventEmitter {
     }
 
     _watch() {
-        [this.edgePath, this.envPath, this.bakePath].filter(Boolean).forEach(t => {
-            if (fs.existsSync(t)) {
-                const w = fs.watch(t, (eventType, filename) => {
-                    // Windows Safety: If the path is being deleted, abort the reload
-                    if (!fs.existsSync(t)) return;
-                    this._load(filename);
-                });
-                this.watchers.push(w);
-            }
+        // Collect all paths that actually exist
+        const targets = [this.edgePath, this.envPath, this.bakePath].filter(Boolean);
+
+        targets.forEach(t => {
+            if (!fs.existsSync(t)) return;
+
+            let timeout;
+            const w = fs.watch(t, (eventType, filename) => {
+                // Windows Safety: ensure the target wasn't deleted or locked
+                if (!fs.existsSync(t)) return;
+
+                // Debounce: prevent multiple reloads for a single save
+                clearTimeout(timeout);
+
+                timeout = setTimeout(() => {
+                    try {
+                        // Logic to handle if 't' is a directory or a single file
+                        const isDir = fs.statSync(t).isDirectory();
+                        const changedPath = (isDir && filename)
+                            ? path.join(t, filename)
+                            : t;
+
+                        // Trigger the hot-reload
+                        this.load(changedPath);
+
+                    } catch (err) {
+                        // Prevent the CLI from crashing on file-system or syntax errors
+                        console.error(`\x1b[31m🛑 [Watcher Error] Could not reload: ${err.message}\x1b[0m`);
+                    }
+                }, 100); // 100ms is the "sweet spot" for IDE saves
+            });
+
+            this.watchers.push(w);
         });
     }
 
@@ -677,9 +701,9 @@ class EdgeRunner extends EventEmitter {
 
             // Walk top-level nodes only (exports.hookType is always a top-level assignment)
             for (const node of ast.body) {
-                if (node.type === 'ExpressionStatement' && 
+                if (node.type === 'ExpressionStatement' &&
                     node.expression.type === 'AssignmentExpression') {
-                    
+
                     const left = node.expression.left;
                     // Check if: exports.hookType = ...
                     if (left.type === 'MemberExpression' &&
@@ -700,7 +724,7 @@ class EdgeRunner extends EventEmitter {
 
             // Clean up potentially leftover empty lines
             return cleanCode.replace(/^\s*[\r\n]/gm, '').trim() + '\n';
-            
+
         } catch (err) {
             console.warn(`\x1b[33m⚠️  [Fidelity Warning] AST Stripper failed: ${err.message}. Output might contain internal markers.\x1b[0m`);
             return code;
