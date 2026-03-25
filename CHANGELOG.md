@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.10.1...v1.10.2) (2026-03-25)
+
+
+### Bug Fixes
+
+* strict module isolation and parallel test suite stability ([6641497](https://github.com/felipecarrillo100/cloudfrontize/commit/66414977f572dd2a22a8327873de92246ebece85))
+
 ## [1.10.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.10.0...v1.10.1) (2026-03-21)
 
 
