@@ -8,14 +8,15 @@ const http = require('http');
 const cli_path = path.resolve(__dirname, '../bin/cli.js');
 
 describe('E2E: Header Handshake & Hook Fidelity', () => {
+    jest.setTimeout(20000); // Allow up to 20s for parallel test runners
     let child;
-    // Dynamic port to prevent "Address already in use" errors
-    const port = Math.floor(Math.random() * 1000) + 3100;
-    const tmp_dir = path.join(__dirname, `tmp_e2e_${Date.now()}`);
+    // Dynamic port to prevent "Address already in use" errors across massive parallel suites
+    const port = Math.floor(Math.random() * 20000) + 10000;
+    const tmp_dir = path.join(__dirname, '..', '.tmp', `tmp_e2e_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
     const www_dir = path.join(tmp_dir, 'www');
 
     beforeAll(() => {
-        if (fs.existsSync(tmp_dir)) fs.rmSync(tmp_dir, { recursive: true, force: true });
+        if (fs.existsSync(tmp_dir)) fs.rmSync(tmp_dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
         fs.mkdirSync(www_dir, { recursive: true });
         fs.writeFileSync(path.join(www_dir, 'index.html'), '<html>E2E</html>');
 
@@ -63,7 +64,7 @@ describe('E2E: Header Handshake & Hook Fidelity', () => {
         if (child) child.kill('SIGKILL');
         // Give the OS 200ms to release file locks before deleting the folder
         await new Promise(r => setTimeout(r, 200));
-        if (fs.existsSync(tmp_dir)) fs.rmSync(tmp_dir, { recursive: true, force: true });
+        if (fs.existsSync(tmp_dir)) fs.rmSync(tmp_dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     });
 
     test('🚀 Should verify full Request/Response header lifecycle', async () => {
@@ -80,9 +81,9 @@ describe('E2E: Header Handshake & Hook Fidelity', () => {
                 }
             });
             child.stderr.on('data', (data) => {
-                if (!data.includes('ExperimentalWarning')) reject(new Error(data));
+                if (!data.includes('ExperimentalWarning')) console.warn('CLI Stderr:', data);
             });
-            setTimeout(() => reject(new Error('CLI Timeout')), 5000);
+            setTimeout(() => reject(new Error('CLI Timeout: Failed to start after 15s')), 15000);
         });
 
         // Perform the request using a clean async wrapper

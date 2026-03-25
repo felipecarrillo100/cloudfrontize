@@ -161,13 +161,32 @@ class EdgeRunner extends EventEmitter {
             URL, URLSearchParams, TextEncoder, TextDecoder,
             process: { env: { ...this.envVars }, nextTick: process.nextTick, version: process.version },
             require: (id) => {
-                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) throw new Error(`Forbidden: ${id}`);
+                if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) throw new Error(`Forbidden: ${id} is restricted`);
+                
                 if (!sandbox.__usedModules) sandbox.__usedModules = [];
                 sandbox.__usedModules.push(id);
+                
+                if (id.startsWith('.')) return require(path.resolve(path.dirname(filePath), id));
+                
                 const isNetAllowed = this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
-                const isAllowed = allowed.includes(id) || isNetAllowed || id.startsWith('node:') || id.startsWith('@aws-sdk/client-');
-                if (!id.startsWith('.') && !isAllowed) throw new Error(`Forbidden: ${id}`);
-                return id.startsWith('.') ? require(path.resolve(path.dirname(filePath), id)) : require(id);
+                
+                let currentAllowed = allowed;
+                if (sandbox.__strictHookType) {
+                    currentAllowed = sandbox.__strictHookType.startsWith('viewer-') ? AWS_RUNTIME.ALLOWED_VIEWER : AWS_RUNTIME.ALLOWED_ORIGIN;
+                }
+                
+                const isPermitted = currentAllowed.includes(id) || isNetAllowed || id.startsWith('node:');
+                
+                if (sandbox.__strictHookType && !isPermitted) {
+                    throw new Error(`Forbidden: ${id} is not available`);
+                }
+
+                const lazyAllowed = isPermitted || id.startsWith('@aws-sdk/client-');
+                if (!sandbox.__strictHookType && !lazyAllowed) {
+                     throw new Error(`Forbidden: ${id} is not available`);
+                }
+                
+                return require(id);
             },
             __dirname: path.dirname(filePath),
             __filename: filePath
@@ -180,6 +199,7 @@ class EdgeRunner extends EventEmitter {
             // Use a fresh script every time to avoid V8 cache pollution
             new vm.Script(code, { filename: filePath }).runInContext(sandbox);
         } catch (err) {
+            this.compileError = err.message;
             this.emit('build_error', { type: 'edge', file: filePath, error: err.message });
             console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] SyntaxError in ${path.basename(filePath)}`);
             console.error(`   ${err.message}\n`);
@@ -187,6 +207,28 @@ class EdgeRunner extends EventEmitter {
         }
 
         const hookType = this._detectHookType(sandbox, path.basename(filePath));
+        sandbox.__strictHookType = hookType;
+        
+        // POST-VALIDATION FOR REQUIRES THAT HAPPENED DURING COMPILE
+        const strictAllowed = hookType.startsWith('viewer-') ? AWS_RUNTIME.ALLOWED_VIEWER : AWS_RUNTIME.ALLOWED_ORIGIN;
+        if (sandbox.__usedModules) {
+             for (const id of sandbox.__usedModules) {
+                 if (id.startsWith('.')) continue;
+                 if (AWS_RUNTIME.FORBIDDEN_MODULES.includes(id)) {
+                     this.compileError = `Forbidden: ${id} is restricted`;
+                     this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
+                     return;
+                 }
+                 const isNetAllowed = this.allowNetworking && AWS_RUNTIME.ALLOWED_NETWORKING.includes(id);
+                 const isPermitted = strictAllowed.includes(id) || isNetAllowed || id.startsWith('node:');
+                 if (!isPermitted) {
+                     this.compileError = `Forbidden: ${id} is not available`;
+                     this.emit('build_error', { type: 'edge', file: filePath, error: this.compileError });
+                     return;
+                 }
+             }
+        }
+
         const handler = mockModule.exports.handler;
 
         if (handler && hookType) {

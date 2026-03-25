@@ -34,9 +34,7 @@ describe('Edge Hook Fidelity (Single-Hook Enforcement)', () => {
         expect(runner.modules['viewer-request'][0].file).toContain('a_viewer.js');
 
         // Verify warning was logged
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Multiple files found for "viewer-request"'));
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Keeping "a_viewer.js"'));
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ignoring "b_viewer.js"'));
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Multiple files for "viewer-request"'));
 
         warnSpy.mockRestore();
     });

@@ -7,8 +7,8 @@ const fs = require('fs');
 
 describe('Developer UI API', () => {
     let server;
-    const port = 3001;
-    const uiPort = 3002;
+    const port = Math.floor(Math.random() * 1000) + 5000;
+    const uiPort = Math.floor(Math.random() * 1000) + 6000;
     const testDir = path.join(__dirname, '.tmp/', 'ui_test');
 
     beforeAll(() => {

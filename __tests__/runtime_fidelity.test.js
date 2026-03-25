@@ -29,7 +29,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
     });
 
-    test('🛡️ Sandbox Isolation: Should prevent "fs" access', async () => {
+    test('🛡️ Sandbox Isolation: Should prevent "child_process" access', async () => {
         const jailDir = path.join(baseDir, 'jailbreak');
         if (!fs.existsSync(jailDir)) fs.mkdirSync(jailDir, { recursive: true });
 
@@ -37,7 +37,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
             exports.hookType = 'viewer-request';
             exports.handler = async (e) => {
                 let status = "shield_held";
-                try { require('fs'); status = "escaped"; } catch(err) {}
+                try { require('child_process'); status = "escaped"; } catch(err) {}
                 const req = e.Records[0].cf.request;
                 req.headers['x-status'] = [{key:'x', value: status}];
                 return req;
