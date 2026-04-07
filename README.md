@@ -174,8 +174,19 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **`--no-etag`** | Disable ETag headers                                                                                                                                                                                                                                | `off`                                                                                              |
 | **`-L, --no-request-logging`** | Mute startup logs                                                                                                                                                                                                                                   | `off`                                                                                              |
 | **`--strict`** | Enforce strict CloudFront limits (40KB body, 1MB response, headers)                                                                                                                                                                                 | `off`                                                                                              |
+| **`--origins <path>`** | Path to JSON file with S3/Multi-Origin configuration                                                                                                                                                                                                | none |
+| **`--s3-origin <bucket>`** | Proxy requests to a real S3 bucket instead of local directory                                                                                                                                                                                     | none |
+| **`--s3-endpoint <url>`** | Custom S3 endpoint (e.g. MinIO) - implies forcePathStyle                                                                                                                                                                                            | none |
 | **`--allow-networking`** | Enable http/https modules in Lambda@Edge functions (disabled by default to avoid non-edge-safe patterns such as `localhost` or private services)                                                                                                    | `off` |
 | **`-V, --version`** | Output the version number                                                                                                                                                                                                                           | `off`                                                                                              |
+
+---
+
+## 🪣 S3 & Multi-Origin Support `New!`
+
+CloudFrontize can point to **AWS S3** or S3-compatible storage like **MinIO**, **LocalStack**, or **Cloudflare R2**. You can even simulate complex distributions with multiple origins (e.g., S3 for assets and a local API stub).
+
+**[👉 Read the S3 & Multi-Origin Guide](docs/s3-origin.md)**
 
 ---
 

@@ -3,20 +3,22 @@
   "description": "High-performance, high-fidelity local emulator for AWS Lambda@Edge and CloudFront Functions. Validate edge logic, catch illegal header mutations, and execute production-grade runtimes on a specialized local static server.",
   "version": "1.10.2",
   "type": "commonjs",
-  "main": "dist/cli.js",
+  "main": "dist/bin/cli.js",
   "bin": {
-    "cloudfrontize": "dist/cli.js"
+    "cloudfrontize": "dist/bin/cli.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
+    "dev": "tsx bin/cli.ts -C ./www",
     "clean": "node -e \"require('fs').rmSync('dist', {recursive:true, force:true})\"",
-    "build": "npm run clean && node scripts/build.js",
+    "build": "npm run ui:build && tsup && node -e \"require('fs').rmSync('dist/ui', {recursive:true, force:true}); require('fs').cpSync('ui', 'dist/ui', {recursive:true, force:true})\"",
+    "ui:build": "npm run build --prefix ui-src",
     "prepublishOnly": "npm run build",
     "test": "jest --forceExit",
-    "test:local": "node ./bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
-    "test:dist": "node ./dist/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
+    "test:local": "tsx ./bin/cli.ts -C ./www -e ./samples/medium/lambda-edge-authorization.js",
+    "test:dist": "node ./dist/bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
   },
   "dependencies": {
     "@aws-sdk/client-appconfig": "^3.0.0",
@@ -27,15 +29,28 @@
     "@aws-sdk/util-base64": "^3.0.0",
     "@aws-sdk/util-utf8": "^3.0.0",
     "acorn": "^8.16.0",
+    "chokidar": "^3.6.0",
     "commander": "^11.0.0",
     "compression": "^1.7.4",
     "dotenv": "^17.3.1",
-    "serve-handler": "^6.1.6"
+    "serve-handler": "^6.1.6",
+    "terser": "^5.46.1"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
+    "@babel/preset-typescript": "^7.28.5",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "babel-jest": "^30.3.0",
     "esbuild": "^0.27.3",
     "jest": "^30.2.0",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
   },
   "keywords": [
     "cloudfront",

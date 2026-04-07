@@ -1,4 +1,4 @@
-# Contributing to cloudfrontize-lambda-at-edge
+# Contributing to CloudFrontize
 [![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ff69b4?style=for-the-badge&logo=github)](https://github.com/sponsors/felipecarrillo100)
 
 First off, thank you for considering contributing to **CloudFrontize**! It’s people like you who make the Edge development experience less painful for everyone.
@@ -14,9 +14,8 @@ To get started with the codebase:
 1. **Fork the repository** on GitHub.
 2. **Clone your fork** locally:
 ```bash
-git clone https://github.com/your-username/cloudfrontize-lambda-at-edge.git
-cd cloudfrontize-lambda-at-edge
-
+git clone https://github.com/your-username/cloudfrontize.git
+cd cloudfrontize
 ```
 
 
@@ -78,7 +77,7 @@ If the simulation doesn't match actual AWS CloudFront behavior:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under its **MIT License**.
+By contributing, you agree that your contributions will be licensed under our **Non-Commercial & Business License**. Commercial use by for-profit entities requires a valid subscription via GitHub Sponsors.
 
 **Happy Hacking at the Edge!**
 
