@@ -1,4 +1,6 @@
 import type { DistributionInfo, DistributionHook } from '../types';
+import lambdaIcon from '../assets/lambda-edge.png';
+import cffIcon from '../assets/cloudfront-function.png';
 
 interface FidelityCloudProps {
   dist: DistributionInfo | null;
@@ -32,6 +34,8 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
   const Node = ({ hook, color }: { hook: DistributionHook, color: string }) => {
     const filename = hook.path.split(/[\\\/]/).pop() || '';
     const isDisabled = (hook as any).disabled;
+    const isCff = hook.type.toLowerCase().includes('function');
+    const icon = isCff ? cffIcon : lambdaIcon;
 
     return (
         <div 
@@ -44,10 +48,13 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
                 transition: 'all 0.4s', width: 140, height: 54, zIndex: 10, backdropFilter: 'blur(4px)',
                 boxShadow: `0 4px 12px ${color}11`, flexShrink: 0, overflow: 'hidden',
                 filter: isDisabled ? 'grayscale(1) brightness(0.6)' : 'none',
-                opacity: isDisabled ? 0.5 : 1
+                opacity: isDisabled ? 0.5 : 1, position: 'relative'
             }}
         >
-            <div style={{ fontSize: '0.42rem', fontWeight: 950, color, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>{hook.type} {isDisabled && '(BYPASSED)'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <img src={icon} alt={hook.type} style={{ width: 14, height: 14, objectFit: 'contain', filter: `drop-shadow(0 0 4px ${color}88)` }} />
+                <div style={{ fontSize: '0.42rem', fontWeight: 950, color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{hook.type} {isDisabled && '(BYPASSED)'}</div>
+            </div>
             <div className="node-marquee-container" style={{ width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'center' }}>
                 <div className="node-marquee-text" style={{ fontSize: '0.65rem', color: '#f8fafc', fontWeight: 800, display: 'inline-block', minWidth: '100%' }}>
                     {filename}

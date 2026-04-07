@@ -41,7 +41,7 @@ export function printBottomBanner(options: any) {
     }
     if (cffRunner) {
         const p = cffRunner.getRunnerPath();
-        console.log(`     - \x1b[35mCloudFront Functions\x1b[0m: ${p ? path.basename(p) : 'Active'}`);
+        console.log(`     - \x1b[35mCloudFront Function\x1b[0m: ${p ? path.basename(p) : 'Active'}`);
     }
     console.log('');
 }

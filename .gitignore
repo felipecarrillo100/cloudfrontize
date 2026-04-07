@@ -129,3 +129,6 @@ public
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# UI Build Output
+ui/

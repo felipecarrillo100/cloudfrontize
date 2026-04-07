@@ -168,7 +168,7 @@ export default function FidelityAuditModal({ hooks, onClose }: FidelityAuditModa
                           href={AWS_LINKS.CONSOLE.CFF}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title="Navigate to AWS CloudFront Functions (CFF) dashboard"
+                          title="Navigate to AWS CloudFront Function (CFF) dashboard"
                           style={{
                             fontSize: '0.6rem', padding: '3px 10px', borderRadius: 6,
                             background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.2)',

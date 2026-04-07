@@ -111,7 +111,7 @@ export class CFFRunner extends HotRunner {
                 const snippet = SnippetExtractor.extract(filePath, firstErr?.lineNum || null);
                 
                 this.emit('build_error', { 
-                    type: 'CloudFront Functions', 
+                    type: 'CloudFront Function', 
                     file: path.basename(filePath),
                     path: filePath,
                     error: this.compileError,
@@ -130,7 +130,7 @@ export class CFFRunner extends HotRunner {
                 const snippet = SnippetExtractor.extract(filePath, line);
 
                 this.emit('build_error', { 
-                    type: 'CloudFront Functions', 
+                    type: 'CloudFront Function', 
                     file: path.basename(filePath),
                     path: filePath,
                     error: this.compileError,

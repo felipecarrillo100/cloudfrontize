@@ -99,7 +99,7 @@ export class Orchestrator {
         const cffPath = this.cffRunner?.getRunnerPath?.();
         if (cffPath) {
             if (fs.existsSync(cffPath) && fs.lstatSync(cffPath).isFile()) {
-                hooks.push({ id: `viewer-request-cff-0`, type: 'CloudFront Functions', path: cffPath, stage: 'viewer-request' });
+                hooks.push({ id: `viewer-request-cff-0`, type: 'CloudFront Function', path: cffPath, stage: 'viewer-request' });
             } else if (fs.existsSync(cffPath) && fs.lstatSync(cffPath).isDirectory()) {
                 const files = fs.readdirSync(cffPath).filter(f => f.endsWith('.js')).sort();
                 files.forEach((f, idx) => {
@@ -108,7 +108,7 @@ export class Orchestrator {
                                  (basename.includes('viewer-response') ? 'viewer-response' : 
                                  (basename.includes('origin-request') ? 'origin-request' : 
                                  (basename.includes('origin-response') ? 'origin-response' : 'viewer-request')));
-                    hooks.push({ id: `${stage}-cff-${idx}`, type: 'CloudFront Functions', path: path.join(cffPath, f), stage });
+                    hooks.push({ id: `${stage}-cff-${idx}`, type: 'CloudFront Function', path: path.join(cffPath, f), stage });
                 });
             }
         }
@@ -247,7 +247,7 @@ export class Orchestrator {
             // 1. CFF Viewer Request
             if (this.cffRunner) {
                 const hooks = this.hookRegistry.filter(h => 
-                    h.type === 'CloudFront Functions' && 
+                    h.type === 'CloudFront Function' && 
                     h.stage === 'viewer-request' && 
                     !this.disabledHookIds.has(h.id)
                 );
@@ -379,7 +379,7 @@ export class Orchestrator {
 
             // 6. CFF Viewer Response
             if (this.cffRunner) {
-                const hook = this.hookRegistry.find(h => h.type === 'CloudFront Functions' && h.stage === 'viewer-response');
+                const hook = this.hookRegistry.find(h => h.type === 'CloudFront Function' && h.stage === 'viewer-response');
                 const stageName = hook ? `[CFF: viewer-response] ${path.basename(hook.path)}` : '[CFF: viewer-response] Unknown';
                 this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: hook?.id }, HeaderManager.telemetryFlatten(finalRes.headers));
                 const cffResEvent = this.cffRunner.toCFFEvent(req, finalRes, 'viewer-response');

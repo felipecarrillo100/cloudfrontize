@@ -10,7 +10,7 @@ export const AWS_LIMITS = {
 } as const;
 
 /**
- * AWS CloudFront Functions (CFF) Strict Limits
+ * AWS CloudFront Function (CFF) Strict Execution Limits
  */
 export const CFF_LIMITS = {
     MAX_CODE_SIZE_BYTES: 10 * 1024,           // 10KB

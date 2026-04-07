@@ -32,7 +32,7 @@ export class CodeProcessor {
 
   /**
    * Performs environment-aware minification and uglification.
-   * Enforces strict ES5.1 compliance for CloudFront Functions (CFF).
+   * Enforces strict ES5.1 compliance for CloudFront Function (CFF).
    */
   public static async process(
     content: string, 

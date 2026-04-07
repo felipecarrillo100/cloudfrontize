@@ -60,7 +60,7 @@ export class CFFValidator {
             let hint: string | null = null;
             for (const trap of this.syntaxTraps) {
                 if (trap.regex.test(code)) {
-                    message = `CloudFront Functions requires ES 5.1 — '${trap.label}' is not allowed`;
+                    message = `CloudFront Function requires ES 5.1 — '${trap.label}' is not allowed`;
                     hint = this._getHint(trap.label);
                     break;
                 }
@@ -81,7 +81,7 @@ export class CFFValidator {
             if (trap.regex.test(cleanCode)) {
                 violations.push({
                     level: 'error',
-                    message: `CloudFront Functions requires ES 5.1 — '${trap.label}' is not allowed`,
+                    message: `CloudFront Function requires ES 5.1 — '${trap.label}' is not allowed`,
                     lineNum: null,
                     hint: this._getHint(trap.label)
                 });
@@ -111,8 +111,8 @@ export class CFFValidator {
             'Arrow Function (=>)': "Use a regular function expression: function(x) { return x; }",
             'Template Literal': "Use string concatenation: 'Hello ' + name",
             'class': "Use constructor functions and prototype inheritance.",
-            'eval()': "eval() is forbidden in CloudFront Functions.",
-            'new Function()': "new Function() is forbidden in CloudFront Functions."
+            'eval()': "eval() is forbidden in CloudFront Function.",
+            'new Function()': "new Function() is forbidden in CloudFront Function."
         };
         return hints[label] || null;
     }
