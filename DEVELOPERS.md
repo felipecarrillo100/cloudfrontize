@@ -9,15 +9,16 @@ Welcome to the CloudFrontize development team! This guide explains how to build,
 CloudFrontize utilizes a service-oriented architecture to maintain state across complex request lifecycles.
 
 ### 1. The Service Layer (`src/core/`)
-- **`HeaderManager.ts`**: The "Guardian" of header fidelity. Centralizes normalization, forbidden rule enforcement, and multi-value preservation.
-- **`HotRunner.ts`**: Abstract base class providing binary-safe hot-reloading, registry management, and global cache purging.
-- **`EdgeRunner.ts`**: High-fidelity Lambda@Edge VM sandbox. Uses a **"Hybrid Return"** pattern for hook mutations.
-- **`CFFRunner.ts`**: Strict ES5.1 runtime with microsecond timing and memory guards.
+- **`HeaderManager.ts`**: The central authority for header normalization, forbidden rule enforcement, and multi-value preservation.
+- **`HotRunner.ts`**: Abstract class providing binary-safe hot-reloading and V8 JIT pre-heating logic.
+- **`EdgeRunner.ts`**: High-fidelity Node.js `vm` sandbox for Lambda@Edge simulator.
+- **`CFFRunner.ts`**: Lightweight **CloudFront Function** runtime with ES5.1 strictness.
+- **`CodeProcessor.ts`**: Core engine for baking environment variables and enforcing ES5.1 syntax constraints.
 
 ### 2. The Orchestration Layer (`src/pipeline/`)
 - **`Orchestrator.ts`**: The "Command Center". Manages the sequential hook highway and maintains the unified Sticky Header state.
-- **`WebUI.ts`**: Handles the developer control plane and provides real-time state synchronization via Server-Sent Events (SSE).
-- **`Telemetry.ts`**: Metrics aggregator for execution timing, bandwidth measurement, and hook tracking.
+- **`Telemetry.ts`**: Real-time metrics aggregator for execution timing and bandwidth tracking.
+- **`OriginSelector.ts`**: Logic for matching request paths against Cache Behaviors to select the correct origin provider.
 
 ---
 
@@ -51,11 +52,13 @@ Start the emulator in watch mode using the `tsx` loader:
 npm run dev
 ```
 
-### 3. WebUI Development (Frontend)
-The dashboard is a React application powered by Vite:
-```bash
-npm run ui:dev
-```
+### 3. WebUI Pro Development
+The dashboard is a professional React application:
+- **Source**: `ui-src/`
+- **Stack**: Vite, React, TailwindCSS, Lucide Icons.
+- **Build**: `npm run ui:build` (Outputs to root `ui/` directory).
+- **Live Dev**: `npm run ui:dev`
+- **Error Diagnostics**: The WebUI connects to the backend via SSE to display **Syntax Alert Banners** and **Hot-Reload Trace Snippets** in real-time.
 
 ---
 
