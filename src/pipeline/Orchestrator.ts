@@ -269,13 +269,13 @@ export class Orchestrator {
                 if (mutatedRequest?._isResponse) {
                     this.broadcastStage('CFF Short-Circuit', { requestId, status: mutatedRequest.status, uri: req.url, fid: 'viewer-request-cff-0' }, HeaderManager.telemetryFlatten(mutatedRequest.headers));
                     if (options.verbose) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m \x1b[36m[CFF]\x1b[0m Generated Response`);
+                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[36m[CFF]\x1b[0m Generated Response`);
                     }
                     return this._sendResponse(res, mutatedRequest, requestId, startTime, req, options);
                 }
                 if (mutatedRequest?.url) {
                     if (options.verbose) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m \x1b[36m[CFF]\x1b[0m Viewer Request  \x1b[33m⟹\x1b[0m Rewrote to ${mutatedRequest.url}`);
+                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[36m[CFF]\x1b[0m Viewer Request  \x1b[33m⟹\x1b[0m Rewrote to ${mutatedRequest.url}`);
                     }
                     req.url = mutatedRequest.url;
                 }
@@ -304,14 +304,14 @@ export class Orchestrator {
                 if (edgeResult?._isResponse) {
                     this.broadcastStage('L@E Short-Circuit', { requestId, status: edgeResult.status, uri: req.url, fid: edgeResult.id }, HeaderManager.telemetryFlatten(edgeResult.headers));
                     if (options.verbose) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m \x1b[35m[L@E]\x1b[0m Generated Response`);
+                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Generated Response`);
                     }
                     return this._sendResponse(res, edgeResult, requestId, startTime, req, options);
                 }
                 const newUrl = edgeResult?.url || edgeResult?.uri;
                 if (newUrl) {
                     if (options.verbose && req.url !== newUrl) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m \x1b[35m[L@E]\x1b[0m Origin Request  \x1b[33m⟹\x1b[0m Rewrote to ${newUrl}`);
+                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Origin Request  \x1b[33m⟹\x1b[0m Rewrote to ${newUrl}`);
                     }
                     req.url = newUrl;
                 }
