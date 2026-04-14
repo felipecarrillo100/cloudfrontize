@@ -48,23 +48,24 @@ export default function DetailPanel({ title, subTitle, content, path, onClose }:
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '1.5rem', transition: 'color 0.2s' }}>×</button>
         </header>
 
-        <div style={{ flex: 1, padding: '1.5rem', overflow: 'auto', background: '#0d1117' }}>
-            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                 <Shield size={12} color="#22c55e" />
-                 <span style={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Forensic Registry Entry</span>
+        <div style={{ flex: 1, padding: '1.5rem', overflowY: 'auto', background: '#0d1117' }}>
+            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                 <Shield size={14} color="#22c55e" />
+                 <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em' }}>Forensic Identity Registry</span>
             </div>
-            <pre 
-                style={{ 
-                    margin: 0, 
-                    fontSize: '0.85rem', 
-                    fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace", 
-                    lineHeight: 1.6, 
-                    color: '#c9d1d9',
-                    whiteSpace: 'pre-wrap',
-                }}
-            >
-                {JSON.stringify(content, null, 2)}
-            </pre>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {Object.entries(content || {}).map(([key, value]) => (
+                    <div key={key} style={{ display: 'flex', gap: 12, padding: '10px 14px', background: '#161b22', borderRadius: 8, border: '1px solid #30363d' }}>
+                        <div style={{ width: 140, flexShrink: 0, fontSize: '0.6rem', color: '#8b949e', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', alignSelf: 'center' }}>
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </div>
+                        <div style={{ flex: 1, fontSize: '0.8rem', color: '#f8fafc', fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", wordBreak: 'break-all' }}>
+                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
 
         {path && (

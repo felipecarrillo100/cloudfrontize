@@ -1,5 +1,7 @@
 import EventEmitter from 'events';
 
+import { IHistoryStore } from './HistoryStore';
+
 export interface TelemetryEvent {
     id: string;
     timestamp: string;
@@ -10,10 +12,7 @@ export interface TelemetryEvent {
 }
 
 export class Telemetry extends EventEmitter {
-    private history: TelemetryEvent[] = [];
-    private maxHistory = 100;
-
-    constructor() {
+    constructor(private store: IHistoryStore) {
         super();
     }
 
@@ -23,15 +22,21 @@ export class Telemetry extends EventEmitter {
             timestamp: new Date().toISOString()
         };
         
-        this.history.push(fullEvent);
-        if (this.history.length > this.maxHistory) {
-            this.history.shift();
-        }
+        // Delegate storage to the modular store
+        this.store.add(fullEvent);
         
         this.emit('event', fullEvent);
     }
 
     public getHistory(): TelemetryEvent[] {
-        return this.history;
+        return this.store.getAll();
+    }
+
+    public getById(id: string): TelemetryEvent[] {
+        return this.store.getById(id);
+    }
+
+    public clearHistory(): void {
+        this.store.clear();
     }
 }

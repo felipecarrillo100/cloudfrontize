@@ -148,9 +148,13 @@ export class Orchestrator {
         this.disabledHookIds.clear();
     }
 
-    public disableAllHooks(): void {
-        for (const h of this.hookRegistry) {
-            this.disabledHookIds.add(h.id);
+    public disableAllHooks(disable: boolean = true): void {
+        if (disable) {
+            for (const h of this.hookRegistry) {
+                this.disabledHookIds.add(h.id);
+            }
+        } else {
+            this.disabledHookIds.clear();
         }
     }
 

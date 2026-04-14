@@ -1,84 +1,11 @@
 import { useState } from 'react';
+import { useHeader } from '../contexts/HeaderContext';
 import type { StickyHeader } from '../types';
+import { GEO_PRESETS, DEVICE_PRESETS, ORIGIN_PRESETS } from '../constants/presets';
 
-interface HeaderIntelligenceProps {
-  headers: StickyHeader[];
-  isDirty: boolean;
-  onApply: (headers: StickyHeader[]) => void;
-  onReset: () => void;
-  onUpdate: (headers: StickyHeader[]) => void;
-}
-
-export default function HeaderIntelligence({ headers, isDirty, onApply, onReset, onUpdate }: HeaderIntelligenceProps) {
+export default function HeaderIntelligence() {
+  const { headers, isDirty, updateHeaders, applyHeaders, resetHeaders } = useHeader();
   const [tab, setTab] = useState<'request' | 'response'>('request');
-
-  const GEO_PRESETS: Record<string, any> = {
-    'USA': [
-      { key: 'CloudFront-Viewer-Country', value: 'US' },
-      { key: 'CloudFront-Viewer-Region', value: 'us-east-1' }
-    ],
-    'MX': [
-      { key: 'CloudFront-Viewer-Country', value: 'MX' },
-      { key: 'CloudFront-Viewer-Region', value: 'na-south' }
-    ],
-    'ES': [
-      { key: 'CloudFront-Viewer-Country', value: 'ES' },
-      { key: 'CloudFront-Viewer-Region', value: 'eu-west-1' }
-    ],
-    'DE': [
-      { key: 'CloudFront-Viewer-Country', value: 'DE' },
-      { key: 'CloudFront-Viewer-Region', value: 'eu-central-1' }
-    ],
-    'FR': [
-      { key: 'CloudFront-Viewer-Country', value: 'FR' },
-      { key: 'CloudFront-Viewer-Region', value: 'eu-west-3' }
-    ],
-    'JP': [
-      { key: 'CloudFront-Viewer-Country', value: 'JP' },
-      { key: 'CloudFront-Viewer-Region', value: 'ap-northeast-1' }
-    ]
-  };
-
-  const DEVICE_PRESETS: Record<string, any> = {
-    'Mobile': [
-      { key: 'CloudFront-Is-Mobile-Viewer', value: 'true' },
-      { key: 'CloudFront-Is-Tablet-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-Desktop-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-SmartTV-Viewer', value: 'false' },
-    ],
-    'Tablet': [
-      { key: 'CloudFront-Is-Mobile-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-Tablet-Viewer', value: 'true' },
-      { key: 'CloudFront-Is-Desktop-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-SmartTV-Viewer', value: 'false' },
-    ],
-    'Desktop': [
-      { key: 'CloudFront-Is-Mobile-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-Tablet-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-Desktop-Viewer', value: 'true' },
-      { key: 'CloudFront-Is-SmartTV-Viewer', value: 'false' },
-    ],
-    'SmartTV': [
-      { key: 'CloudFront-Is-Mobile-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-Tablet-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-Desktop-Viewer', value: 'false' },
-      { key: 'CloudFront-Is-SmartTV-Viewer', value: 'true' },
-    ]
-  };
-
-  const ORIGIN_PRESETS: Record<string, any> = {
-    'S3 Cache': [
-      { key: 'Cache-Control', value: 'public, max-age=31536000, immutable', target: 'response' },
-      { key: 'ETag', value: 'W/"67a343-..." ', target: 'response' }
-    ],
-    'Strict HSTS': [
-      { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload', target: 'response' }
-    ],
-    'CORS Allow': [
-      { key: 'Access-Control-Allow-Origin', value: '*', target: 'response' },
-      { key: 'Access-Control-Allow-Methods', value: 'GET, HEAD, OPTIONS', target: 'response' }
-    ]
-  };
 
   const applyPresetArray = (presetList: any[]) => {
     let next = [...headers];
@@ -90,13 +17,13 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
         next.push({ key: p.key, value: p.value, target: (p.target || 'request'), enabled: true });
       }
     });
-    onUpdate(next);
+    updateHeaders(next);
   };
 
   const addHeader = (key = '', value = '', target = tab) => {
     const next = [...headers];
     next.push({ key, value, target: target as 'request' | 'response', enabled: true });
-    onUpdate(next);
+    updateHeaders(next);
   };
 
   const updateHeader = (index: number, field: 'key' | 'value', val: string) => {
@@ -105,7 +32,7 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
     const actualIndex = next.indexOf(filtered[index]);
     if (actualIndex >= 0) {
       next[actualIndex] = { ...next[actualIndex], [field]: val };
-      onUpdate(next);
+      updateHeaders(next);
     }
   };
 
@@ -115,7 +42,7 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
     const actualIndex = next.indexOf(filtered[index]);
     if (actualIndex >= 0) {
       next.splice(actualIndex, 1);
-      onUpdate(next);
+      updateHeaders(next);
     }
   };
 
@@ -144,7 +71,7 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
            throw new Error('Invalid Format');
         }
 
-        onUpdate(next);
+        updateHeaders(next);
       } catch (err) {
         alert('Standardization Error: Header file must use the { "requestHeaders": {}, "responseHeaders": {} } format.');
       }
@@ -272,10 +199,10 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
         <div style={{ borderTop: '1px solid #30363d', paddingTop: '1.5rem' }}>
           <div style={{ fontSize: '0.6rem', color: '#484f58', fontWeight: 800, marginBottom: 12, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
             <span>Active Headers</span>
-            <span>{headers.filter(h => h.target === tab).length}</span>
+            <span>{(headers || []).filter(h => h.target === tab).length}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {headers.filter(h => h.target === tab).map((h, i) => (
+            {(headers || []).filter(h => h.target === tab).map((h, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', background: '#0d1117', borderRadius: 8, border: '1px solid #30363d', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', background: '#161b22', borderBottom: '1px solid #30363d', paddingRight: 4 }}>
                   <input
@@ -320,7 +247,7 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
       {/* Persistence Actions */}
       <footer style={{ padding: '1rem', borderTop: '1px solid #30363d', background: '#161b22', display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
         <button
-          onClick={() => onApply(headers)}
+          onClick={applyHeaders}
           title="Apply all header simulations to the local CloudFront engine"
           style={{
             padding: '0.8rem', background: isDirty ? '#f97316' : '#30363d', color: '#fff', border: 'none', borderRadius: 8,
@@ -331,7 +258,7 @@ export default function HeaderIntelligence({ headers, isDirty, onApply, onReset,
           {isDirty ? 'Apply Changes' : 'Simulation Active'}
         </button>
         <button
-          onClick={onReset}
+          onClick={resetHeaders}
           title="Clear all simulations and revert to default headers"
           style={{ padding: '0.8rem 1.25rem', background: '#0d1117', color: '#484f58', border: '1px solid #30363d', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
         >

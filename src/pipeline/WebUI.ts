@@ -20,11 +20,8 @@ export class WebUI {
                 'Connection': 'keep-alive'
             });
 
-            // Initial connection: Send history but strip heavy details (Lazy-Fetch)
-            const history = this.telemetry.getHistory().map(h => ({
-                ...h,
-                details: { ...h.details, headers: undefined, body: undefined }
-            }));
+            // Initial connection: Send raw history for full forensic reconstruction
+            const history = this.telemetry.getHistory();
 
             const initData = JSON.stringify({
                 type: 'init',
@@ -48,10 +45,10 @@ export class WebUI {
             return;
         }
 
-        // Detailed Request View (Lazy-Fetch History)
+        // Detailed Request View (O(1) Forensic Lookup)
         if (url.startsWith('/api/detail/')) {
             const id = url.split('/').pop();
-            const events = this.telemetry.getHistory().filter(e => e.id === id);
+            const events = id ? this.telemetry.getById(id) : [];
             res.writeHead(events.length > 0 ? 200 : 404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(events.length > 0 ? events : { error: 'Not found' }));
             return;
@@ -73,8 +70,8 @@ export class WebUI {
                     const { id, disabled, isolate, reset, disableAll } = JSON.parse(body);
                     if (reset) {
                         this.orchestrator.resetHooks();
-                    } else if (disableAll) {
-                        this.orchestrator.disableAllHooks();
+                    } else if (disableAll !== undefined) {
+                        this.orchestrator.disableAllHooks(disableAll);
                     } else if (isolate) {
                         this.orchestrator.isolateHook(id);
                     } else {

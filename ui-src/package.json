@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-context-menu": "^2.2.16",
+    "@radix-ui/react-dialog": "^1.1.15",
     "cloudfrontize": "file:..",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",

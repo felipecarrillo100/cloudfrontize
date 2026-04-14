@@ -31,8 +31,7 @@ export default function AboutModal({ onClose }: AboutModalProps) {
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         }}
       >
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, #f97316, #3b82f6)', borderRadius: '24px 24px 0 0' }} />
-        
+        {/* Hero Section */}
         <img 
             src="/cloudfrontize-pro-transparent-512.png" 
             alt="CloudFrontize PRO" 
