@@ -506,7 +506,7 @@ export class Orchestrator {
             id: requestId,
             type: 'response',
             durationMs: duration,
-            details: { status: res.statusCode, headers: HeaderManager.telemetryFlatten(res.getHeaders()) }
+            details: { status: res.statusCode, headers: HeaderManager.telemetryFlatten(responseData.headers) }
         });
 
         res.end(responseData.body || originalBody);

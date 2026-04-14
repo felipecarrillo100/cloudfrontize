@@ -38,12 +38,12 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
     const icon = isCff ? cffIcon : lambdaIcon;
 
     return (
-        <div 
+        <div
             onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, hook); }}
             title={hook.path}
             className="fidelity-node"
-            style={{ 
-                padding: '6px 14px', borderRadius: 10, background: `${color}1A`, border: `1px solid ${color}4D`, 
+            style={{
+                padding: '6px 14px', borderRadius: 10, background: `${color}1A`, border: `1px solid ${color}4D`,
                 cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                 transition: 'all 0.4s', width: 160, height: 54, zIndex: 10, backdropFilter: 'blur(4px)',
                 boxShadow: `0 4px 12px ${color}11`, flexShrink: 0, overflow: 'hidden',
@@ -52,7 +52,7 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
             }}
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <img src={icon} alt={hook.type} style={{ width: 14, height: 14, objectFit: 'contain', filter: `drop-shadow(0 0 4px ${color}88)` }} />
+                <img src={icon} alt={hook.type} style={{ width: 18, height: 18, objectFit: 'contain', filter: `drop-shadow(0 0 4px ${color}88)` }} />
                 <div style={{ fontSize: '0.42rem', fontWeight: 950, color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{hook.type} {isDisabled && '(BYPASSED)'}</div>
             </div>
             <div className="node-marquee-container" style={{ width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'center' }}>
@@ -104,28 +104,30 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
     </div>
   );
 
-  const HeroIcon = ({ emoji, label, color, size = 52 }: { emoji: string, label: string, color?: string, size?: number }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, alignSelf: 'center', minWidth: 80, flexShrink: 0, height: 128, justifyContent: 'center' }}>
-        <div style={{ 
-            width: size, height: size, borderRadius: emoji === '📦' ? 12 : '50%',
-            background: color || '#161b22', border: '2px solid #30363d', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+  const HeroIcon = ({ emoji, label, color, size = 100, radius = "50%" }: { emoji: string, label: string, color?: string, size?: number; radius?: string; }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, alignSelf: 'center', minWidth: 80, flexShrink: 0, height: 128, justifyContent: 'center', marginTop: 20 }}>
+        <div style={{
+            width: size, height: size, borderRadius: radius ? radius : '50%',
+            background: color || '#161b22', border: '2px solid #30363d',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: `${size * 0.5}px`, boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
         }}>
             {emoji}
         </div>
-        <span style={{ fontSize: '0.45rem', fontWeight: 950, color: '#484f58', letterSpacing: '0.12em' }}>{label}</span>
+        <span style={{ fontSize: '0.5rem', fontWeight: 950, color: '#484f58', letterSpacing: '0.1em' }}>{label}</span>
     </div>
   );
 
   return (
-    <div style={{ 
-        padding: '1.5rem 2rem', background: '#0e1117', borderBottom: '1px solid #30363d', 
+    <div style={{
+        padding: '1.5rem 2rem', background: '#0e1117', borderBottom: '1px solid #30363d',
         overflowX: 'auto', display: 'flex', alignItems: 'center', height: 180,
         scrollbarWidth: 'thin', scrollbarColor: '#30363d #0e1117', isolation: 'isolate'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', margin: '0 auto', minWidth: 'max-content', gap: 0 }}>
-          <HeroIcon emoji="📱" label="VIEWER" />
+          <div style={{ cursor: 'default' }}>
+            <HeroIcon emoji="📱" label="VIEWER" radius="12px"/>
+          </div>
           <Connector />
           {viewerStations.map((s, idx) => (
              <div key={`v-${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
@@ -133,7 +135,9 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
                  <Connector />
              </div>
           ))}
-          <HeroIcon emoji="☁️" label="PRO DIST" size={62} color="linear-gradient(135deg, #f97316, #3b82f6)" />
+          <div style={{ cursor: 'default' }}>
+            <HeroIcon emoji="☁️" label="CloudFront" size={62} color="linear-gradient(135deg, #f97316, #3b82f6)" />
+          </div>
           <Connector />
           {originStations.map((s, idx) => (
              <div key={`o-${idx}`} style={{ display: 'flex', alignItems: 'center' }}>
@@ -142,7 +146,7 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
              </div>
           ))}
           <div style={{ cursor: 'default' }}>
-              <HeroIcon emoji="📦" label="ORIGIN" />
+              <HeroIcon emoji="📦" label="ORIGIN" radius="12px"/>
           </div>
       </div>
     </div>

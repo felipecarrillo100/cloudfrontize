@@ -89,11 +89,14 @@ export class S3Provider implements OriginProvider {
             
             res.statusCode = response.$metadata.httpStatusCode || 200;
             
-            // Fidelity Header Propagation: Map all SDK response properties to headers
-            const skipProps = ['$metadata', 'Body'];
+            // Fidelity Header Propagation: Map SDK response properties to headers
+            const skipProps = ['$metadata', 'Body', 'Metadata']; // Skip Metadata object to prevent [object Object]
             for (const [k, v] of Object.entries(response)) {
                 if (skipProps.includes(k) || v === undefined || v === null) continue;
                 
+                // Fidelity Guard: Only promote primitives to headers to avoid [object Object] leaks
+                if (typeof v !== 'string' && typeof v !== 'number' && !(v instanceof Date)) continue;
+
                 // Map SDK PascalCase property names to standard HTTP header-case where possible
                 let headerKey = k;
                 if (k === 'ContentType') headerKey = 'Content-Type';
