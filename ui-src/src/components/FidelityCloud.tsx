@@ -45,7 +45,7 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
             style={{ 
                 padding: '6px 14px', borderRadius: 10, background: `${color}1A`, border: `1px solid ${color}4D`, 
                 cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.4s', width: 140, height: 54, zIndex: 10, backdropFilter: 'blur(4px)',
+                transition: 'all 0.4s', width: 160, height: 54, zIndex: 10, backdropFilter: 'blur(4px)',
                 boxShadow: `0 4px 12px ${color}11`, flexShrink: 0, overflow: 'hidden',
                 filter: isDisabled ? 'grayscale(1) brightness(0.6)' : 'none',
                 opacity: isDisabled ? 0.5 : 1, position: 'relative'
@@ -75,7 +75,7 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
   };
 
   const ArrowPlaceholder = ({ color }: { color: string }) => (
-    <div style={{ width: 140, height: 54, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <div style={{ width: 160, height: 54, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <div style={{ width: '100%', height: 1, background: `${color}33`, borderRadius: 1 }} />
     </div>
   );
@@ -94,7 +94,7 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
   );
 
   const Slot = ({ topHook, bottomHook }: { topHook?: DistributionHook, bottomHook?: DistributionHook }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: 140, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: 160, flexShrink: 0 }}>
         <div style={{ height: 54, display: 'flex', alignItems: 'center' }}>
             {topHook ? <Node hook={topHook} color="#f97316" /> : <ArrowPlaceholder color="#f97316" />}
         </div>

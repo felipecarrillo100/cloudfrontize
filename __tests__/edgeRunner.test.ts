@@ -33,16 +33,16 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
     test('1. Resolves async handlers natively (Promise support)', async () => {
         const runner = new EdgeRunner('./samples/edgecases/asyncHandler.js');
         runners.push(runner);
-        const res = await runner.runRequestHook({ headers: {}, url: '/original.html' });
+        const { result: res } = await runner.runRequestHook({ headers: {}, url: '/original.html' });
 
         expect(res).toBeDefined();
-        expect(res.url).toBe('/async-success.html');
+        expect(res.uri).toBe('/async-success.html');
     });
 
     test('2. Injects mocked AWS context object to prevent crashes', async () => {
         const runner = new EdgeRunner('./samples/edgecases/contextLogger.js');
         runners.push(runner);
-        const res = await runner.runRequestHook({ headers: {}, url: '/' });
+        const { result: res } = await runner.runRequestHook({ headers: {}, url: '/' });
 
         expect(res).toBeDefined();
         expect(res).not.toBeNull();
@@ -51,10 +51,11 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
     test('3. Natively extracts and splits query strings', async () => {
         const runner = new EdgeRunner('./samples/edgecases/queryStringRewriter.js');
         runners.push(runner);
-        const res = await runner.runRequestHook({ headers: {}, url: '/page?utm_source=twitter&other=keep' });
+        const { result: res } = await runner.runRequestHook({ headers: {}, url: '/page?utm_source=twitter&other=keep' });
 
         expect(res).toBeDefined();
-        expect(res.url).toBe('/page?other=keep');
+        expect(res.uri).toBe('/page');
+        expect(res.querystring).toBe('other=keep');
     });
 
     test('4. Emits warnings when mutating AWS blacklisted headers', async () => {
@@ -98,10 +99,10 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         const runner = new EdgeRunner('./samples/advanced/multi-hook-app/');
         runners.push(runner);
 
-        const reqRes = await runner.runRequestHook({ headers: {}, url: '/test' });
+        const { result: reqRes } = await runner.runRequestHook({ headers: {}, url: '/test' });
         expect(reqRes.type).toBe('viewer-request');
 
-        const resHookRes = await runner.runResponseHook({ headers: {}, url: '/test' }, { status: 200, headers: {} });
-        expect(resHookRes['cache-control']).toBe('public, max-age=86400');
+        const { result: resHookRes } = await runner.runResponseHook({ headers: {}, url: '/test' }, { status: 200, headers: {} });
+        expect(resHookRes.headers['cache-control'][0].value).toBe('public, max-age=86400');
     });
 });

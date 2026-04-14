@@ -93,10 +93,10 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
             watch: false
         });
 
-        const result = await runner.runRequestHook({ url: '/', headers: {} });
+        const { result } = await runner.runRequestHook({ url: '/', headers: {} });
 
         expect(result.uri).toBe('/1.0.0');
-        expect(result['x-secret']).toBe('$$complex$1');
+        expect(result.headers['x-secret'][0].value).toBe('$$complex$1');
     });
 
     test('3. Multi-Hook Chaining: Propagates URI changes through the stack', async () => {
@@ -122,7 +122,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
         `);
 
         runner = new EdgeRunner(chainDir, { watch: false });
-        const result = await runner.runRequestHook({ url: '/data', headers: {} });
+        const { result } = await runner.runRequestHook({ url: '/data', headers: {} });
 
         // Verify the viewer change was passed into the origin hook
         expect(result.uri).toBe('/v1/data.json');

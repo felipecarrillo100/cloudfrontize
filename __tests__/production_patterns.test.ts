@@ -54,13 +54,13 @@ describe('Production Patterns: Test of Fire', () => {
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
 
-        const resExp = await runner.runRequestHook({
+        const { result: resExp } = await runner.runRequestHook({
             headers: { cookie: [{ key: 'Cookie', value: 'session=123; experiment=true' }] },
             url: '/index.html'
         });
         expect(resExp.uri).toBe('/experimental/index.html');
 
-        const resControl = await runner.runRequestHook({
+        const { result: resControl } = await runner.runRequestHook({
             headers: { cookie: [{ key: 'Cookie', value: 'session=123' }] },
             url: '/index.html'
         });
@@ -95,11 +95,11 @@ describe('Production Patterns: Test of Fire', () => {
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
 
-        const resUnauth = await runner.runRequestHook({ headers: {}, url: '/protected' });
+        const { result: resUnauth } = await runner.runRequestHook({ headers: {}, url: '/protected' });
         expect(resUnauth.status).toBe('401');
 
         const authHeader = 'Basic ' + Buffer.from('admin:password').toString('base64');
-        const resAuth = await runner.runRequestHook({
+        const { result: resAuth } = await runner.runRequestHook({
             headers: { authorization: [{ key: 'Authorization', value: authHeader }] },
             url: '/protected'
         });
@@ -129,9 +129,9 @@ describe('Production Patterns: Test of Fire', () => {
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
 
-        const result = await runner.runRequestHook({ headers: {}, url: '/any-page' });
+        const { result } = await runner.runRequestHook({ headers: {}, url: '/any-page' });
         expect(result.status).toBe('503');
-        expect(result['content-type']).toBe('text/html');
+        expect(result.headers['content-type'][0].value).toBe('text/html');
         expect(result.body).toContain('Under Maintenance');
     });
 
@@ -165,9 +165,9 @@ describe('Production Patterns: Test of Fire', () => {
             }
         };
 
-        const result = await runner.runResponseHook({ headers: {}, url: '/' }, originResponse);
-        expect(result.server).toBeUndefined();
-        expect(result['x-powered-by']).toBeUndefined();
-        expect(result['strict-transport-security']).toBe('max-age=31536000; includeSubDomains; preload');
+        const { result } = await runner.runResponseHook({ headers: {}, url: '/' }, originResponse);
+        expect(result.headers.server).toBeUndefined();
+        expect(result.headers['x-powered-by']).toBeUndefined();
+        expect(result.headers['strict-transport-security'][0].value).toBe('max-age=31536000; includeSubDomains; preload');
     });
 });

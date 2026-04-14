@@ -15,7 +15,7 @@ export class HeaderParser {
             return result;
         }
 
-        console.log(`Loading headers from: ${path.basename(headersPath)} (${path.basename(headersPath)})`);
+        console.log(`Loading headers from: ${path.basename(headersPath)}`);
         
         try {
             const content = fs.readFileSync(headersPath, 'utf8');

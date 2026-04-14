@@ -45,9 +45,9 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         fs.writeFileSync(path.join(testHooksDir, 'redirect.js'), code);
         runner = new EdgeRunner(testHooksDir, { watch: false });
 
-        const result = await runner.runRequestHook({ url: '/old-page' });
+        const { result } = await runner.runRequestHook({ url: '/old-page' });
         expect(result.status).toBe('301');
-        expect(result.location).toBe('/new-page');
+        expect(result.headers.location[0].value).toBe('/new-page');
     });
 
     test('2. Origin-Request: URI Rewrite (Internal)', async () => {
@@ -63,7 +63,7 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         fs.writeFileSync(path.join(testHooksDir, 'rewrite.js'), code);
         runner = new EdgeRunner(testHooksDir, { watch: false });
 
-        const result = await runner.runRequestHook({ url: '/api/v1/user' });
+        const { result } = await runner.runRequestHook({ url: '/api/v1/user' });
         expect(result.uri).toBe('/internal/v1/user');
     });
 
@@ -79,8 +79,8 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         fs.writeFileSync(path.join(testHooksDir, 'headers.js'), code);
         runner = new EdgeRunner(testHooksDir, { watch: false });
 
-        const result = await runner.runResponseHook({ url: '/' }, { status: 200, headers: {} });
-        expect(result['x-frame-options']).toBe('DENY');
+        const { result } = await runner.runResponseHook({ url: '/' }, { status: 200, headers: {} });
+        expect(result.headers['x-frame-options'][0].value).toBe('DENY');
     });
 
     test('4. Multi-Hook Chain: Sequential Mutation', async () => {
@@ -106,9 +106,9 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         `);
 
         runner = new EdgeRunner(testHooksDir, { watch: false });
-        const result = await runner.runRequestHook({ url: '/test' });
+        const { result } = await runner.runRequestHook({ url: '/test' });
 
         expect(result.uri).toBe('/traced/test');
-        expect(result['x-trace-id']).toBe('123');
+        expect(result.headers['x-trace-id'][0].value).toBe('123');
     });
 });

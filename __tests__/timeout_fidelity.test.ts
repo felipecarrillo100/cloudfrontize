@@ -30,7 +30,7 @@ describe('Execution Timeout Fidelity', () => {
         `);
 
         const runner = new EdgeRunner(testDir, { strict: true, watch: false });
-        const result = await runner.runRequestHook({ url: '/' });
+        const { result } = await runner.runRequestHook({ url: '/' });
         expect(result._timeout).toBe(true);
         runner.close();
     }, 30000);
@@ -47,7 +47,7 @@ describe('Execution Timeout Fidelity', () => {
         `);
 
         const runner = new EdgeRunner(testDir, { strict: true, watch: false });
-        const result = await runner.runRequestHook({ url: '/' });
+        const { result } = await runner.runRequestHook({ url: '/' });
         
         expect(result).not.toBeNull();
         expect(result.uri).toBe('/');
@@ -70,7 +70,7 @@ describe('Execution Timeout Fidelity', () => {
         const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
         const runner = new EdgeRunner(testDir, { strict: false, watch: false });
         
-        const result = await runner.runRequestHook({ url: '/' });
+        const { result } = await runner.runRequestHook({ url: '/' });
         
         expect(result.uri).toBe('/finished');
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Fidelity Warning: Handler took'));
@@ -98,7 +98,7 @@ describe('Execution Timeout Fidelity', () => {
         `);
 
         const runner = new EdgeRunner(testDir, { watch: false });
-        const result = await runner.runRequestHook({ url: '/' });
+        const { result } = await runner.runRequestHook({ url: '/' });
         
         const [t1, t2] = result.headers['x-times'][0].value.split(',').map(Number);
         expect(t1).toBeGreaterThan(4500);

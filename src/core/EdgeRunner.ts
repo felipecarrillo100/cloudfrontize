@@ -8,6 +8,7 @@ import { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME } from '../constants';
 import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
+import { HookUtility } from './HookUtility';
 const hostRequire = require;
 
 
@@ -82,10 +83,7 @@ export class EdgeRunner extends HotRunner {
                 }
             }
 
-            // Detect hookType statically if possible (Robust regex)
-            const typeMatch = content.match(/(?:module\.)?exports\.hookType\s*=\s*['"]([^'"]+)['"]/);
-            const hookTypeFromContent = typeMatch ? typeMatch[1] : null;
-
+            // Professional: Sandbox preparation and hook detection
             const exportsObj = {};
             const sandbox: any = {
                 exports: exportsObj,
@@ -99,7 +97,7 @@ export class EdgeRunner extends HotRunner {
                     info: (...args: any[]) => this._log('info', args),
                 },
                 require: (id: string) => {
-                    const type = hookTypeFromContent || 'unknown';
+                    const type = HookUtility.detectStage(content, filePath);
                     
                     for (const forbidden of AWS_RUNTIME.FORBIDDEN_MODULES) {
                         if (id === forbidden || id.startsWith(forbidden + '/')) {
@@ -135,7 +133,7 @@ export class EdgeRunner extends HotRunner {
             script.runInNewContext(sandbox);
 
             const mod = sandbox.exports;
-            const finalType = (mod.hookType || hookTypeFromContent) as HookType;
+            const finalType = HookUtility.detectStage(content, filePath);
 
             if (mod.handler && finalType && registry[finalType]) {
                 // Fidelity Check: AWS only allows one hook per type.
@@ -190,6 +188,11 @@ export class EdgeRunner extends HotRunner {
             : `\x1b[90m[${timestamp}]\x1b[0m`;
         
         const logLine = `${prefix} ${message}`;
+
+        // Clinical Visibility: If debug mode is enabled, mirror to console immediately.
+        if (this.options.debug) {
+            console[level === 'log' ? 'log' : (level === 'error' ? 'error' : (level === 'warn' ? 'warn' : 'info'))](logLine);
+        }
 
         // Clinical Alignment: If we are in a request context, push to the shared buffer for atomic flushing
         if (ctx?.logs) {
@@ -270,10 +273,7 @@ export class EdgeRunner extends HotRunner {
                     record.id = mod.id;
                     record.type = type;
                     record.uri = request.uri;
-                    record.url = request.uri + (request.querystring ? '?' + request.querystring : '');
                     
-                    // Hybrid Fidelity: Add flattened root properties
-                    Object.assign(record, this.headerManager.flatten(headers));
                     finalResult = record;
                     break;
                  }
@@ -294,16 +294,12 @@ export class EdgeRunner extends HotRunner {
             finalResult = { 
                 headers: request.headers,
                 uri: request.uri,
-                url: request.uri + (request.querystring ? '?' + request.querystring : ''), // Full URL for Test Compatibility
                 querystring: request.querystring,
                 totalDurationMs: String(totalDurationMs),
                 type: 'viewer-request' 
             };
-            Object.assign(finalResult, this.headerManager.flatten(request.headers));
         }
 
-        // Hybrid Fidelity: Add flattened root properties for test compatibility
-        
         return { result: finalResult, logs: allLogs };
     }
 
@@ -368,8 +364,6 @@ export class EdgeRunner extends HotRunner {
             console.warn(`\x1b[33m⚠️  [Fidelity Warning] Generated response exceeds 1MB limit\x1b[0m`);
         }
 
-        // Hybrid Fidelity: Add flattened root properties for test compatibility
-        Object.assign(response, this.headerManager.flatten(reconciledHeaders));
         return { result: response, logs: allLogs };
     }
 

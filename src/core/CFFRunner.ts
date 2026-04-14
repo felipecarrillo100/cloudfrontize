@@ -8,6 +8,7 @@ import { CFFValidator } from './CFFValidator';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
 import { CFF_LIMITS, AWS_HEADERS } from '../constants';
+import { HookUtility } from './HookUtility';
 
 export class CFFRunner extends HotRunner {
     private validator: CFFValidator;
@@ -80,15 +81,10 @@ export class CFFRunner extends HotRunner {
 
     protected _loadFile(filePath: string, registry: Registry): void {
         const filename = path.basename(filePath);
-        let type: HookType | null = null;
-
-        if (filename.startsWith('viewer-request')) type = 'viewer-request';
-        else if (filename.startsWith('viewer-response')) type = 'viewer-response';
-
-        if (!type) return;
-
         try {
             let fileCode = fs.readFileSync(filePath, 'utf8');
+            const type = HookUtility.detectStage(fileCode, filename);
+            
             fileCode = CodeProcessor.bake(fileCode, this.bakeVars);
 
             const { valid, violations } = this.validator.validate(filename, fileCode);

@@ -56,8 +56,11 @@ export abstract class HotRunner extends EventEmitter {
             const dir = path.dirname(logPath);
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             
+            // Fidelity Fix: Ensure file is empty BEFORE creating stream (prevents race condition in tests)
+            fs.writeFileSync(logPath, '');
+
             // Professional Fidelity: Use a persistent WriteStream for non-blocking asynchronous I/O
-            this.logStream = fs.createWriteStream(logPath, { flags: 'w' });
+            this.logStream = fs.createWriteStream(logPath, { flags: 'a' });
         } catch (err: any) {
             console.warn(`\x1b[33m⚠️  [HotRunner] Failed to initialize log stream: ${err.message}\x1b[0m`);
         }

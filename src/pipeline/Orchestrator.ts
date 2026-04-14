@@ -9,6 +9,7 @@ import { HookType, CacheBehavior } from '../core/types';
 import { OriginSelector } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
+import { HookUtility } from '../core/HookUtility';
 
 export class Orchestrator {
     private headerManager = new HeaderManager();
@@ -74,23 +75,18 @@ export class Orchestrator {
         const edgePath = this.edgeRunner?.getRunnerPath?.();
         if (edgePath && fs.existsSync(edgePath)) {
             if (fs.lstatSync(edgePath).isFile()) {
-                const basename = path.basename(edgePath).toLowerCase();
-                const stage = basename.includes('viewer-request') ? 'viewer-request' : 
-                             (basename.includes('viewer-response') ? 'viewer-response' : 
-                             (basename.includes('origin-request') ? 'origin-request' : 
-                             (basename.includes('origin-response') ? 'origin-response' : 'viewer-request')));
+                const content = fs.readFileSync(edgePath, 'utf8');
+                const stage = HookUtility.detectStage(content, path.basename(edgePath));
                 hooks.push({ id: `${stage}-le-0`, type: 'Lambda@Edge', path: edgePath, stage });
             } else if (fs.lstatSync(edgePath).isDirectory()) {
                 const files = fs.readdirSync(edgePath).filter(f => f.endsWith('.js')).sort();
                 const counts: Record<string, number> = {};
                 files.forEach((f) => {
-                    const basename = f.toLowerCase();
-                    const stage = basename.includes('viewer-request') ? 'viewer-request' : 
-                                 (basename.includes('viewer-response') ? 'viewer-response' : 
-                                 (basename.includes('origin-request') ? 'origin-request' : 
-                                 (basename.includes('origin-response') ? 'origin-response' : 'viewer-request')));
+                    const filePath = path.join(edgePath, f);
+                    const content = fs.readFileSync(filePath, 'utf8');
+                    const stage = HookUtility.detectStage(content, f);
                     const idx = counts[stage] || 0;
-                    hooks.push({ id: `${stage}-le-${idx}`, type: 'Lambda@Edge', path: path.join(edgePath, f), stage });
+                    hooks.push({ id: `${stage}-le-${idx}`, type: 'Lambda@Edge', path: filePath, stage });
                     counts[stage] = idx + 1;
                 });
             }
@@ -99,16 +95,19 @@ export class Orchestrator {
         const cffPath = this.cffRunner?.getRunnerPath?.();
         if (cffPath) {
             if (fs.existsSync(cffPath) && fs.lstatSync(cffPath).isFile()) {
-                hooks.push({ id: `viewer-request-cff-0`, type: 'CloudFront Function', path: cffPath, stage: 'viewer-request' });
+                const content = fs.readFileSync(cffPath, 'utf8');
+                const stage = HookUtility.detectStage(content, path.basename(cffPath));
+                hooks.push({ id: `${stage}-cff-0`, type: 'CloudFront Function', path: cffPath, stage });
             } else if (fs.existsSync(cffPath) && fs.lstatSync(cffPath).isDirectory()) {
                 const files = fs.readdirSync(cffPath).filter(f => f.endsWith('.js')).sort();
-                files.forEach((f, idx) => {
-                    const basename = f.toLowerCase();
-                    const stage = basename.includes('viewer-request') ? 'viewer-request' : 
-                                 (basename.includes('viewer-response') ? 'viewer-response' : 
-                                 (basename.includes('origin-request') ? 'origin-request' : 
-                                 (basename.includes('origin-response') ? 'origin-response' : 'viewer-request')));
-                    hooks.push({ id: `${stage}-cff-${idx}`, type: 'CloudFront Function', path: path.join(cffPath, f), stage });
+                const counts: Record<string, number> = {};
+                files.forEach((f) => {
+                    const filePath = path.join(cffPath, f);
+                    const content = fs.readFileSync(filePath, 'utf8');
+                    const stage = HookUtility.detectStage(content, f);
+                    const idx = counts[stage] || 0;
+                    hooks.push({ id: `${stage}-cff-${idx}`, type: 'CloudFront Function', path: filePath, stage });
+                    counts[stage] = idx + 1;
                 });
             }
         }
@@ -361,7 +360,7 @@ export class Orchestrator {
             if (this.edgeRunner) {
                 const { result: edgeResResult, logs: edgeResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
-                    headers: { ...headers }
+                    headers: { ...this.stickyHeaders.response, ...headers }
                 }, requestId, Array.from(this.disabledHookIds));
 
                 // Clinical Alignment: Capture hook logs into the block-level buffer.

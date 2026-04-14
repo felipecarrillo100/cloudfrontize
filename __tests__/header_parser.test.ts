@@ -29,6 +29,9 @@ describe('HeaderParser: The "Gatekeeper" Fidelity Suite', () => {
     });
 
     const create_test_file = (content) => {
+        if (!fs.existsSync(path.dirname(tmp_headers_path))) {
+            fs.mkdirSync(path.dirname(tmp_headers_path), { recursive: true });
+        }
         fs.writeFileSync(tmp_headers_path, JSON.stringify(content));
         return tmp_headers_path;
     };
@@ -90,11 +93,11 @@ describe('HeaderParser: The "Gatekeeper" Fidelity Suite', () => {
 
     // --- GROUP 4: LOGGING ---
 
-    test('✅ Should log the filename in parentheses', () => {
+    test('✅ Should log the filename being loaded', () => {
         const file = create_test_file({ "a": "b" });
         const log_spy = jest.spyOn(console, 'log').mockImplementation();
 
         parser.parse(file);
-        expect(log_spy).toHaveBeenCalledWith(expect.stringContaining('(temp_header_test.json)'));
+        expect(log_spy).toHaveBeenCalledWith(expect.stringContaining('temp_header_test.json'));
     });
 });

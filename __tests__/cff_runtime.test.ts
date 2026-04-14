@@ -53,7 +53,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
 
         runner = new CFFRunner(testDir);
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
-        const result = await runner.runChain('viewer-request', event);
+        const { result } = await runner.runChain('viewer-request', event);
 
         expect(result.request.headers['x-jail'].value).toBe('shield_held');
     });
@@ -99,7 +99,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
 
         runner = new CFFRunner(testDir, { debug: true });
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
-        const result = await runner.runChain('viewer-request', event);
+        const { result } = await runner.runChain('viewer-request', event);
 
         expect(result.request.headers['x-order'].value).toBe('12');
     });
@@ -157,7 +157,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
 
         // Test the runtime injection
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
-        const result = await runner.runChain('viewer-request', event);
+        const { result } = await runner.runChain('viewer-request', event);
 
         expect(result.request.headers['x-api-key'].value).toBe('xyz123');
         expect(result.request.headers['x-debug'].value).toBe('true');

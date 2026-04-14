@@ -30,9 +30,9 @@ describe('Env Var Parity: AWS Mock Environment', () => {
         fs.writeFileSync(path.join(testDir, 'env.js'), code);
         const runner = new EdgeRunner(testDir, { watch: false });
 
-        const result = await runner.runRequestHook({ url: '/' });
-        expect(result['x-aws-region']).toBe('us-east-1');
-        expect(result['x-aws-env']).toBe('AWS_Lambda_nodejs20.x');
+        const { result } = await runner.runRequestHook({ url: '/' });
+        expect(result.headers['x-aws-region'][0].value).toBe('us-east-1');
+        expect(result.headers['x-aws-env'][0].value).toBe('AWS_Lambda_nodejs20.x');
     });
 
     test('Should allow overriding defaults via .env file', async () => {
@@ -53,9 +53,9 @@ describe('Env Var Parity: AWS Mock Environment', () => {
 
         const runner = new EdgeRunner(testDir, { envPath, watch: false });
 
-        const result = await runner.runRequestHook({ url: '/' });
-        expect(result['x-aws-region']).toBe('eu-central-1');
-        expect(result['x-aws-key']).toBe('AKIA_MOCK');
+        const { result } = await runner.runRequestHook({ url: '/' });
+        expect(result.headers['x-aws-region'][0].value).toBe('eu-central-1');
+        expect(result.headers['x-aws-key'][0].value).toBe('AKIA_MOCK');
     });
 
     test('Should still BLOCK non-whitelisted variables in .env', () => {

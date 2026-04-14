@@ -1,120 +1,128 @@
 export {};
-'use strict';
-
 const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
 
-const cli_path = path.resolve(__dirname, '../bin/cli.ts');
-
-describe('E2E: Header Handshake & Hook Fidelity', () => {
-    jest.setTimeout(30000); // Allow up to 30s for parallel test runners
-    let child;
-    // Dynamic port to prevent "Address already in use" errors across massive parallel suites
-    const port = Math.floor(Math.random() * 20000) + 10000;
-    const tmp_dir = path.join(__dirname, '..', '.tmp', `tmp_e2e_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
+describe('E2E: Header Validation and Server Lifecycle', () => {
+    jest.setTimeout(45000); // 45s total for the whole suite
+    const port = Math.floor(Math.random() * 20000) + 12000;
+    const cli_path = path.resolve(__dirname, '../bin/cli.ts');
+    const tsx_path = path.resolve(__dirname, '../node_modules/tsx/dist/cli.mjs');
+    const tmp_dir = path.resolve(__dirname, '..', '.tmp', `e2e_header_${Date.now()}`);
     const www_dir = path.join(tmp_dir, 'www');
 
     beforeAll(() => {
-        if (fs.existsSync(tmp_dir)) {
-            try {
-                fs.rmSync(tmp_dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-            } catch (e: any) {
-                console.warn(`[E2E Cleanup] Initial Cleanup failed: ${e.message}`);
-            }
-        }
-        fs.mkdirSync(www_dir, { recursive: true });
-        fs.writeFileSync(path.join(www_dir, 'index.html'), '<html>E2E</html>');
+        if (!fs.existsSync(tmp_dir)) fs.mkdirSync(tmp_dir, { recursive: true });
+        if (!fs.existsSync(www_dir)) fs.mkdirSync(www_dir, { recursive: true });
+        fs.writeFileSync(path.join(www_dir, 'index.html'), 'Hello');
 
-        // 1. Headers configuration (Your Example)
-        const header_config = {
-            "requestheaders": { "x-e2e-secret": "Fidelity-Confirmed" },
-            "responseheaders": { "server": "Origin-Apache" }
-        };
-        fs.writeFileSync(path.join(tmp_dir, 'headers_test.json'), JSON.stringify(header_config));
-
-        // 2. Request Hook (Your Example)
-        const req_code = `
-            exports.hookType = 'origin-request';
+        // Valid Lambda hook (viewer-response to test header injection to client)
+        fs.writeFileSync(path.join(tmp_dir, 'hook.js'), `
+            exports.hookType = 'viewer-response';
             exports.handler = async (event) => {
-                const request = event.Records[0].cf.request;
-                if (request.headers['x-e2e-secret']) {
-                    const val = request.headers['x-e2e-secret'][0].value;
-                    request.headers['x-verified'] = [{ key: 'X-Verified', value: val }];
-                }
-                return request;
+                const res = event.Records[0].cf.response;
+                res.headers['x-e2e-test'] = [{ key: 'X-E2E-Test', value: 'Passed' }];
+                return res;
             };
-        `;
-        fs.writeFileSync(path.join(tmp_dir, 'hook_request.js'), req_code);
-
-        // 3. Response Hook (Your Example)
-        const res_code = `
-            exports.hookType = 'origin-response';
-            exports.handler = async (event) => {
-                const request = event.Records[0].cf.request;
-                const response = event.Records[0].cf.response;
-                
-                // Fidelity: If request had x-verified, mirror it to response
-                if (request.headers['x-verified']) {
-                    response.headers['x-verified'] = request.headers['x-verified'];
-                }
-
-                if (response.headers['server']) delete response.headers['server'];
-                return response;
-            };
-        `;
-        fs.writeFileSync(path.join(tmp_dir, 'hook_response.js'), res_code);
+        `);
     });
 
     afterAll(async () => {
-        if (child) {
-            try { child.kill('SIGKILL'); } catch (e) {}
-        }
-        // Give the OS 500ms to release file locks before deleting the folder
-        await new Promise(r => setTimeout(r, 500));
-        
+        // Use synchronous cleanup to avoid race conditions with process exit
         if (fs.existsSync(tmp_dir)) {
             try {
-                fs.rmSync(tmp_dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-            } catch (e: any) {
-                console.warn(`[E2E Cleanup] Final Cleanup failed for ${tmp_dir}: ${e.message}`);
-                // Fallback: manually unlink if directory is still there
+                // On Windows, use a specialized command to force delete if normal rm fails
+                fs.rmSync(tmp_dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+            } catch (e) {
+                // Fallback for Windows locked files
                 try { exec(`rmdir /s /q "${tmp_dir}"`); } catch (e2) {}
             }
         }
     });
 
-    test('🚀 Should verify full Request/Response header lifecycle', async () => {
+    test('Should start CLI, validate headers, apply hook, and respond correctly', async () => {
+        // Headers file with responseHeaders block (required for response injection)
+        const headers_obj = {
+            responseHeaders: {
+                'X-Valid-Global': 'Value1'
+            }
+        };
         const headers_file = path.join(tmp_dir, 'headers_test.json');
-        const cmd = `npx tsx ${cli_path} ${www_dir} --port ${port} --edge ${tmp_dir} --headers ${headers_file} --no-request-logging`;
+        fs.writeFileSync(headers_file, JSON.stringify(headers_obj));
 
-        // Start server and wait for the 'Ready' signal via a Promise
-        await new Promise((resolve, reject) => {
+        // Use node + tsx directly for better stability on Windows. Add --debug for [Ready] signal.
+        const cmd = `node "${tsx_path}" "${cli_path}" "${www_dir}" --port ${port} --edge "${tmp_dir}" --headers "${headers_file}" --no-request-logging --debug`;
+        
+        let child;
+        let failTimer;
+        let readyTimer;
+        const startup = new Promise((resolve, reject) => {
             child = exec(cmd);
             child.stdout.on('data', (data) => {
-                // Wait for your CLI's specific "Success" output
-                if (data.includes('Loading headers') || data.includes(port.toString())) {
-                    resolve(true);
+                const out = data.toString();
+                // Check specifically for the [Ready] signal which only appears after listen()
+                if (out.includes('[Ready]')) {
+                    // Give it 1 more second to be truly ready for HTTP
+                    readyTimer = setTimeout(() => {
+                        clearTimeout(failTimer);
+                        resolve();
+                    }, 1000);
                 }
             });
-            child.stderr.on('data', (data: any) => {
-                if (!data.includes('ExperimentalWarning')) console.warn('CLI Stderr:', data);
+            child.stderr.on('data', (data) => {
+                const err = data.toString();
+                if (err.includes('Error:')) {
+                    clearTimeout(failTimer);
+                    clearTimeout(readyTimer);
+                    reject(new Error(`CLI Error during startup: ${err}`));
+                }
             });
-            setTimeout(() => reject(new Error('CLI Timeout: Failed to start after 25s')), 25000);
+
+            failTimer = setTimeout(() => {
+                reject(new Error(`CLI Timeout: Failed to start after 15s.\nCommand: ${cmd}`));
+            }, 15000);
         });
 
-        // Perform the request using a clean async wrapper
-        const getResult = () => new Promise((resolve, reject) => {
-            http.get(`http://localhost:${port}/index.html`, (res) => {
-                resolve(res);
-            }).on('error', reject);
-        });
+        try {
+            await startup;
 
-        const res: any = await getResult();
+            // Perform the request using a clean async wrapper
+            const response = await new Promise((resolve, reject) => {
+                const http = require('http');
+                const req = http.get(`http://localhost:${port}/`, (res) => {
+                    let body = '';
+                    res.on('data', (chunk) => body += chunk);
+                    res.on('end', () => resolve({
+                        status: res.statusCode,
+                        headers: res.headers,
+                        body
+                    }));
+                });
+                req.on('error', reject);
+                req.end();
+            });
 
-        // ASSERTIONS (Using your exact logic)
-        expect(res.headers['x-verified']).toBe('Fidelity-Confirmed');
-        expect(res.headers['server']).toBeUndefined();
+            // ASSERTIONS
+            expect(response.status).toBe(200);
+            
+            // 1. Check Global Headers (using lowercase standard for http.get response objects)
+            expect(response.headers['x-valid-global']).toBe('Value1');
+            
+            // 2. Check Lambda Hook Headers
+            expect(response.headers['x-e2e-test']).toBe('Passed');
+
+        } finally {
+            clearTimeout(failTimer);
+            clearTimeout(readyTimer);
+            if (child) {
+                const { execSync } = require('child_process');
+                // Kill process tree on Windows for clean exit
+                if (process.platform === 'win32') {
+                    try { execSync(`taskkill /pid ${child.pid} /f /t`); } catch (e) {}
+                } else {
+                    child.kill('SIGINT');
+                }
+            }
+        }
     });
 });

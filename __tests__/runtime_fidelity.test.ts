@@ -40,13 +40,13 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
                 let status = "shield_held";
                 try { require('child_process'); status = "escaped"; } catch(err) {}
                 const req = e.Records[0].cf.request;
-                req.headers['x-status'] = [{key:'x', value: status}];
+                req.headers['x-status'] = [{key:'X-Status', value: status}];
                 return req;
             };
         `);
 
         const runner = new EdgeRunner(jailDir, { watch: false });
-        const result = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
+        const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
         expect(result).toBeDefined();
         expect(result.headers['x-status'][0].value).toBe('shield_held');
@@ -72,7 +72,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
             exports.handler = async (e) => {
                 const req = e.Records[0].cf.request;
                 // Add header to prove global scope is clean
-                req.headers['x-state'] = [{key:'x-state', value: global.POISON || "clean"}];
+                req.headers['x-state'] = [{key:'X-State', value: global.POISON || "clean"}];
                 return req;
             };
         `);
@@ -80,7 +80,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         // Give the runner debug access to see why it's loading (or not)
         const runner = new EdgeRunner(stateDir, { watch: false, debug: true });
 
-        const result = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
+        const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
         expect(result).toBeDefined();
         expect(result.headers).toBeDefined();
@@ -107,14 +107,14 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         `);
 
         const runner = new EdgeRunner(zombieDir, { watch: false });
-        const result = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
+        const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
         // Wait for potential leaked timers to fire
         await new Promise(r => setTimeout(r, 20));
 
         expect(result).toBeDefined();
         // Verification: The simulator must have captured the state at resolution
-        expect(result.url).toBe('/');
+        expect(result.uri).toBe('/');
         runner.close();
     });
 });

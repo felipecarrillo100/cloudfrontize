@@ -52,10 +52,10 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
 
         const runner = new EdgeRunner(testDir, {
             bakePath: tempBake,
-            watch: false // ⚡ Disable watcher to prevent EPERM errors
+            watch: false
         });
 
-        const result = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
+        const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
         // Check if the result exists and has headers
         expect(result).toBeDefined();

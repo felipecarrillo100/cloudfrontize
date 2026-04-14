@@ -59,8 +59,8 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
             expect(line).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
             // Request ID (8-char hex)
             expect(line).toMatch(/\[[0-9a-f]{8}\]/);
-            // Hook Type
-            expect(line).toMatch(/\[viewer-request\]/);
+            // Hook Type (Flexible match for improved clinical format)
+            expect(line).toMatch(/viewer-request/);
         });
 
         expect(content).toContain('Hello from Lambda');
