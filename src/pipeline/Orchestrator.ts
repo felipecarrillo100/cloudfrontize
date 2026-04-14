@@ -215,13 +215,13 @@ export class Orchestrator {
         req.requestID = requestId;
         const logPrefix = `\x1b[90m[${requestId}]\x1b[0m`;
         req._logBuffer = [`${logPrefix} ${req.method} ${req.url} \x1b[90m(Host: ${req.headers.host || 'unknown'})\x1b[0m`];
-        
+
         // Forensic Alignment: Log the initial request entrance to the Black Box
         this._logToFile('INFO', 'Orchestrator', requestId, `${req.method} ${req.url} (Host: ${req.headers.host || 'unknown'})`);
-        
+
         // Initialize header sync (Sticky) and broadcast initial state
         this._syncHeadersToRequest(req, this.stickyHeaders.request, !this.isDefaultSticky);
-        
+
         if (this.edgeRunner && options.strict) this.edgeRunner.options.strict = true;
 
         // AWS Fidelity: Standard CloudFront behavior is to normalize the Host header to lowercase
@@ -232,15 +232,15 @@ export class Orchestrator {
         this.telemetry.broadcast({
             id: requestId,
             type: 'request',
-            details: { 
+            details: {
                 name: 'Client Request',
-                method: req.method, 
-                url: req.url, 
+                method: req.method,
+                url: req.url,
                 // Fidelity Fix: Harmonize initial request headers with Display Flattened format
                 // Fidelity Fix: Use rawHeaders for wire-casing, but FALLBACK to req.headers if empty to prevent UI {} bugs
-                headers: HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) 
-                    ? this.headerManager.parseIncomingHeaders(req.rawHeaders) 
-                    : req.headers) 
+                headers: HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0)
+                    ? this.headerManager.parseIncomingHeaders(req.rawHeaders)
+                    : req.headers)
             }
         });
 
@@ -258,12 +258,12 @@ export class Orchestrator {
 
             // 1. CFF Viewer Request
             if (this.cffRunner) {
-                const hooks = this.hookRegistry.filter(h => 
-                    h.type === 'CloudFront Function' && 
-                    h.stage === 'viewer-request' && 
+                const hooks = this.hookRegistry.filter(h =>
+                    h.type === 'CloudFront Function' &&
+                    h.stage === 'viewer-request' &&
                     !this.disabledHookIds.has(h.id)
                 );
-                
+
                 for (const hook of hooks) {
                     const filename = path.basename(hook.path);
                     // Fidelity Fix: Use rawHeaders for hook entrance snapshots, falling back to req.headers if empty
@@ -299,7 +299,7 @@ export class Orchestrator {
             if (this.edgeRunner) {
                 const disabledIds = Array.from(this.disabledHookIds);
                 const { result: edgeResult, logs: edgeLogs } = await this.edgeRunner.runRequestHook(req, reqBody, requestId, disabledIds);
-                
+
                 // Clinical Alignment: Capture hook logs into the block-level buffer.
                 if (options.verbose && edgeLogs.length > 0) {
                     req._logBuffer.push(...edgeLogs);
@@ -344,7 +344,7 @@ export class Orchestrator {
             this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request' }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
             let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options);
             this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response' }, HeaderManager.telemetryFlatten(headers));
-            
+
             // Fidelity Fallback: If rewritten URL 404s and not in strict mode, try original URL
             if (statusCode === 404 && !options.strict && req.url !== originalUrl) {
                 console.warn(`\x1b[33m⚠️  [Fidelity Warning] Lambda rewritten URI to "${req.url}" but file was not found. Falling back to original URI: "${originalUrl}"\x1b[0m`);
@@ -437,9 +437,15 @@ export class Orchestrator {
         capturedRes.headers = {};
         capturedRes.bodyData = [];
 
-        capturedRes.setHeader = (k: string, v: any) => { 
+        capturedRes.setHeader = (k: string, v: any) => {
             // Fidelity Fix: Preserve origin casing (stop forcing lowercase)
-            capturedRes.headers[k] = v; 
+            capturedRes.headers[k] = v;
+        };
+        capturedRes.getHeader = (k: string) => {
+            // HTTP headers are case-insensitive — check exact, lowercase, then scan
+            const lower = k.toLowerCase();
+            return capturedRes.headers[k] ?? capturedRes.headers[lower] ??
+                Object.entries(capturedRes.headers).find(([hk]) => hk.toLowerCase() === lower)?.[1];
         };
         capturedRes.writeHead = (code: number, headers?: any) => {
             capturedRes.statusCode = code;
@@ -449,9 +455,9 @@ export class Orchestrator {
         };
 
         capturedRes.on('data', (chunk: Buffer) => capturedRes.bodyData.push(chunk));
-        const streamFinished = new Promise((resolve) => capturedRes.on('finish', resolve));
+
+        // Provider contract: fetch() only resolves when the response is fully written
         await provider.fetch(req, capturedRes, options);
-        await streamFinished;
 
         return {
             statusCode: capturedRes.statusCode,
@@ -463,7 +469,7 @@ export class Orchestrator {
 
     private _sendResponse(res: any, responseData: any, requestId: string, startTime: number, req: any, options: any, originalBody?: Buffer): void {
         res.statusCode = Number(responseData.status || 200);
-        
+
         const processedHeaders = new Set<string>();
 
         // 1. Fidelity Resolver Layer 1: Unwrap complex structures (Arrays, Objects, {value})
@@ -493,7 +499,7 @@ export class Orchestrator {
 
         if (options.verbose && req._logBuffer) {
             req._logBuffer.push(`${logPrefix} \x1b[90m╰─\x1b[0m [Response] Status: ${statusStr} [${duration}ms]`);
-            
+
             // ATOMIC FLUSH: Print the entire contiguous story of the request in one go.
             console.log(req._logBuffer.join('\n') + '\n');
         } else if (!options.noBanner) {

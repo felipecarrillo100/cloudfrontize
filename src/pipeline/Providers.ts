@@ -26,7 +26,12 @@ export class LocalProvider implements OriginProvider {
         if (options.mode === 'rest' && cleanPath !== '/') {
             if (isActuallyDir) {
                 res.statusCode = 403;
-                res.end('Directory indexing is disabled in strict mode');
+                // Provider contract: await full flush before resolving
+                await new Promise<void>((resolve, reject) => {
+                    res.on('finish', resolve);
+                    res.on('error', reject);
+                    res.end('Directory indexing is disabled in strict mode');
+                });
                 return;
             }
         }
@@ -119,24 +124,58 @@ export class S3Provider implements OriginProvider {
                 res.setHeader(k, String(v));
             }
             
-            // Stream the S3 body to the response
+            // Stream the S3 body to the response and await full completion
             const body = response.Body as any;
-            if (body && typeof body.pipe === 'function') {
-                body.pipe(res);
-            } else {
-                res.end(await response.Body?.transformToByteArray());
-            }
-        } catch (err: any) {
-            if (err.name === 'NoSuchKey' || err.name === 'NotFound') {
-                res.statusCode = 404;
-                res.end('S3: Not Found');
-            } else {
-                res.statusCode = 502;
-                if (req._logTree) {
-                    req._logTree.push(` ╰─ \x1b[31m[S3 Error]\x1b[0m ${err.message}`);
+            await new Promise<void>((resolve, reject) => {
+                res.on('finish', resolve);
+                res.on('error', reject);
+                if (body && typeof body.pipe === 'function') {
+                    body.on('error', reject);
+                    body.pipe(res, { end: true });
+                } else {
+                    response.Body?.transformToByteArray()
+                        .then(bytes => res.end(bytes))
+                        .catch(reject);
                 }
-                res.end(`S3 Origin Error: ${err.message}`);
+            });
+        } catch (err: any) {
+            // S3 Protocol Fidelity: Evidence-based property paths from SDK probe
+            // Probe confirmed: status is in err.$metadata.httpStatusCode
+            //                  headers are in err.$response.headers (NOT $metadata.httpHeaders)
+            const status = err.$metadata?.httpStatusCode || 502;
+            const headers: Record<string, string> = (err.$response as any)?.headers || {};
+
+            res.statusCode = status;
+
+            // Proxy all real S3/MinIO response headers (x-amz-request-id, server, content-type, etc.)
+            for (const [k, v] of Object.entries(headers)) {
+                res.setHeader(k, String(v));
             }
+
+            // Ensure Content-Type is application/xml if S3 didn't send one
+            if (!res.getHeader('content-type')) {
+                res.setHeader('Content-Type', 'application/xml');
+            }
+
+            // CloudFront Fidelity: Reconstruct the S3 XML body.
+            // NOTE: err.$response.body is always destroyed by the SDK before we reach the catch block
+            // (it consumes the body to parse err.name and err.message). We therefore reconstruct
+            // using the SDK properties that are proven available from our diagnostic probe.
+            const requestId = err.$metadata?.requestId || headers['x-amz-request-id'] || 'N/A';
+            const hostId = err.$metadata?.extendedRequestId || headers['x-amz-id-2'] || 'N/A';
+            const errorCode = err.name || (status === 404 ? 'NoSuchKey' : status === 403 ? 'AccessDenied' : 'OriginError');
+
+            await new Promise<void>((resolve, reject) => {
+                res.on('finish', resolve);
+                res.on('error', reject);
+                res.end(`<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+    <Code>${errorCode}</Code>
+    <Message>${err.message || 'S3 Origin Error'}</Message>
+    <RequestId>${requestId}</RequestId>
+    <HostId>${hostId}</HostId>
+</Error>`);
+            });
         }
     }
 }
