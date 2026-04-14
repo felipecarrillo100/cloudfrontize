@@ -28,7 +28,7 @@ When contributing to the pipeline or runners, you must adhere to our **Dual-Form
 
 1.  **Internal Fidelity Format (HeaderMap)**: Used within runners and the `HeaderManager`.
     -   *Format*: `Record<string, { key: string, value: string }[]>`
-    -   *Why*: Preserves original wire-case and supports multiple values per key (e.g., `Set-Cookie`).
+    -   *Why*: Our agile parser preserves wire-original casing and supports multiple values per key (e.g., `Set-Cookie`).
 2.  **Neutral Format (Flat Map)**: Used for telemetry and final HTTP response delivery.
     -   *Format*: `Record<string, string | string[]>`
     -   *Why*: Simplified access for tests, UI displays, and Node.js `res.setHeader`.
@@ -68,7 +68,7 @@ We maintain a rigorous **140-test baseline** for all architectural changes.
 
 - **Standard**: All tests must use the global `.tmp/` directory for artifact creation (mock servers, registries).
 - **Execution**: Run the entire suite with `npm test`.
-- **E2E Header Testing**: When testing headers, ensure you assert against BOTH the flattened root properties AND the nested high-fidelity `headers` map to guarantee system-wide compliance.
+- **E2E Header Testing**: When testing headers, verify against the `case_fidelity` baseline. Ensure actions assert against both the flattened root properties and the nested high-fidelity `headers` map to guarantee bit-perfect compliance.
 
 ---
 

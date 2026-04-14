@@ -50,7 +50,7 @@ The "Brain" of the system. It manages the sequential execution of handlers and m
 
 ### B. Header Management Service (`src/core/HeaderManager.ts`)
 The central authority for header integrity. It handles:
-- **Normalization:** Translates between Node.js raw arrays and the Internal Fidelity Format.
+- **Normalization:** Translates between Node.js raw wire-headers and the Internal Fidelity Format (IFF) to bypass runtime normalization.
 - **Multi-Value Preservation:** Uses structured arrays to ensure headers like `Set-Cookie` are never truncated.
 - **Reconciliation:** Enforces AWS Forbidden Header rules, ensuring simulation parity with real CloudFront restrictions.
 - **Flattening:** Generates optimized "Neutral Format" maps for telemetry and response delivery.
@@ -72,4 +72,4 @@ Runners execute user-provided code within isolated environments with automatic h
 - **Build Engine:** `tsup` (esbuild + swc) for high-performance, minified production bundling.
 - **Execution:** `tsx` for localized, high-speed development and test runners.
 - **Testing:** `jest` + `@swc/jest` for high-throughput, parallel E2E verification.
-- **Telemetry:** SSE (Server-Sent Events) live streaming of measurements, including **Forensic Header Snapshots** for every execution stage.
+- **Telemetry:** SSE (Server-Sent Events) live streaming of measurements, including wire-original casing snapshots for every execution stage.
