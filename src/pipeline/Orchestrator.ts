@@ -233,8 +233,10 @@ export class Orchestrator {
                 method: req.method, 
                 url: req.url, 
                 // Fidelity Fix: Harmonize initial request headers with Display Flattened format
-                // Fidelity Fix: Use rawHeaders for the initial broadcast to preserve wire-casing (Node.js auto-lowercases req.headers)
-                headers: HeaderManager.telemetryFlatten(this.headerManager.parseIncomingHeaders(req.rawHeaders || [])) 
+                // Fidelity Fix: Use rawHeaders for wire-casing, but FALLBACK to req.headers if empty to prevent UI {} bugs
+                headers: HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) 
+                    ? this.headerManager.parseIncomingHeaders(req.rawHeaders) 
+                    : req.headers) 
             }
         });
 
@@ -260,7 +262,8 @@ export class Orchestrator {
                 
                 for (const hook of hooks) {
                     const filename = path.basename(hook.path);
-                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: hook.id }, HeaderManager.telemetryFlatten(req.headers));
+                    // Fidelity Fix: Use rawHeaders for hook entrance snapshots, falling back to req.headers if empty
+                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: hook.id }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
                 }
 
                 const cffEvent = this.cffRunner.toCFFEvent(req, null, 'viewer-request');
@@ -304,7 +307,8 @@ export class Orchestrator {
                     .map(h => path.basename(h.path));
 
                 if (filenames.length > 0) {
-                    this.broadcastStage(`[L@E: viewer-request] ${filenames.join(' + ')}`, { requestId, uri: req.url, fid: 'viewer-request-le-0' }, HeaderManager.telemetryFlatten(req.headers));
+                    // Fidelity Fix: Use rawHeaders for hook entrance snapshots, falling back to req.headers if empty
+                    this.broadcastStage(`[L@E: viewer-request] ${filenames.join(' + ')}`, { requestId, uri: req.url, fid: 'viewer-request-le-0' }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
                 }
 
                 if (edgeResult?._isResponse) {
@@ -332,9 +336,10 @@ export class Orchestrator {
             if (!provider) throw new Error(`No provider found for origin ID: ${targetOriginId}`);
 
             // 4. Origin Fetch
-            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request' }, req.headers);
+            // Fidelity Fix: Use rawHeaders for origin fetch snapshots, falling back to req.headers if empty
+            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request' }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
             let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options);
-            this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response' }, headers);
+            this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response' }, HeaderManager.telemetryFlatten(headers));
             
             // Fidelity Fallback: If rewritten URL 404s and not in strict mode, try original URL
             if (statusCode === 404 && !options.strict && req.url !== originalUrl) {

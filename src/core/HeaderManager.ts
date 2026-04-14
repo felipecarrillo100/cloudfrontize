@@ -12,12 +12,15 @@ export class HeaderManager {
     static REQUEST_ONLY_FORBIDDEN = AWS_HEADERS.REQUEST_ONLY_FORBIDDEN;
 
     /**
-     * Converts raw incoming headers (Node.js/Neutral) to our Internal Fidelity Format.
-     * Uses rawHeaders if available to preserve the original key casing.
+     * parseIncomingHeaders: Converts raw incoming data to our Internal Fidelity Format (IFF).
+     * Now Argument-Agile: Accepts a Node.js Request OR a raw string[] array.
      */
-    public parseIncomingHeaders(req: any): HeaderMap {
+    public parseIncomingHeaders(input: any): HeaderMap {
         const headers: HeaderMap = {};
-        const raw = req.rawHeaders || [];
+        if (!input) return headers;
+
+        // Argument-Agile Detection: Is it a raw array or a Request object?
+        const raw = Array.isArray(input) ? input : (input.rawHeaders || []);
 
         if (raw.length > 0) {
             for (let i = 0; i < raw.length; i += 2) {
@@ -28,8 +31,12 @@ export class HeaderManager {
                 headers[lower].push({ key, value: String(val) });
             }
         } else {
-            // Fallback for mock environments (tests)
-            for (const [k, v] of Object.entries(req.headers || {})) {
+            // Fallback for objects/req without rawHeaders (e.g. some proxy/test scenarios)
+            const obj = (input.headers || input);
+            for (const [k, v] of Object.entries(obj)) {
+                // Skip if obj is the raw array (which we already handled or it was empty)
+                if (Array.isArray(input) && k === 'length') continue;
+                
                 const lower = k.toLowerCase();
                 const values = Array.isArray(v) ? v : [v];
                 headers[lower] = values.map(val => 
@@ -43,31 +50,38 @@ export class HeaderManager {
     }
 
     /**
-     * Normalizes a header map to ensure every key is lowercase and every value is an array of {key, value}.
+     * static normalizeHeaders: Converts ANY input (Node, CFF, L@E) into our Internal Fidelity Format (IFF).
      */
-    public normalizeHeaders(input: any): HeaderMap {
+    public static normalizeHeaders(input: any): HeaderMap {
         const headers: HeaderMap = {};
         if (!input) return headers;
+
+        // Forensic IFF Detector: If first value is already a Fidelity Object, trust the map
+        const firstKey = Object.keys(input)[0];
+        if (firstKey) {
+            const firstValues = input[firstKey];
+            if (Array.isArray(firstValues) && firstValues.length > 0 && typeof firstValues[0] === 'object' && firstValues[0]?.value !== undefined) {
+                return input as HeaderMap;
+            }
+        }
 
         for (const k in input) {
             const lowerKey = k.toLowerCase();
             const val = input[k];
-            const values = Array.isArray(val) ? val : [val];
+            const rawValues = Array.isArray(val) ? val : [val];
             
-            headers[lowerKey] = values.map(v => {
-                // Already a fidelity object? ( { key, value } )
-                if (typeof v === 'object' && v !== null && v.value !== undefined && v.key !== undefined) {
-                    return v as HeaderValue;
-                }
-                // CloudFront Function style? ( { value } )
-                if (typeof v === 'object' && v !== null && v.value !== undefined) {
-                    return { key: k, value: String(v.value) };
-                }
-                // Raw value?
-                return { key: k, value: String(v) };
+            headers[lowerKey] = rawValues.map(v => {
+                const isObject = typeof v === 'object' && v !== null;
+                const key = isObject ? (v.key || k) : k;
+                const value = isObject ? (v.value !== undefined ? v.value : v) : v;
+                return { key: String(key), value: String(value) };
             });
         }
         return headers;
+    }
+
+    public normalizeHeaders(input: any): HeaderMap {
+        return HeaderManager.normalizeHeaders(input);
     }
 
     /**
@@ -144,18 +158,20 @@ export class HeaderManager {
     public static telemetryFlatten(input: any): Record<string, string | string[]> {
         if (!input) return {};
         const flat: Record<string, string | string[]> = {};
-        const normalized = HeaderManager.prototype.normalizeHeaders(input);
+        
+        // Use the static normalization (no fragile prototype context needed)
+        const normalized = HeaderManager.normalizeHeaders(input);
 
-        for (const values of Object.values(normalized)) {
-            for (const item of values) {
-                const key = item.key;
-                const val = item.value;
+        for (const [lowerKey, values] of Object.entries(normalized)) {
+            for (const item of (values as HeaderValue[])) {
+                const displayKey = item.key || lowerKey;
+                const displayVal = String(item.value);
 
-                if (!flat[key]) {
-                    (flat as any)[key] = val;
+                if (!flat[displayKey]) {
+                    (flat as any)[displayKey] = displayVal;
                 } else {
-                    const existing = (flat as any)[key];
-                    (flat as any)[key] = Array.isArray(existing) ? [...existing, val] : [existing, val];
+                    const existing = (flat as any)[displayKey];
+                    (flat as any)[displayKey] = Array.isArray(existing) ? [...existing, displayVal] : [existing, displayVal];
                 }
             }
         }
