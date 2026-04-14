@@ -20,12 +20,16 @@ export class ConfigLoader {
         // Standardize: if it's a single origin object, wrap it
         if (parsed.bucket && !parsed.origins) {
             return {
-                origins: [{ ...parsed, type: 's3', id: 's3-origin' }],
+                origins: [{ ...parsed, type: 's3', id: 's3-origin', configFile: fullPath }],
                 behaviors: [{ pathPattern: '*', targetOriginId: 's3-origin' }]
             };
         }
 
-        return { ...parsed, edge: (parsed as any).edge, cff: (parsed as any).cff } as any;
+        if (parsed.origins) {
+            parsed.origins = parsed.origins.map((o: any) => ({ ...o, configFile: fullPath }));
+        }
+
+        return { ...parsed, edge: (parsed as any).edge, cff: (parsed as any).cff, configFile: fullPath } as any;
     }
 
     public static fromCLI(options: any, directory?: string): any {

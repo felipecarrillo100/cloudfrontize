@@ -9,6 +9,7 @@ import CodeViewer from './components/CodeViewer';
 import ContextMenu from './components/ContextMenu';
 import type { MenuNode } from './components/ContextMenu';
 import ToolbarDropdown from './components/ToolbarDropdown';
+import DetailPanel from './components/DetailPanel';
 import {
   Eye, Files, ExternalLink, Power, Target, Zap,
   CheckCircle, ShieldCheck, Layers, Activity
@@ -31,6 +32,7 @@ export default function App() {
   const [selectedStageIdx, setSelectedStageIdx] = useState<number | null>(null);
   const [showAudit, setShowAudit] = useState(false);
   const [systemError, setSystemError] = useState<any>(null);
+  const [activeDetail, setActiveDetail] = useState<{ title: string, subTitle: string, content: any, path?: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/distribution')
@@ -116,6 +118,55 @@ export default function App() {
     } else if (action === 'show-audit') {
       setShowAudit(true);
       return;
+    } else if (action === 'origin-copy-path') {
+      const path = (contextMenu as any)?.metadata?.path;
+      if (path) {
+        navigator.clipboard.writeText(path);
+      }
+      return;
+    } else if (action === 'origin-copy-url' || action === 'origin-copy-path-ui') {
+      const url = (contextMenu as any)?.metadata?.config?.url || (contextMenu as any)?.metadata?.path;
+      if (url) {
+        navigator.clipboard.writeText(url.endsWith('/') ? url : `${url}/`);
+      }
+      return;
+    } else if (action === 'origin-info') {
+      const config = (contextMenu as any)?.metadata?.config;
+      if (config) {
+        setActiveDetail({
+          title: `Origin: ${config.id}`,
+          subTitle: "Operational Identity Audit",
+          content: config,
+          path: (contextMenu as any)?.metadata?.configFile || (contextMenu as any)?.metadata?.path
+        });
+      }
+      return;
+    } else if (action === 'origin-edit') {
+      const configFile = (contextMenu as any)?.metadata?.configFile;
+      if (configFile) {
+        fetch(`/api/open-editor?path=${encodeURIComponent(configFile)}`);
+        setActiveDetail({
+          title: "Editor Bridge",
+          subTitle: "Configuration Modification",
+          content: { status: "Editor opened", path: configFile, instruction: "Restart Cloudfrontize to apply changes" }
+        });
+      }
+      return;
+    } else if (action === 'viewer-info') {
+      const config = (contextMenu as any)?.metadata?.config;
+      setActiveDetail({
+        title: "Viewer Ingress",
+        subTitle: "Edge Entry Point Configuration",
+        content: config,
+        path: (contextMenu as any)?.metadata?.path
+      });
+      return;
+    } else if (action === 'viewer-open') {
+      const url = (contextMenu as any)?.metadata?.config?.url;
+      if (url) {
+        window.open(url, '_blank');
+      }
+      return;
     }
 
     // 2. Hook-Specific Actions
@@ -152,6 +203,91 @@ export default function App() {
         body: JSON.stringify({ id: hook.id, isolate: true })
       });
       fetch('/api/distribution').then(res => res.json()).then(setDist);
+    }
+  };
+
+  const handleOriginContextMenu = (e: React.MouseEvent, request: RequestEntry) => {
+    // Attempt to find origin ID from stages
+    const originStage = request.stages?.find(s => s.origin);
+    const originId = originStage?.origin;
+    if (!originId || !dist?.origins) return;
+
+    const config = dist.origins.find((o: any) => o.id === originId);
+    if (!config) return;
+
+    const path = config.directory || (config.bucket ? `s3://${config.bucket}` : null);
+    
+    const items: MenuNode[] = [
+      { id: 'origin-info', label: 'Info', icon: <Activity size={14} /> },
+      { id: 'origin-copy-path', label: 'Copy Path', icon: <Files size={14} /> }
+    ];
+
+    if (config.configFile) {
+      items.push({ id: 'origin-edit', label: 'Edit Configuration', icon: <ExternalLink size={14} /> });
+    }
+
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      title: `Origin: ${originId}`,
+      items,
+      metadata: { config, path, configFile: config.configFile }
+    } as any);
+  };
+
+  const handleGlobalContextMenu = (e: React.MouseEvent, type: 'viewer' | 'origin') => {
+    if (type === 'viewer') {
+      // Forensic Port Discovery: Try dist.port, then dist.config.port, then fallback to 3000
+      const port = dist?.port || (dist as any)?.config?.port || 3000;
+      const accessUrl = `http://localhost:${port}`;
+      const rootDir = dist?.mode === 'website' ? './www' : './';
+      const modeExplanation = dist?.mode === 'website' 
+        ? "S3 Website Hosting Mode (Supports index.html and custom error documents)" 
+        : "Standard REST API / Generic File Mode";
+
+      const items: MenuNode[] = [
+        { id: 'viewer-info', label: 'Ingress Identity', icon: <Activity size={14} /> },
+        { id: 'viewer-open', label: 'Open in Browser', icon: <ExternalLink size={14} /> },
+        { id: 'origin-copy-url', label: 'Copy Access URL', icon: <Files size={14} /> }
+      ];
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        title: 'Viewer Node (Ingress)',
+        items,
+        metadata: { 
+            path: rootDir,
+            config: { 
+                url: accessUrl,
+                mode: dist?.mode, 
+                port: port,
+                fidelity: modeExplanation,
+                root: rootDir
+            } 
+        }
+      } as any);
+    } else if (type === 'origin') {
+      // If there's only one origin, show it directly. If multiple, we might need a more complex picker, 
+      // but for now let's show the default/first one to match the "Clean Origin" directive.
+      const config = dist?.origins?.[0];
+      if (!config) return;
+
+      const items: MenuNode[] = [
+        { id: 'origin-info', label: 'Info', icon: <Activity size={14} /> },
+        { id: 'origin-copy-path', label: 'Copy Path', icon: <Files size={14} /> }
+      ];
+
+      if (config.configFile) {
+        items.push({ id: 'origin-edit', label: 'Edit Configuration', icon: <ExternalLink size={14} /> });
+      }
+
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        title: `Origin: ${config.id}`,
+        items,
+        metadata: { config, path: config.directory || (config.bucket ? `s3://${config.bucket}` : null), configFile: config.configFile }
+      } as any);
     }
   };
 
@@ -301,8 +437,16 @@ export default function App() {
   };
 
 
-  const HeaderBox = ({ title, headers, color, subTitle }: { title: string, headers: any, color: string, subTitle?: string }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+  const HeaderBox = ({ title, headers, color, subTitle, onContextMenu }: { title: string, headers: any, color: string, subTitle?: string, onContextMenu?: (e: React.MouseEvent) => void }) => (
+    <div 
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault();
+          onContextMenu(e);
+        }
+      }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, cursor: onContextMenu ? 'context-menu' : 'default' }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ fontSize: '0.6rem', color, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{title}</div>
         {subTitle && <span style={{ fontSize: '0.55rem', color: '#484f58', fontWeight: 600 }}>({subTitle})</span>}
@@ -407,6 +551,7 @@ export default function App() {
               setActiveHookId(hook.id || null);
               setContextMenu({ x: e.clientX, y: e.clientY, items, title: 'Node Actions' });
             }}
+            onGlobalContextMenu={handleGlobalContextMenu}
           />
         </div>
 
@@ -588,7 +733,13 @@ export default function App() {
                               ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
                                   <HeaderBox title="Viewer Provided" color="#f97316" headers={r.reqHeaders} subTitle="Initial" />
-                                  <HeaderBox title="Origin Returned" color="#3b82f6" headers={r.originResHeaders} subTitle="Mid-Flight" />
+                                   <HeaderBox 
+                                    title="Origin Returned" 
+                                    color="#3b82f6" 
+                                    headers={r.originResHeaders} 
+                                    subTitle="Mid-Flight" 
+                                    onContextMenu={(e) => handleOriginContextMenu(e, r)}
+                                  />
                                   <HeaderBox title="Final Response" color="#22c55e" headers={r.resHeaders} subTitle="Terminal" />
                                 </div>
                               )}
@@ -610,6 +761,15 @@ export default function App() {
       {showAudit && <FidelityAuditModal hooks={dist?.hooks || []} onClose={() => setShowAudit(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {activeHook && <CodeViewer hook={activeHook} onClose={() => setActiveHook(null)} />}
+      {activeDetail && (
+        <DetailPanel 
+          title={activeDetail.title}
+          subTitle={activeDetail.subTitle}
+          content={activeDetail.content}
+          path={activeDetail.path}
+          onClose={() => setActiveDetail(null)}
+        />
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

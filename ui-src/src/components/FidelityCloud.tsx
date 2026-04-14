@@ -5,9 +5,10 @@ import cffIcon from '../assets/cloudfront-function.png';
 interface FidelityCloudProps {
   dist: DistributionInfo | null;
   onContextMenu: (e: React.MouseEvent, hook: DistributionHook) => void;
+  onGlobalContextMenu?: (e: React.MouseEvent, type: 'viewer' | 'origin') => void;
 }
 
-export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProps) {
+export default function FidelityCloud({ dist, onContextMenu, onGlobalContextMenu }: FidelityCloudProps) {
   if (!dist) return null;
 
   const vReq = dist.hooks.filter(h => h.stage === 'viewer-request');
@@ -104,8 +105,20 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
     </div>
   );
 
-  const HeroIcon = ({ emoji, label, color, size = 100, radius = "50%" }: { emoji: string, label: string, color?: string, size?: number; radius?: string; }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, alignSelf: 'center', minWidth: 80, flexShrink: 0, height: 128, justifyContent: 'center', marginTop: 20 }}>
+  const HeroIcon = ({ emoji, label, color, size = 100, radius = "50%", onContextMenu }: { emoji: string, label: string, color?: string, size?: number; radius?: string; onContextMenu?: (e: React.MouseEvent) => void }) => (
+    <div 
+        onContextMenu={(e) => {
+            if (onContextMenu) {
+                e.preventDefault();
+                onContextMenu(e);
+            }
+        }}
+        style={{ 
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, alignSelf: 'center', 
+            minWidth: 80, flexShrink: 0, height: 128, justifyContent: 'center', marginTop: 20,
+            cursor: onContextMenu ? 'pointer' : 'default'
+        }}
+    >
         <div style={{
             width: size, height: size, borderRadius: radius ? radius : '50%',
             background: color || '#161b22', border: '2px solid #30363d',
@@ -126,7 +139,12 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
     }}>
       <div style={{ display: 'flex', alignItems: 'center', margin: '0 auto', minWidth: 'max-content', gap: 0 }}>
           <div style={{ cursor: 'default' }}>
-            <HeroIcon emoji="📱" label="VIEWER" radius="12px"/>
+            <HeroIcon 
+                emoji="📱" 
+                label="VIEWER" 
+                radius="12px" 
+                onContextMenu={(e) => onGlobalContextMenu?.(e, 'viewer')}
+            />
           </div>
           <Connector />
           {viewerStations.map((s, idx) => (
@@ -146,7 +164,12 @@ export default function FidelityCloud({ dist, onContextMenu }: FidelityCloudProp
              </div>
           ))}
           <div style={{ cursor: 'default' }}>
-              <HeroIcon emoji="📦" label="ORIGIN" radius="12px"/>
+              <HeroIcon 
+                emoji="📦" 
+                label="ORIGIN" 
+                radius="12px"
+                onContextMenu={(e) => onGlobalContextMenu?.(e, 'origin')}
+              />
           </div>
       </div>
     </div>
