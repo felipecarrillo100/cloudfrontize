@@ -116,13 +116,8 @@ export class Orchestrator {
 
     private broadcastStage(name: string, details: any, headers?: any) {
         if (headers) {
-            // Fidelity Fix: Robustly clone headers as a plain object to prevent {} serialization
-            details.headers = {};
-            for (const [k, v] of Object.entries(headers)) {
-                if (v !== undefined && v !== null) {
-                    details.headers[k.toLowerCase()] = String(v);
-                }
-            }
+            // Fidelity Fix: Use the standard flattener to ensure UI parity (arrays, unwrapping)
+            details.headers = HeaderManager.telemetryFlatten(headers);
         }
         // Deep sanitize metadata to prevent [object Object] leaks
         if (details.metadata && typeof details.metadata === 'object') {
@@ -225,10 +220,22 @@ export class Orchestrator {
         
         if (this.edgeRunner && options.strict) this.edgeRunner.options.strict = true;
 
+        // AWS Fidelity: Standard CloudFront behavior is to normalize the Host header to lowercase
+        if (req.headers.host) {
+            req.headers.host = req.headers.host.toLowerCase();
+        }
+
         this.telemetry.broadcast({
             id: requestId,
             type: 'request',
-            details: { method: req.method, url: req.url, headers: { ...req.headers } }
+            details: { 
+                name: 'Client Request',
+                method: req.method, 
+                url: req.url, 
+                // Fidelity Fix: Harmonize initial request headers with Display Flattened format
+                // Fidelity Fix: Use rawHeaders for the initial broadcast to preserve wire-casing (Node.js auto-lowercases req.headers)
+                headers: HeaderManager.telemetryFlatten(this.headerManager.parseIncomingHeaders(req.rawHeaders || [])) 
+            }
         });
 
         // Clinical Alignment: No JIT printing here. 
@@ -421,7 +428,10 @@ export class Orchestrator {
         capturedRes.headers = {};
         capturedRes.bodyData = [];
 
-        capturedRes.setHeader = (k: string, v: any) => { capturedRes.headers[k.toLowerCase()] = v; };
+        capturedRes.setHeader = (k: string, v: any) => { 
+            // Fidelity Fix: Preserve origin casing (stop forcing lowercase)
+            capturedRes.headers[k] = v; 
+        };
         capturedRes.writeHead = (code: number, headers?: any) => {
             capturedRes.statusCode = code;
             if (headers) {

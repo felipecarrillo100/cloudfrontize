@@ -96,16 +96,16 @@ export class S3Provider implements OriginProvider {
                 
                 // Map SDK PascalCase property names to standard HTTP header-case where possible
                 let headerKey = k;
-                if (k === 'ContentType') headerKey = 'content-type';
-                else if (k === 'ContentLength') headerKey = 'content-length';
-                else if (k === 'LastModified') headerKey = 'last-modified';
-                else if (k === 'ETag') headerKey = 'etag';
-                else if (k === 'CacheControl') headerKey = 'cache-control';
-                else if (k === 'ContentEncoding') headerKey = 'content-encoding';
-                else if (k === 'ContentLanguage') headerKey = 'content-language';
-                else if (k === 'Expires') headerKey = 'expires';
+                if (k === 'ContentType') headerKey = 'Content-Type';
+                else if (k === 'ContentLength') headerKey = 'Content-Length';
+                else if (k === 'LastModified') headerKey = 'Last-Modified';
+                else if (k === 'ETag') headerKey = 'ETag';
+                else if (k === 'CacheControl') headerKey = 'Cache-Control';
+                else if (k === 'ContentEncoding') headerKey = 'Content-Encoding';
+                else if (k === 'ContentLanguage') headerKey = 'Content-Language';
+                else if (k === 'Expires') headerKey = 'Expires';
                 else if (k === 'VersionId') headerKey = 'x-amz-version-id';
-                else if (k === 'AcceptRanges') headerKey = 'accept-ranges';
+                else if (k === 'AcceptRanges') headerKey = 'Accept-Ranges';
                 
                 res.setHeader(headerKey, v instanceof Date ? v.toUTCString() : String(v));
             }

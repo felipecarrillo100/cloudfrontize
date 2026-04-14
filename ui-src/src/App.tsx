@@ -218,7 +218,7 @@ export default function App() {
       entry.reqHeaders = details?.headers;
       entry.timestamp = timestamp;
       entry.steps = [{ uri: details?.url }];
-      if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url }];
+      if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url, headers: details?.headers }];
     } else if (type === 'response') {
       entry.status = details?.status;
       entry.durationMs = durationMs;

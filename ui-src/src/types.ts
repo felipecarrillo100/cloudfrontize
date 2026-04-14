@@ -11,7 +11,7 @@ export interface RequestEntry {
   error?: any;
   rewrite?: { from: string; to: string };
   steps?: { uri: string; hook?: string }[];
-  stages?: { name: string; uri?: string; status?: number; origin?: string }[];
+  stages?: { name: string; uri?: string; status?: number; origin?: string; headers?: Record<string, any> }[];
   originResHeaders?: Record<string, any>;
 }
 

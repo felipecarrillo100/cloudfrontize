@@ -47,21 +47,25 @@ export class HeaderManager {
      */
     public normalizeHeaders(input: any): HeaderMap {
         const headers: HeaderMap = {};
+        if (!input) return headers;
+
         for (const k in input) {
             const lowerKey = k.toLowerCase();
             const val = input[k];
+            const values = Array.isArray(val) ? val : [val];
             
-            if (Array.isArray(val)) {
-                headers[lowerKey] = val.map(v => 
-                    typeof v === 'object' && v !== null && v.value !== undefined 
-                        ? v as HeaderValue 
-                        : { key: k, value: String(v) }
-                );
-            } else if (typeof val === 'object' && val !== null && (val as any).value !== undefined) {
-                headers[lowerKey] = [val as HeaderValue];
-            } else {
-                headers[lowerKey] = [{ key: k, value: String(val) }];
-            }
+            headers[lowerKey] = values.map(v => {
+                // Already a fidelity object? ( { key, value } )
+                if (typeof v === 'object' && v !== null && v.value !== undefined && v.key !== undefined) {
+                    return v as HeaderValue;
+                }
+                // CloudFront Function style? ( { value } )
+                if (typeof v === 'object' && v !== null && v.value !== undefined) {
+                    return { key: k, value: String(v.value) };
+                }
+                // Raw value?
+                return { key: k, value: String(v) };
+            });
         }
         return headers;
     }
@@ -93,9 +97,11 @@ export class HeaderManager {
      * Flattens our Internal Fidelity Format back to a "Neutral" Node.js-style map.
      * CRITICAL: Preserves multi-value headers (like set-cookie) as arrays.
      */
-    public flatten(map: HeaderMap): Record<string, string | string[]> {
+    public flatten(map: any): Record<string, string | string[]> {
         const flat: Record<string, string | string[]> = {};
-        for (const [lowerKey, values] of Object.entries(map)) {
+        const normalized = this.normalizeHeaders(map);
+
+        for (const [lowerKey, values] of Object.entries(normalized)) {
             if (values.length === 1) {
                 flat[lowerKey] = values[0].value;
             } else {
@@ -110,35 +116,23 @@ export class HeaderManager {
      * Correctly handles multi-value headers and rebuilds rawHeaders for proxy fidelity.
      */
     public syncToRequest(req: any, mutations: Record<string, any>, force = true): void {
-        if (mutations) {
-            for (const [k, v] of Object.entries(mutations)) {
-                const lowerKey = k.toLowerCase();
-                const values = Array.isArray(v) ? v : [v];
-                
-                if (force || !req.headers[lowerKey]) {
-                    // Standard Node.js behavior: multiple values are joined by comma, 
-                    // except for set-cookie which stays an array.
-                    if (lowerKey === 'set-cookie' || lowerKey === 'cookie') {
-                        req.headers[lowerKey] = values.map(val => 
-                            typeof val === 'object' ? val.value : val
-                        );
-                    } else {
-                        req.headers[lowerKey] = values.map(val => 
-                            typeof val === 'object' ? val.value : val
-                        ).join(', ');
-                    }
-                }
+        const currentHeaders = this.normalizeHeaders(req.headers);
+        const mutationHeaders = this.normalizeHeaders(mutations);
+
+        // 1. Merge mutations into our Fidelity Format
+        for (const [lowerKey, values] of Object.entries(mutationHeaders)) {
+            if (force || !currentHeaders[lowerKey]) {
+                currentHeaders[lowerKey] = values;
+                // Update Node's internal headers map too (stringified/joined for standard usage)
+                const nodeVal = values.length === 1 ? values[0].value : values.map(v => v.value);
+                req.headers[lowerKey] = nodeVal;
             }
         }
 
-        // Reconstruct rawHeaders (vital for node-fetch and internal fidelity)
+        // 2. Reconstruct rawHeaders with 100% casing fidelity
         const raw: string[] = [];
-        for (const [k, v] of Object.entries(req.headers)) {
-            if (Array.isArray(v)) {
-                v.forEach(val => raw.push(k, String(val)));
-            } else {
-                raw.push(k, String(v));
-            }
+        for (const values of Object.values(currentHeaders)) {
+            values.forEach(v => raw.push(v.key, String(v.value)));
         }
         (req as any).rawHeaders = raw;
     }
@@ -150,27 +144,21 @@ export class HeaderManager {
     public static telemetryFlatten(input: any): Record<string, string | string[]> {
         if (!input) return {};
         const flat: Record<string, string | string[]> = {};
+        const normalized = HeaderManager.prototype.normalizeHeaders(input);
 
-        for (const [k, v] of Object.entries(input)) {
-            if (v === undefined || v === null) continue;
-            
-            // 1. Unwrap Lambda@Edge structure: [ { key, value } ]
-            if (Array.isArray(v)) {
-                const values = v.map(item => {
-                    if (typeof item === 'object' && item !== null && item.value !== undefined) return item.value;
-                    return String(item);
-                });
-                flat[k.toLowerCase()] = values.length === 1 ? values[0] : values;
-            } 
-            // 2. Unwrap CFF structure: { value: "..." }
-            else if (typeof v === 'object' && v !== null && (v as any).value !== undefined) {
-                flat[k.toLowerCase()] = (v as any).value;
-            } 
-            // 3. Fallback for Node.js flat strings/numbers
-            else {
-                flat[k.toLowerCase()] = String(v);
+        for (const values of Object.values(normalized)) {
+            for (const item of values) {
+                const key = item.key;
+                const val = item.value;
+
+                if (!flat[key]) {
+                    (flat as any)[key] = val;
+                } else {
+                    const existing = (flat as any)[key];
+                    (flat as any)[key] = Array.isArray(existing) ? [...existing, val] : [existing, val];
+                }
             }
         }
-        return flat;
+        return flat as Record<string, string | string[]>;
     }
 }
