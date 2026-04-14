@@ -1,22 +1,77 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import type { DistributionInfo } from '../types';
+import type { DistributionInfo, RequestEntry } from '../types';
 
 interface DistributionContextType {
   dist: DistributionInfo | null;
+  requests: RequestEntry[];
+  lastEventId: number; 
   loading: boolean;
   refreshDistribution: () => Promise<void>;
   toggleHook: (id: string, disabled: boolean) => Promise<void>;
   isolateHook: (id: string) => Promise<void>;
   disableAllHooks: (disableAll: boolean) => Promise<void>;
   resetHooks: () => Promise<void>;
+  clearHistory: () => void;
 }
 
 const DistributionContext = createContext<DistributionContextType | undefined>(undefined);
 
 export function DistributionProvider({ children }: { children: ReactNode }) {
   const [dist, setDist] = useState<DistributionInfo | null>(null);
+  const [requests, setRequests] = useState<RequestEntry[]>([]);
+  const [lastEventId, setLastEventId] = useState(0);
   const [loading, setLoading] = useState(true);
+  const esRef = useRef<EventSource | null>(null);
+
+  const applyEvent = (entry: RequestEntry, ev: any) => {
+    const { type, details, durationMs, timestamp } = ev;
+    if (type === 'stage') {
+      if (!entry.stages) entry.stages = [];
+      entry.stages.push(details);
+      if (details.name === 'Origin Response' && details.headers) {
+        entry.originResHeaders = details.headers;
+      }
+    } else if (type === 'request') {
+      entry.method = details?.method;
+      entry.url = details?.url;
+      entry.reqHeaders = details?.headers;
+      entry.timestamp = timestamp;
+      if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url, headers: details?.headers }];
+    } else if (type === 'response') {
+      entry.status = details?.status;
+      entry.durationMs = durationMs;
+      entry.resHeaders = details?.headers;
+    } else if (type === 'error') {
+      entry.isError = true;
+      entry.error = details;
+      entry.status = 502;
+    } else if (type === 'rewrite') {
+      entry.rewrite = details;
+    }
+    return entry;
+  };
+
+  const mergeSseEvent = (prev: RequestEntry[], ev: any): RequestEntry[] => {
+    const idx = prev.findIndex(r => r.id === ev.id);
+    if (idx >= 0) {
+      const updated = [...prev];
+      updated[idx] = applyEvent({ ...updated[idx] }, ev);
+      return updated;
+    }
+    const newEntry: RequestEntry = { id: ev.id, timestamp: ev.timestamp || new Date().toISOString() };
+    applyEvent(newEntry, ev);
+    return [newEntry, ...prev].slice(0, 5000);
+  };
+
+  const rebuildHistory = (history: any[]) => {
+    const map: Record<string, RequestEntry> = {};
+    history.forEach(ev => {
+      if (!map[ev.id]) map[ev.id] = { id: ev.id, timestamp: ev.timestamp };
+      applyEvent(map[ev.id], ev);
+    });
+    setRequests(Object.values(map).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+  };
 
   const refreshDistribution = async () => {
     try {
@@ -32,9 +87,33 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshDistribution();
-    // Background polling for structural changes every 5s
-    const interval = setInterval(refreshDistribution, 5000);
-    return () => clearInterval(interval);
+
+    const es = new EventSource('/events');
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        
+        if (data.type === 'init') {
+          rebuildHistory(data.history || []);
+        } else if (data.type === 'distribution') {
+          setDist(data.data);
+        } else {
+          // It's a traffic event (request, response, stage, etc.)
+          setRequests(prev => mergeSseEvent(prev, data));
+          if (data.type === 'request') {
+             setLastEventId(prev => prev + 1);
+          }
+        }
+      } catch (err) {
+        console.error('SSE Parse Error:', err);
+      }
+    };
+
+    return () => {
+      if (esRef.current) esRef.current.close();
+    };
   }, []);
 
   const toggleHook = async (id: string, disabled: boolean) => {
@@ -69,9 +148,13 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
     await refreshDistribution();
   };
 
+  const clearHistory = () => {
+    setRequests([]);
+  };
+
   return (
     <DistributionContext.Provider value={{
-      dist, loading, refreshDistribution, toggleHook, isolateHook, disableAllHooks, resetHooks
+      dist, requests, lastEventId, loading, refreshDistribution, toggleHook, isolateHook, disableAllHooks, resetHooks, clearHistory
     }}>
       {children}
     </DistributionContext.Provider>

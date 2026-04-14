@@ -1,20 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Activity } from 'lucide-react';
+import { useDistribution } from '../contexts/DistributionContext';
 
 export default function Header() {
   const [rps, setRps] = useState(0);
+  const { lastEventId } = useDistribution();
 
   useEffect(() => {
-    const es = new EventSource('/events');
-    es.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.type === 'request') {
-        setRps(prev => prev + 1);
-        setTimeout(() => setRps(p => Math.max(0, p - 1)), 1000);
-      }
-    };
-    return () => es.close();
-  }, []);
+    if (lastEventId > 0) {
+      setRps(prev => prev + 1);
+      setTimeout(() => setRps(p => Math.max(0, p - 1)), 1000);
+    }
+  }, [lastEventId]);
 
   return (
     <header style={{ 

@@ -1,83 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, Activity } from 'lucide-react';
+import { useDistribution } from '../contexts/DistributionContext';
 import type { RequestEntry } from '../types';
 
-interface TrafficCenterProps {
-  requests: RequestEntry[];
-  setRequests: React.Dispatch<React.SetStateAction<RequestEntry[]>>;
-}
-
-export default function TrafficCenter({ requests, setRequests }: TrafficCenterProps) {
+export default function TrafficCenter() {
+  const { requests, clearHistory } = useDistribution();
   const [filter, setFilter] = useState<'all' | 'errors' | 'redirects' | 'rewrites'>('all');
   const [search, setSearch] = useState('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedStageIdx, setSelectedStageIdx] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<'timestamp' | 'status' | 'duration'>('timestamp');
 
-  useEffect(() => {
-    const es = new EventSource('/events');
-    es.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.type === 'init') {
-        rebuildHistory(data.history || []);
-      } else {
-        setRequests(prev => mergeSseEvent(prev, data));
-      }
-    };
-    return () => es.close();
-  }, []);
-
-  const rebuildHistory = (history: any[]) => {
-    const map: Record<string, RequestEntry> = {};
-    history.forEach(ev => {
-      if (!map[ev.id]) map[ev.id] = { id: ev.id, timestamp: ev.timestamp };
-      applyEvent(map[ev.id], ev);
-    });
-    setRequests(Object.values(map));
-  };
-
-  const applyEvent = (entry: RequestEntry, ev: any) => {
-    const { type, details, durationMs, timestamp } = ev;
-    if (type === 'stage') {
-      if (!entry.stages) entry.stages = [];
-      entry.stages.push(details);
-      if (details.name === 'Origin Response' && details.headers) {
-        entry.originResHeaders = details.headers;
-      }
-    } else if (type === 'request') {
-      entry.method = details?.method;
-      entry.url = details?.url;
-      entry.reqHeaders = details?.headers;
-      entry.timestamp = timestamp;
-      if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url, headers: details?.headers }];
-    } else if (type === 'response') {
-      entry.status = details?.status;
-      entry.durationMs = durationMs;
-      entry.resHeaders = details?.headers;
-    } else if (type === 'error') {
-      entry.isError = true;
-      entry.error = details;
-      entry.status = 502;
-    } else if (type === 'rewrite') {
-      entry.rewrite = details;
-    }
-    return entry;
-  };
-
-  const mergeSseEvent = (prev: RequestEntry[], ev: any): RequestEntry[] => {
-    const idx = prev.findIndex(r => r.id === ev.id);
-    if (idx >= 0) {
-      const updated = [...prev];
-      updated[idx] = applyEvent({ ...updated[idx] }, ev);
-      return updated;
-    }
-    const newEntry: RequestEntry = { id: ev.id, timestamp: ev.timestamp || new Date().toISOString() };
-    applyEvent(newEntry, ev);
-    return [newEntry, ...prev].slice(0, 100);
-  };
-
   const filteredRequests = useMemo(() => {
     let list = [...requests];
+    // ... filtering and sorting logic remains same
     if (filter === 'errors') list = list.filter(r => r.status && r.status >= 400);
     if (filter === 'redirects') list = list.filter(r => r.status && r.status >= 300 && r.status < 400);
     if (filter === 'rewrites') list = list.filter(r => r.rewrite);
@@ -175,7 +111,7 @@ export default function TrafficCenter({ requests, setRequests }: TrafficCenterPr
               style={{ width: '100%', padding: '0.4rem 1rem 0.4rem 2.2rem', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#fff', fontSize: '0.75rem', outline: 'none' }}
             />
           </div>
-          <button onClick={() => setRequests([])} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '0.75rem' }}>Clear History</button>
+          <button onClick={clearHistory} style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '0.75rem' }}>Clear History</button>
         </div>
 
         {/* Column Headers (Pinned) */}

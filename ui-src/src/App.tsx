@@ -11,10 +11,8 @@ import FidelityAuditModal from './components/FidelityAuditModal';
 import { UIProvider, useUI } from './contexts/UIContext';
 import { DistributionProvider, useDistribution } from './contexts/DistributionContext';
 import { HeaderProvider } from './contexts/HeaderContext';
-import type { RequestEntry } from './types';
 
 function DashboardContent() {
-  const [requests, setRequests] = useState<RequestEntry[]>([]);
   const { dist } = useDistribution();
   const ui = useUI();
   const [showAbout, setShowAbout] = useState(false);
@@ -37,16 +35,13 @@ function DashboardContent() {
 
           {/* Feature Area 2: Traffic Life-cycle & Forensic Stream - SCROLLABLE STREAM */}
           <section style={{ flex: 1, minHeight: 0, padding: 0, position: 'relative', overflow: 'hidden', display: 'flex' }}>
-            <TrafficCenter
-              requests={requests}
-              setRequests={setRequests}
-            />
+            <TrafficCenter />
           </section>
         </div>
       </main>
 
       {/* Right Sidebar: Real-time Diagnostics & Metrics */}
-      <EdgeIntelligence requests={requests} />
+      <EdgeIntelligence />
 
       {/* Unified Forensic Modal System */}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}

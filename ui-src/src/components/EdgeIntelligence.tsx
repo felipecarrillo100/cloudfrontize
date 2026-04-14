@@ -1,12 +1,9 @@
 import { useMemo } from 'react';
 import { Activity, ShieldAlert, BarChart3, PieChart } from 'lucide-react';
-import type { RequestEntry } from '../types';
+import { useDistribution } from '../contexts/DistributionContext';
 
-interface EdgeIntelligenceProps {
-  requests: RequestEntry[];
-}
-
-export default function EdgeIntelligence({ requests }: EdgeIntelligenceProps) {
+export default function EdgeIntelligence() {
+  const { requests } = useDistribution();
   const stats = useMemo(() => {
     if (requests.length === 0) return { count: 0, p50: 0, p90: 0, errorRate: 0 };
 
