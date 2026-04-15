@@ -259,10 +259,17 @@ export class Orchestrator {
             return { bodyUnchanged: true };
         };
         const captureLeResBody = (result: any, prevMeta: any): any => {
-            const rb = result?.body;
+            let rb = result?.body;
+            let encoding = result.bodyEncoding || 'text';
+
+            // Unpack Internal Body Object if present
+            if (typeof rb === 'object' && rb !== null && rb.data !== undefined) {
+                encoding = rb.encoding || encoding;
+                rb = rb.data;
+            }
+
             // Response hooks return the body directly (not action: replace)
             if (rb !== undefined && rb !== null) {
-                const encoding = result.bodyEncoding || 'text';
                 const raw = encoding === 'base64'
                     ? Buffer.from(String(rb), 'base64')
                     : Buffer.from(String(rb));
@@ -459,10 +466,11 @@ export class Orchestrator {
                 
                 // 4a. L@E Origin Response (Atomic Phase)
                 const originResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-response').map(h => h.id);
+                const inputBodyBase64 = body ? body.toString('base64') : undefined;
                 const { result: originResResult, logs: originResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
                     headers: HeaderManager.telemetryFlatten(headers),
-                    body: body ? body.toString('base64') : undefined
+                    body: inputBodyBase64
                 }, requestId, 'origin-response', [...disabledIds, ...originResOnlyDisabled]);
 
                 if (options.verbose && originResLogs.length > 0) req._logBuffer.push(...originResLogs);
@@ -474,10 +482,28 @@ export class Orchestrator {
                     Object.entries(normalizedHeaders).forEach(([k, v]) => { headers[k] = v; });
                 }
                 if (originResResult.body !== undefined && originResResult.body !== null) {
-                    const encoding = originResResult.bodyEncoding || 'text';
-                    body = encoding === 'base64'
-                        ? Buffer.from(String(originResResult.body), 'base64')
-                        : Buffer.from(String(originResResult.body));
+                    let rb = originResResult.body;
+                    let encoding = originResResult.bodyEncoding || 'text';
+
+                    // Unpack Internal Body Object (Fidelity Plus Leak)
+                    if (typeof rb === 'object' && rb !== null && rb.data !== undefined) {
+                        encoding = rb.encoding || encoding;
+                        rb = rb.data;
+                    }
+
+                    // Change Detection: If hook didn't change the body, we must keep the original Buffer
+                    // to avoid re-wrapping base-64 transport strings as literal text.
+                    if (rb === inputBodyBase64 && !originResResult.bodyEncoding) {
+                        // Pass-through: Keep existing 'body' Buffer
+                    } else {
+                        const rawBody = (typeof rb === 'object' && rb !== null)
+                            ? JSON.stringify(rb)
+                            : String(rb);
+
+                        body = encoding === 'base64'
+                            ? Buffer.from(rawBody, 'base64')
+                            : Buffer.from(rawBody);
+                    }
                 }
 
                 liveResBodyState = captureLeResBody(originResResult, liveResBodyState);
@@ -488,10 +514,11 @@ export class Orchestrator {
 
                 // 4b. L@E Viewer Response (Atomic Phase)
                 const viewerResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-response').map(h => h.id);
+                const postOriginBodyBase64 = body ? body.toString('base64') : undefined;
                 const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
                     headers: HeaderManager.telemetryFlatten(headers),
-                    body: body ? body.toString('base64') : undefined
+                    body: postOriginBodyBase64
                 }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
 
                 if (options.verbose && viewerResLogs.length > 0) req._logBuffer.push(...viewerResLogs);
@@ -503,10 +530,28 @@ export class Orchestrator {
                     Object.entries(normalizedHeaders).forEach(([k, v]) => { headers[k] = v; });
                 }
                 if (viewerResResult.body !== undefined && viewerResResult.body !== null) {
-                    const encoding = viewerResResult.bodyEncoding || 'text';
-                    body = encoding === 'base64'
-                        ? Buffer.from(String(viewerResResult.body), 'base64')
-                        : Buffer.from(String(viewerResResult.body));
+                    let rb = viewerResResult.body;
+                    let encoding = viewerResResult.bodyEncoding || 'text';
+
+                    // Unpack Internal Body Object (Fidelity Plus Leak)
+                    if (typeof rb === 'object' && rb !== null && rb.data !== undefined) {
+                        encoding = rb.encoding || encoding;
+                        rb = rb.data;
+                    }
+
+                    // Change Detection: Prevent base-64 leakage if body wasn't changed
+                    if (rb === postOriginBodyBase64 && !viewerResResult.bodyEncoding) {
+                        // Pass-through: Keep existing 'body' Buffer
+                    } else {
+                        const encoding = viewerResResult.bodyEncoding || 'text';
+                        const rawBody = (typeof rb === 'object' && rb !== null)
+                            ? JSON.stringify(rb)
+                            : String(rb);
+
+                        body = encoding === 'base64'
+                            ? Buffer.from(rawBody, 'base64')
+                            : Buffer.from(rawBody);
+                    }
                 }
 
                 liveResBodyState = captureLeResBody(viewerResResult, liveResBodyState);
@@ -646,7 +691,21 @@ export class Orchestrator {
             details: { status: res.statusCode, headers: HeaderManager.telemetryFlatten(responseData.headers) }
         });
 
-        res.end(responseData.body || originalBody);
+        // 3. Final Fidelity Resolution: Unpack/Serialize the body for transmission
+        let finalBody = responseData.body || originalBody;
+        if (finalBody !== undefined && finalBody !== null) {
+            // Unpack Internal Body Object (Fidelity Plus Leak)
+            if (typeof finalBody === 'object' && !Buffer.isBuffer(finalBody) && (finalBody as any).data !== undefined) {
+                const encoding = (finalBody as any).encoding || 'text';
+                const data = (finalBody as any).data;
+                finalBody = encoding === 'base64' ? Buffer.from(String(data), 'base64') : Buffer.from(String(data));
+            } else if (typeof finalBody === 'object' && !Buffer.isBuffer(finalBody)) {
+                // Generic Object -> Stringify (Standard AWS Behavior)
+                finalBody = JSON.stringify(finalBody);
+            }
+        }
+
+        res.end(finalBody);
 
         // Forensic Alignment: Log the terminal response status
         this._logToFile('INFO', 'Orchestrator', requestId, `Response Status: ${res.statusCode} [${duration}ms]`);
