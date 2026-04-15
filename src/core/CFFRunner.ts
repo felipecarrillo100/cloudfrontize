@@ -163,7 +163,7 @@ export class CFFRunner extends HotRunner {
         }
     }
 
-    public async runChain(type: HookType, event: any, disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
+    public async runChain(type: HookType, event: any, disabledIds: string[] = [], onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
         let currentEvent = event;
         const allLogs: string[] = [];
 
@@ -188,6 +188,7 @@ export class CFFRunner extends HotRunner {
 
                 if (type === 'viewer-request' && currentEvent.response) break;
             }
+            if (onHookComplete) onHookComplete(mod, result);
         }
         return { result: currentEvent, logs: allLogs };
     }

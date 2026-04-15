@@ -304,43 +304,28 @@ export class Orchestrator {
                 reqBody = Buffer.concat(chunks);
             }
 
-            // 1. CFF Viewer Request
+            // 1. CFF Viewer Request (Atomic Forensic Journey)
             if (this.cffRunner) {
-                const hooks = this.hookRegistry.filter(h =>
-                    h.type === 'CloudFront Function' &&
-                    h.stage === 'viewer-request' &&
-                    !this.disabledHookIds.has(h.id)
-                );
-
-                for (const hook of hooks) {
-                    const filename = path.basename(hook.path);
-                    // CFF cannot access/modify body — propagate unchanged signal
-                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: hook.id, ...liveReqBodyState }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
-                }
-
                 const cffEvent = this.cffRunner.toCFFEvent(req, null, 'viewer-request');
-                const { result: cffResult, logs: cffLogs } = await this.cffRunner.runChain('viewer-request', cffEvent, Array.from(this.disabledHookIds));
+                const { result: cffResult, logs: cffLogs } = await this.cffRunner.runChain('viewer-request', cffEvent, Array.from(this.disabledHookIds), (mod, result) => {
+                    const intermediateMutated = this.cffRunner.fromCFFEvent(result);
+                    if (intermediateMutated) {
+                        if (intermediateMutated.url) req.url = intermediateMutated.url;
+                        this._syncHeadersToRequest(req, intermediateMutated.headers);
+                    }
+                    const filename = path.basename(mod.filePath);
+                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: mod.id, ...liveReqBodyState }, HeaderManager.telemetryFlatten(req.headers));
+                });
+
                 const mutatedRequest = this.cffRunner.fromCFFEvent(cffResult);
 
-                // Clinical Alignment: Capture hook logs into the block-level buffer.
-                if (options.verbose && cffLogs.length > 0) {
-                    req._logBuffer.push(...cffLogs);
-                }
+                if (options.verbose && cffLogs.length > 0) req._logBuffer.push(...cffLogs);
 
                 if (mutatedRequest?._isResponse) {
                     this.broadcastStage('CFF Short-Circuit', { requestId, status: mutatedRequest.status, uri: req.url, fid: 'viewer-request-cff-0' }, HeaderManager.telemetryFlatten(mutatedRequest.headers));
-                    if (options.verbose) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[36m[CFF]\x1b[0m Generated Response`);
-                    }
+                    if (options.verbose) req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[36m[CFF]\x1b[0m Generated Response`);
                     return this._sendResponse(res, mutatedRequest, requestId, startTime, req, options);
                 }
-                if (mutatedRequest?.url) {
-                    if (options.verbose) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[36m[CFF]\x1b[0m Viewer Request  \x1b[33m⟹\x1b[0m Rewrote to ${mutatedRequest.url}`);
-                    }
-                    req.url = mutatedRequest.url;
-                }
-                this._syncHeadersToRequest(req, mutatedRequest?.headers);
             }
 
             // 2. L@E Viewer Request (Atomic Phase)
@@ -537,27 +522,23 @@ export class Orchestrator {
                 };
             }
 
-            // 6. CFF Viewer Response — CFF cannot access/modify body
+            // 6. CFF Viewer Response (Atomic Forensic Journey)
             if (this.cffRunner) {
-                const hook = this.hookRegistry.find(h => h.type === 'CloudFront Function' && h.stage === 'viewer-response');
-                const stageName = hook ? `[CFF: viewer-response] ${path.basename(hook.path)}` : '[CFF: viewer-response] Unknown';
-                this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: hook?.id, ...(liveResBodyState ? { bodyUnchanged: true } : {}) }, HeaderManager.telemetryFlatten(finalRes.headers));
                 const cffResEvent = this.cffRunner.toCFFEvent(req, finalRes, 'viewer-response');
-                const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent);
+                const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent, Array.from(this.disabledHookIds), (mod, result) => {
+                    const cffFinal = this.cffRunner.fromCFFEvent(result);
+                    if (cffFinal) {
+                        finalRes = {
+                            ...finalRes,
+                            ...cffFinal,
+                            headers: { ...(finalRes.headers || {}), ...(cffFinal.headers || {}) }
+                        };
+                    }
+                    const stageName = `[CFF: viewer-response] ${path.basename(mod.filePath)}`;
+                    this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: mod.id, ...(liveResBodyState ? { bodyUnchanged: true } : {}) }, HeaderManager.telemetryFlatten(finalRes.headers));
+                });
 
-                // Clinical Alignment: Capture hook logs into the block-level buffer.
-                if (options.verbose && cffResLogs.length > 0) {
-                    req._logBuffer.push(...cffResLogs);
-                }
-
-                const cffFinal = this.cffRunner.fromCFFEvent(cffResResult);
-                if (cffFinal) {
-                    finalRes = {
-                        ...finalRes,
-                        ...cffFinal,
-                        headers: { ...(finalRes.headers || {}), ...(cffFinal.headers || {}) }
-                    };
-                }
+                if (options.verbose && cffResLogs.length > 0) req._logBuffer.push(...cffResLogs);
             }
 
             // Final Response: body the viewer receives — same as last response body state (possibly mutated by L@E)
