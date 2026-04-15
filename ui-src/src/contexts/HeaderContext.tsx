@@ -19,7 +19,13 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetch('/api/sticky')
       .then(res => res.json())
-      .then(data => setHeaders(Array.isArray(data) ? data : []));
+      .then(data => {
+        // Backend returns { request: {}, response: {} } — convert to StickyHeader[]
+        const arr: StickyHeader[] = [];
+        Object.entries(data.request || {}).forEach(([k, v]) => arr.push({ key: k, value: String(v), target: 'request', enabled: true }));
+        Object.entries(data.response || {}).forEach(([k, v]) => arr.push({ key: k, value: String(v), target: 'response', enabled: true }));
+        setHeaders(arr);
+      });
   }, []);
 
   const updateHeaders = (newHeaders: StickyHeader[]) => {
@@ -28,9 +34,16 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   };
 
   const applyHeaders = async () => {
+    // Backend expects { requestHeaders: {}, responseHeaders: {} } — convert from StickyHeader[]
+    const payload: any = { requestHeaders: {}, responseHeaders: {} };
+    headers.forEach(h => {
+      if (!h.enabled || !h.key) return;
+      if (h.target === 'response') payload.responseHeaders[h.key] = h.value;
+      else payload.requestHeaders[h.key] = h.value;
+    });
     await fetch('/api/sticky', {
       method: 'POST',
-      body: JSON.stringify(headers)
+      body: JSON.stringify(payload)
     });
     setIsDirty(false);
   };
