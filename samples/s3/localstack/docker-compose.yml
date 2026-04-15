@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:1.4
+    container_name: localstack_s3
+    ports:
+      - "4566:4566" # LocalStack Gateway
+      - "4572:4572" # S3 Service
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - LAMBDA_EXECUTOR=docker
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack-data:/tmp/localstack_s3/data"
+
+volumes:
+  localstack-data:

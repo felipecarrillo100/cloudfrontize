@@ -22,7 +22,7 @@ docker run -p 9000:9000 -p 9001:9001 \
 
 ### Using Docker Compose
 
-Alternatively, you can use Docker Compose to set up MinIO. Save the following content as `docker-compose.yml` in the `/samples/s3/` directory:
+Alternatively, you can use Docker Compose to set up MinIO. Refer to `docker-compose.yml` in the `/samples/s3/minio` directory:
 
 ```yaml
 version: '3.8'
@@ -166,6 +166,119 @@ cloudfrontize --origins ./my-origins-s3.json --edge ./origin-response-addCustomH
 ```
 
 This approach is useful for more complex setups or when you want to manage credentials and endpoints in a separate file.
+
+---
+
+## 5. Using LocalStack Instead of MinIO
+
+LocalStack is a fully functional local AWS cloud stack. It can be used as an alternative to MinIO for testing S3 setups.
+
+### Setting Up LocalStack
+
+1. Install Docker if not already installed.
+2. Refer to `docker-compose.yml` in the `/samples/s3/localstack` directory:
+
+> **NOTE:** This setup uses **LocalStack 1.4** to avoid the mandatory API key requirement in newer versions. To use a more recent version, obtain a license key from LocalStack and add it as the `LOCALSTACK_API_KEY` environment variable in your `docker-compose-localstack.yml` file.
+
+```yaml
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:1.4
+    container_name: localstack_s3
+    ports:
+      - "4566:4566" # LocalStack Gateway
+      - "4572:4572" # S3 Service
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - LAMBDA_EXECUTOR=docker
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack-data:/tmp/localstack/data"
+
+volumes:
+  localstack-data:
+```
+
+3. Start LocalStack:
+
+```powershell
+# Start LocalStack using Docker Compose
+docker-compose -f docker-compose-localstack.yml up -d
+```
+
+### Configuring LocalStack S3
+
+1. Install the AWS CLI if not already installed.
+    - Ensure the AWS CLI is installed on your system. You can download it from [AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+   
+2. Configure the AWS CLI to use LocalStack:
+
+```powershell
+aws configure set aws_access_key_id test
+aws configure set aws_secret_access_key test
+aws configure set default.region us-east-1
+```
+
+### Uploading the `www` Folder to LocalStack
+
+To upload the `www` folder to LocalStack's S3, follow these simple steps:
+
+1. **Install AWS CLI**:
+   - Ensure the AWS CLI is installed on your system. You can download it from [AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+
+2. **Set Up AWS CLI for LocalStack**:
+   - Run the following command to configure AWS CLI with LocalStack's dummy credentials:
+     ```bash
+     aws configure
+     ```
+     - Enter `test` for both `AWS Access Key ID` and `AWS Secret Access Key`.
+     - Set the region to `us-east-1` (or any region you prefer).
+     - Leave the default output format blank.
+
+3. **Create an S3 Bucket**:
+   - Use the following command to create a bucket in LocalStack:
+     ```bash
+     aws --endpoint-url=http://localhost:4566 s3 mb s3://www
+     ```
+     - If you prefer, replace  `www` with your desired bucket name, but notice many of the sample assume it is called www.
+
+4. **Upload the `www` Folder Using aws cli**:
+   - Use the following command to upload the entire `www` folder to the bucket:
+     ```bash
+     aws --endpoint-url=http://localhost:4566 s3 cp ../../www/ s3://www/ --recursive
+     ```
+   > **Note**: LocalStack 1.4 is incompatible with modern versions of the AWS CLI (v2+) due to changes in S3 request signing. If your upload command fails with a "trailer header" error, use the Node.js script provided below to sync your files.
+
+5. **Upload the `www` Folder Using a nodejs script**:
+    - To upload your site assets, first you need to install the script dependencies. Navigate to the `scripts` folder, run `npm install`.
+    - Now go back to this folder and execute this command
+> ```bash
+> node scripts/upload.js --source ../../www --bucket www
+> ```
+> **Note**  `--source` path if your directory where your files are located, and `--bucket` is the name of the bucket you created in LocalStack.
+
+6. **Verify the Upload**:
+   - List the contents of the bucket to ensure the files were uploaded:
+     ```bash
+     aws --endpoint-url=http://localhost:4566 s3 ls s3://my-bucket/ --recursive
+     ```
+
+### Running the Sample with `cloudfrontize`
+
+Run the following command:
+
+```powershell
+cloudfrontize --s3-origin www --s3-endpoint http://localhost:4566 --edge ./origin-response-addCustomHeader.js --webui 3001
+```
+
+### Expected Behavior
+
+1. The files from the `www` bucket will be served.
+2. The `X-Custom-Header: Cloudfrontize-Test` header will be added to the response.
 
 ---
 
