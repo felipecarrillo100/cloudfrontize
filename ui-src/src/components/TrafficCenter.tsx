@@ -383,8 +383,8 @@ export default function TrafficCenter() {
       </div>
 
       {/* 2. Forensic Workspace */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0.75rem 1rem' }}>
-        
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0.75rem 0.15rem' }}>
+
         {/* Search & Filter Toolbar (Pinned) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '0.75rem', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 6 }}>

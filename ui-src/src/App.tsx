@@ -28,8 +28,8 @@ function DashboardContent() {
         <Header />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Feature Area 1: Cloud Architecture & Emulation Control - FIXED HEIGHT WORKSTATION */}
-          <section style={{ height: 280, flexShrink: 0, padding: 0 }}>
+          {/* Feature Area 1: Cloud Architecture & Emulation Control - CONTENT HEIGHT */}
+          <section style={{ flexShrink: 0, padding: 0 }}>
             <CloudCenter onShowAudit={() => setShowAudit(true)} />
           </section>
 
@@ -78,18 +78,19 @@ export default function App() {
             @keyframes spin {
               to { transform: rotate(360deg); }
             }
-            .header-box::-webkit-scrollbar {
-              width: 8px;
+            *::-webkit-scrollbar {
+              width: 6px;
+              height: 6px;
             }
-            .header-box::-webkit-scrollbar-track {
+            *::-webkit-scrollbar-track {
               background: #0d1117;
               border-radius: 4px;
             }
-            .header-box::-webkit-scrollbar-thumb {
+            *::-webkit-scrollbar-thumb {
               background: #30363d;
               border-radius: 4px;
             }
-            .header-box::-webkit-scrollbar-thumb:hover {
+            *::-webkit-scrollbar-thumb:hover {
               background: #484f58;
             }
           `}</style>

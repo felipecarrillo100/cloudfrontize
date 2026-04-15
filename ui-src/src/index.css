@@ -44,6 +44,8 @@
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: #30363d #0d1117;
   }
   body {
     @apply bg-background text-foreground antialiased;
