@@ -12,6 +12,14 @@ import { UIProvider, useUI } from './contexts/UIContext';
 import { DistributionProvider, useDistribution } from './contexts/DistributionContext';
 import { HeaderProvider } from './contexts/HeaderContext';
 
+/**
+ * The root component of the CloudFrontize Forensic Dashboard.
+ * 
+ * @namespace Frontend
+ * This component initializes the main layout, including the Sidebar, Header, 
+ * CloudCenter (Architecture), and TrafficCenter (Live stream). It coordinates 
+ * the unified context providers for UI state and Distribution data.
+ */
 function DashboardContent() {
   const { dist } = useDistribution();
   const ui = useUI();

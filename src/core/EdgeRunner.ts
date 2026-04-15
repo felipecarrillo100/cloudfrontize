@@ -12,6 +12,18 @@ import { HookUtility } from './HookUtility';
 const hostRequire = require;
 
 
+/**
+ * A high-fidelity runtime for AWS Lambda@Edge functions.
+ * 
+ * @namespace Backend
+ * The EdgeRunner executes user-provided Node.js code within an isolated `vm` sandbox. 
+ * It emulates the Lambda@Edge event structure, multi-value header logic, 
+ * and strict AWS quotas (timeout, execution limits).
+ * 
+ * It supports hot-reloading and environment variable baking via the `CodeProcessor`.
+ * 
+ * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-limits.html#limits-lambda-at-edge | AWS Lambda@Edge Quotas}
+ */
 export class EdgeRunner extends HotRunner {
     private logContext = new AsyncLocalStorage<{ requestId: string; hookType: string; filename: string; logs: string[] }>();
     public compileError: string | null = null;
@@ -19,6 +31,11 @@ export class EdgeRunner extends HotRunner {
 
     private headerManager = new HeaderManager();
 
+    /**
+     * Initializes the EdgeRunner with a path to a single JS file or directory of hooks.
+     * @param runnerPath - Absolute path to the edge function(s).
+     * @param options - Execution options (strict mode, env paths, etc).
+     */
     constructor(runnerPath: string, public options: any = {}) {
         super(runnerPath, options);
         EdgeRunner._calculateOverhead();

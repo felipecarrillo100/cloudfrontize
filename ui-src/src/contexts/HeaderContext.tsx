@@ -10,6 +10,14 @@ interface HeaderContextType {
   resetHeaders: () => Promise<void>;
 }
 
+/**
+ * Shared state for sticky headers and environment overrides.
+ * 
+ * @namespace Frontend
+ * This context synchronizes the "Sticky Header" configuration between 
+ * the UI and the Backend emulator. It handles local state dirty tracking 
+ * and persistence to the `/api/sticky` endpoints.
+ */
 const HeaderContext = createContext<HeaderContextType | undefined>(undefined);
 
 export function HeaderProvider({ children }: { children: ReactNode }) {

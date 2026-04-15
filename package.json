@@ -18,7 +18,8 @@
     "prepublishOnly": "npm run build",
     "test": "jest --forceExit",
     "test:local": "tsx ./bin/cli.ts -C ./www -e ./samples/medium/lambda-edge-authorization.js",
-    "test:dist": "node ./dist/bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js"
+    "test:dist": "node ./dist/bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
+    "docs": "typedoc --plugin typedoc-material-theme"
   },
   "dependencies": {
     "@aws-sdk/client-appconfig": "^3.0.0",
@@ -50,6 +51,8 @@
     "ts-jest": "^29.4.6",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
+    "typedoc": "^0.28.19",
+    "typedoc-material-theme": "^1.4.1",
     "typescript": "^6.0.2"
   },
   "keywords": [

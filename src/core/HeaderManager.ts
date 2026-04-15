@@ -4,11 +4,25 @@ export type HeaderValue = { key: string; value: string };
 export type HeaderMap = Record<string, HeaderValue[]>;
 
 /**
- * HeaderManager: The definitive source of truth for all header lifecycle events.
- * Centralizes the translation between Node.js, CFF, and Lambda@Edge formats.
+ * The definitive source of truth for all header lifecycle events in the emulator.
+ * 
+ * @namespace Backend
+ * The HeaderManager centralizes the translation between Node.js, CloudFront Functions (CFF), 
+ * and Lambda@Edge (L@E) header formats. It is responsible for maintaining "Wire Case" fidelity 
+ * and enforcing AWS production rules (e.g., forbidden header mutations).
+ * 
+ * It primarily uses the **Internal Fidelity Format (IFF)**:
+ * `Record<string, { key: string; value: string }[]>`
+ * 
+ * This format ensures that headers like `Set-Cookie` (multi-value) and original casing 
+ * (e.g. `X-Custom-ID`) are preserved regardless of internal JS object normalization.
+ * 
+ * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/edge-functions-restrictions.html#edge-functions-restrictions-all | Edge Function Restrictions}
  */
 export class HeaderManager {
+    /** List of headers that cannot be modified by any edge function. */
     static FORBIDDEN = AWS_HEADERS.FORBIDDEN;
+    /** List of headers that are read-only in request hooks. */
     static REQUEST_ONLY_FORBIDDEN = AWS_HEADERS.REQUEST_ONLY_FORBIDDEN;
 
     /**

@@ -5,11 +5,36 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import serveHandler from 'serve-handler';
 import { OriginConfig } from '../core/types';
 
+/**
+ * Common interface for all CloudFrontize origin providers.
+ * 
+ * @namespace Backend
+ * Origin Providers are responsible for the "Origin Fetch" stage of the pipeline.
+ * They resolve request URIs to physical assets and stream the results back 
+ * while maintaining the correct HTTP metadata.
+ */
 export interface OriginProvider {
+    /**
+     * Fetches a resource from the origin.
+     * @param req - The current pipeline request object.
+     * @param res - The response object to stream data into.
+     * @param options - Provider execution options.
+     * @param body - Optional request body Buffer (post-L@E mutation).
+     */
     fetch(req: any, res: any, options: any, body?: Buffer): Promise<void>;
 }
 
+/**
+ * Serves assets from a local directory.
+ * 
+ * @namespace Backend
+ * Used when the CloudFront origin points to a local folder (e.g. `--origins ./www`).
+ * It emulates S3-like behaviors such as "Default Root Object" and 403s for directory indexing.
+ */
 export class LocalProvider implements OriginProvider {
+    /**
+     * @param directory - The base directory to serve files from.
+     */
     constructor(private directory: string) {}
 
     public async fetch(req: any, res: any, options: any, body?: Buffer): Promise<void> {
@@ -68,9 +93,24 @@ export class LocalProvider implements OriginProvider {
     }
 }
 
+/**
+ * Proxies requests to an S3-compatible service (AWS S3 or MinIO).
+ * 
+ * @namespace Backend
+ * @description
+ * This provider uses the `@aws-sdk/client-s3` to fetch assets. It supports
+ * custom endpoints (for MinIO), path-style addressing, and AWS credentials.
+ * It also handles the mapping of S3 response properties (e.g. `ContentType`, `ETag`)
+ * to standard HTTP headers.
+ * 
+ * @see {@link https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html | AWS S3 Documentation}
+ */
 export class S3Provider implements OriginProvider {
     private client: S3Client;
 
+    /**
+     * @param config - The origin configuration including bucket and endpoint.
+     */
     constructor(private config: OriginConfig) {
         const s3Options: any = {
             region: config.region || process.env.AWS_REGION || 'us-east-1',

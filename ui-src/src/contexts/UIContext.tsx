@@ -35,6 +35,15 @@ interface UIContextType {
   closeCode: () => void;
 }
 
+/**
+ * Global UI state management for the CloudFrontize forensic dashboard.
+ * 
+ * @namespace Frontend
+ * This context manages the display state of transient UI elements such as:
+ * - Contextual forensic menus (right-click).
+ * - Side detail panels for deep object inspection.
+ * - Code viewer modals for Lambda@Edge/CFF source code analysis.
+ */
 const UIContext = createContext<UIContextType | undefined>(undefined);
 
 export function UIProvider({ children }: { children: ReactNode }) {

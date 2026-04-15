@@ -2,6 +2,14 @@ import { useMemo } from 'react';
 import { Activity, ShieldAlert, BarChart3, PieChart } from 'lucide-react';
 import { useDistribution } from '../contexts/DistributionContext';
 
+/**
+ * Real-time metrics and intelligence dashboard for the forensic UI.
+ * 
+ * @namespace Frontend
+ * This component processes the incoming telemetry stream to calculate 
+ * real-time performance metrics, including P50/P90 latencies and 
+ * error distribution.
+ */
 export default function EdgeIntelligence() {
   const { requests } = useDistribution();
   const stats = useMemo(() => {

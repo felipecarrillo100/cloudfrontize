@@ -15,6 +15,19 @@ interface DistributionContextType {
   clearHistory: () => void;
 }
 
+/**
+ * The primary data provider for the CloudFrontize Forensic Dashboard.
+ * 
+ * @namespace Frontend
+ * This context manages the live synchronization between the Frontend and the 
+ * Backend Telemetry system. It handles:
+ * - Real-time request history (Atomic Journeys) via Server-Sent Events (SSE).
+ * - Distribution metadata (Origins, Behaviors).
+ * - Hook isolation and toggle controls (syncing back to the Orchestrator).
+ * 
+ * @see {@link Backend.Orchestrator} | For the backend orchestration logic.
+ * @see {@link Backend.Telemetry} | For the data broadcast source.
+ */
 const DistributionContext = createContext<DistributionContextType | undefined>(undefined);
 
 export function DistributionProvider({ children }: { children: ReactNode }) {

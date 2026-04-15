@@ -12,6 +12,15 @@ import { AWS_HEADERS, AWS_LIMITS } from './constants';
 import { HeaderParser } from './headerParser';
 import { ConfigLoader } from './pipeline/ConfigLoader';
 
+/**
+ * The main entry point for the CloudFrontize emulator.
+ * 
+ * @namespace Backend
+ * This file contains the primary server lifecycle logic, CLI banner printing, 
+ * and orchestrator initialization. It handles the parsing of origins, 
+ * runners, and telemetry systems.
+ */
+
 export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser };
 
 export function printTopBanner(options: any) {

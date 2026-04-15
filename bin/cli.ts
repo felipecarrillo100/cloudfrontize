@@ -1,4 +1,16 @@
-'use strict';
+/**
+ * The CLI entry point for CloudFrontize.
+ * 
+ * @namespace Backend
+ * This file uses the `commander` package to parse command-line arguments and 
+ * initialize the emulation environment. It coordinates the lifecycle of 
+ * EdgeRunner and CFFRunner instances before starting the main HTTP server.
+ * 
+ * It handles critical AWS parity flags:
+ * - `--strict`: Enforces production body limits and header restrictions.
+ * - `--bake`: Authenticates and injects variables into function code.
+ * - `--origins`: Configures multi-origin behaviors.
+ */
 import { Command } from 'commander';
 import path from 'path';
 import { startServer } from '../src/index';

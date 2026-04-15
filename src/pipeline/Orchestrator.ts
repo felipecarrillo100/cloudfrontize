@@ -12,12 +12,36 @@ import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
 import { HookUtility } from '../core/HookUtility';
 import { AWS_LIMITS } from '../constants';
 
+/**
+ * The core orchestration engine for the CloudFrontize pipeline.
+ * 
+ * @namespace Backend
+ * The Orchestrator is the "Brain" of the emulator. It manages the sequential execution of 
+ * CloudFront Functions (CFF) and Lambda@Edge (L@E) hooks, maintains header state via the 
+ * HeaderManager, and coordinates origin fetching through various providers.
+ * 
+ * It follows a strict "Hook Highway" pattern mimicking the AWS CloudFront request life-cycle.
+ * 
+ * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-the-edge.html | AWS Lambda@Edge}
+ * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html | AWS CloudFront Functions}
+ */
 export class Orchestrator {
     private headerManager = new HeaderManager();
     private hookRegistry: any[] = [];
     private disabledHookIds: Set<string> = new Set();
     private selector: OriginSelector;
 
+    /**
+     * Initializes a new instance of the Orchestrator.
+     * 
+     * @param edgeRunner - The Lambda@Edge runtime engine.
+     * @param cffRunner - The CloudFront Functions runtime engine.
+     * @param providers - A map of origin providers (S3, Local, etc.) indexed by Origin ID.
+     * @param behaviors - The cache behaviors defined in the distribution config.
+     * @param telemetry - The telemetry system for broadcasting live forensics.
+     * @param config - Global configuration object for the emulator.
+     * @param logStream - Optional stream for writing high-fidelity audit logs.
+     */
     constructor(
         private edgeRunner: EdgeRunner | null,
         private cffRunner: CFFRunner | null,
@@ -193,6 +217,14 @@ export class Orchestrator {
 
     private stickyHeaders: { request: any, response: any } = { request: {}, response: {} };
 
+    /**
+     * Configures the sticky headers for the pipeline session.
+     * Sticky headers are injected into every request/response in the pipeline,
+     * allowing for persistent debugging overrides (e.g. forced authorization).
+     * 
+     * @param config - The header configuration object.
+     * @param isDefault - Whether these are the system default headers.
+     */
     public setStickyHeaders(config: any, isDefault = false) {
         this.stickyHeaders = {
             request: config.requestHeaders || {},
@@ -201,6 +233,10 @@ export class Orchestrator {
         this.isDefaultSticky = isDefault;
     }
 
+    /**
+     * Gets the currently active sticky headers.
+     * @returns The request and response sticky header maps.
+     */
     public getStickyHeaders() {
         return this.stickyHeaders;
     }
@@ -209,6 +245,28 @@ export class Orchestrator {
         this.headerManager.syncToRequest(req, mutations, force);
     }
 
+    /**
+     * The primary entry point for processing an HTTP request through the CloudFront pipeline.
+     * 
+     * This method executes the full "Hook Highway":
+     * 1. CFF Viewer Request
+     * 2. L@E Viewer Request
+     * 3. L@E Origin Request
+     * 4. Origin Fetch (S3/Local)
+     * 5. L@E Origin Response
+     * 6. L@E Viewer Response
+     * 7. CFF Viewer Response
+     * 
+     * It handles body truncation, short-circuits, and forensic broadcasting.
+     * 
+     * @param req - The incoming Node.js request object.
+     * @param res - The outgoing Node.js response object.
+     * @param options - Execution options (e.g. strict mode, verbose logging).
+     * @param reqBody - The pre-drained request body Buffer, if any.
+     * @returns A promise that resolves when the response has been fully served.
+     * 
+     * @throws {Error} If no provider is found for the matching origin.
+     */
     public async handleRequest(req: any, res: any, options: any, reqBody?: Buffer): Promise<void> {
         const requestId = require('crypto').randomBytes(4).toString('hex');
         const startTime = Date.now();

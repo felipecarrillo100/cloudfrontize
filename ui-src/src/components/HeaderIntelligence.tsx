@@ -3,6 +3,14 @@ import { useHeader } from '../contexts/HeaderContext';
 import type { StickyHeader } from '../types';
 import { GEO_PRESETS, DEVICE_PRESETS, ORIGIN_PRESETS } from '../constants/presets';
 
+/**
+ * Header mutation and sticky state controller for the forensic UI.
+ * 
+ * @namespace Frontend
+ * This component allows users to define sticky headers (request/response) 
+ * that persist across emulator restarts. It supports presets for 
+ * GEO-location mapping, device detection, and origin identification.
+ */
 export default function HeaderIntelligence() {
   const { headers, isDirty, updateHeaders, applyHeaders, resetHeaders } = useHeader();
   const [tab, setTab] = useState<'request' | 'response'>('request');

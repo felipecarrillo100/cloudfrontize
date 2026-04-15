@@ -12,6 +12,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "bin/**/*.ts", "__tests__/**/*.ts"],
+  "include": ["src/**/*.ts", "bin/**/*.ts", "__tests__/**/*.ts", "ui-src/src/**/*.tsx", "ui-src/src/**/*.ts"],
   "exclude": ["node_modules", "dist", "samples", "tutorial", ".tmp"]
 }

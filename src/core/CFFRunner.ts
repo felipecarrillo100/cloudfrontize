@@ -10,12 +10,30 @@ import { SnippetExtractor } from './SnippetExtractor';
 import { CFF_LIMITS, AWS_HEADERS } from '../constants';
 import { HookUtility } from './HookUtility';
 
+/**
+ * A ultra-low-latency runtime for AWS CloudFront Functions (CFF).
+ * 
+ * @namespace Backend
+ * The CFFRunner executes JavaScript code within a highly restricted ES5.1 sandbox.
+ * It emulates the CloudFront Function event object and enforces AWS performance
+ * constraints (e.g., sub-millisecond execution).
+ * 
+ * It includes a `CFFValidator` to catch ES5+ syntax violations before execution,
+ * ensuring production compatibility.
+ * 
+ * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html | AWS CloudFront Functions}
+ */
 export class CFFRunner extends HotRunner {
     private validator: CFFValidator;
     private compileError: string | null = null;
     private scripts: Record<string, vm.Script> = {};
     private static CFF_OVERHEAD_MS: number = -1;
 
+    /**
+     * Initializes the CFFRunner with a path to a single JS file or directory of functions.
+     * @param sourcePath - Absolute path to the CFF function(s).
+     * @param options - Execution options (strict mode, environment paths, etc).
+     */
     constructor(sourcePath: string | null, options: RunnerOptions = {}) {
         super(sourcePath, options);
         this.validator = new CFFValidator({ strict: !!options.strict });

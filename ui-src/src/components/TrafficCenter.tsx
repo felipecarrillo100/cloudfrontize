@@ -3,6 +3,15 @@ import { Search, Activity } from 'lucide-react';
 import { useDistribution } from '../contexts/DistributionContext';
 import type { RequestEntry } from '../types';
 
+/**
+ * Forensic visualization helpers for the Traffic Center.
+ * 
+ * @namespace Frontend
+ * @description
+ * These components are responsible for rendering the high-fidelity request data 
+ * received from the Backend Telemetry system.
+ */
+
 const statusColor = (status?: number, isError?: boolean) => {
   if (isError || (status && status >= 500)) return '#ef4444';
   if (status && status >= 400) return '#f97316';

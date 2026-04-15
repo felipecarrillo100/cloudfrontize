@@ -7,6 +7,14 @@ interface CloudCenterProps {
   onShowAudit: () => void;
 }
 
+/**
+ * Architecture visualization center for the CloudFrontize dashboard.
+ * 
+ * @namespace Frontend
+ * This component provides the top-level view of the CloudFront distribution 
+ * architecture. It coordinates the global control toolbar (Disabling all hooks, 
+ * Fidelity audits) and renders the interactive cloud topology.
+ */
 export default function CloudCenter({ onShowAudit }: CloudCenterProps) {
   const { dist, disableAllHooks } = useDistribution();
 
