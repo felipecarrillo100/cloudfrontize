@@ -44,7 +44,7 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
         entry.reqBodyTruncated = details.bodyTruncated;
         entry.reqContentType = details.contentType;
       }
-      if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url, headers: details?.headers }];
+      if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url, headers: details?.headers, body: details?.body, bodySize: details?.bodySize, bodyTruncated: details?.bodyTruncated, contentType: details?.contentType }];
     } else if (type === 'response') {
       entry.status = details?.status;
       entry.durationMs = durationMs;
