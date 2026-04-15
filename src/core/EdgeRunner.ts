@@ -328,7 +328,19 @@ export class EdgeRunner extends HotRunner {
                     hookType: type, 
                     filename: path.basename(mod.filePath),
                     logs: allLogs 
-                }, () => this._invoke(mod.handler, { request, response: { status: String(resData.status), statusDescription: resData.statusDescription, headers: reconciledHeaders } }, type));
+                }, () => this._invoke(mod.handler, {
+                    request,
+                    response: {
+                        status: String(resData.status),
+                        statusDescription: resData.statusDescription,
+                        headers: reconciledHeaders,
+                        body: resData.body ? {
+                            data: resData.body,
+                            encoding: resData.bodyEncoding || 'base64',
+                            inputTruncated: false
+                        } : undefined
+                    }
+                }, type));
 
                 totalDurationMs += durationMs;
 
