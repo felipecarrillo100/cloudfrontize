@@ -2,8 +2,10 @@
  * AWS Lambda@Edge Strict Limits
  */
 export const AWS_LIMITS = {
-    VIEWER_REQUEST_BODY_BYTES: 40 * 1024,      // 40KB
-    GENERATED_RESPONSE_BODY_BYTES: 1024 * 1024, // 1MB
+    VIEWER_REQUEST_BODY_BYTES: 40 * 1024,      // 40KB (AWS Strict)
+    LE_BODY_INPUT_CAP_BYTES: 1024 * 1024,     // 1MB (AWS Limit for request body access)
+    GENERATED_RESPONSE_BODY_BYTES: 1024 * 1024, // 1MB (AWS Limit for replacement body)
+    TRAFFIC_BODY_SNAPSHOT_BYTES: 1024 * 1024,  // 1MB (Forensic snapshot/WebUI cap)
     COMPRESSION_BYPASS_BYTES: 10 * 1024 * 1024, // 10MB
     VIEWER_TIMEOUT_MS: 5000,                  // 5 seconds
     ORIGIN_TIMEOUT_MS: 30000                  // 30 seconds

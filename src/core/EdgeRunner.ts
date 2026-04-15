@@ -212,8 +212,8 @@ export class EdgeRunner extends HotRunner {
         return logLine;
     }
 
-    public async runRequestHook(req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
-        const request = this._buildRequestRecord(req, bodyBuffer);
+    public async runRequestHook(req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', disabledIds: string[] = [], bodyTruncated = false): Promise<{ result: any; logs: string[] }> {
+        const request = this._buildRequestRecord(req, bodyBuffer, bodyTruncated);
         let totalDurationMs = 0;
         const allLogs: string[] = [];
         let finalResult: any = null;
@@ -223,7 +223,7 @@ export class EdgeRunner extends HotRunner {
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(request.headers);
                 
-                // Fidelity Check: AWS Limit: 40KB for Viewer Request
+                // Fidelity Check: AWS Limit: 40KB for Viewer Request (Strict)
                 if (type === 'viewer-request' && bodyBuffer && bodyBuffer.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES) {
                     if (this.options.strict) {
                         return { result: { _isResponse: true, status: 502, body: 'Body too large for viewer-request', headers: { 'content-type': 'text/plain' } }, logs: allLogs };
@@ -333,12 +333,8 @@ export class EdgeRunner extends HotRunner {
                     response: {
                         status: String(resData.status),
                         statusDescription: resData.statusDescription,
-                        headers: reconciledHeaders,
-                        body: resData.body ? {
-                            data: resData.body,
-                            encoding: resData.bodyEncoding || 'base64',
-                            inputTruncated: false
-                        } : undefined
+                        headers: reconciledHeaders
+                        // Fidelity: Body is NOT provided to response triggers in AWS
                     }
                 }, type));
 
@@ -438,19 +434,28 @@ export class EdgeRunner extends HotRunner {
         });
     }
 
-    private _buildRequestRecord(req: any, bodyBuffer?: Buffer): any {
+    private _buildRequestRecord(req: any, bodyBuffer?: Buffer, bodyTruncated = false): any {
         const headers = req.headers || {};
         const host = headers.host || 'localhost';
         const urlObj = new URL(req.url || '/', `http://${host}`);
         const awsHeaders = this.headerManager.parseIncomingHeaders(req);
+
+        let body: any = undefined;
+        if (bodyBuffer) {
+            body = {
+                data: bodyBuffer.toString('base64'),
+                encoding: 'base64',
+                inputTruncated: bodyTruncated
+            };
+        }
 
         return {
             method: req.method || 'GET',
             uri: urlObj.pathname,
             querystring: urlObj.search.slice(1),
             headers: awsHeaders,
-            body: bodyBuffer ? { action: 'read', data: bodyBuffer.toString('base64'), encoding: 'base64', inputTruncated: false } : undefined,
-            clientIp: req.socket?.remoteAddress || '127.0.0.1'
+            clientIp: req.socket?.remoteAddress || '127.0.0.1',
+            body
         };
     }
 

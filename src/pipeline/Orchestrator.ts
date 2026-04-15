@@ -10,6 +10,7 @@ import { OriginSelector } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
 import { HookUtility } from '../core/HookUtility';
+import { AWS_LIMITS } from '../constants';
 
 export class Orchestrator {
     private headerManager = new HeaderManager();
@@ -231,16 +232,14 @@ export class Orchestrator {
 
         // Body Forensics: Capture initial request body (L@E rules: POST/PUT/PATCH/DELETE, 40KB cap)
         const BODY_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
-        const REQ_BODY_CAP = 40 * 1024;         // 40KB — L@E viewer/origin-request limit
-        const RES_BODY_CAP = 10 * 1024;         // 10KB — WebUI display cap for response bodies
         let reqBodyMeta: { body: string; bodySize: number; bodyTruncated: boolean; contentType: string } | undefined;
         if (reqBody && reqBody.length > 0 && BODY_METHODS.includes(req.method)) {
-            const slice = reqBody.slice(0, REQ_BODY_CAP);
+            const slice = reqBody.slice(0, AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES);
             reqBodyMeta = {
                 body: slice.toString('base64'),
                 bodySize: reqBody.length,
-                bodyTruncated: reqBody.length > REQ_BODY_CAP,
-                contentType: req.headers['content-type'] || ''
+                bodyTruncated: reqBody.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES,
+                contentType: (req.headers['content-type'] || 'application/octet-stream') as string
             };
         }
 
@@ -253,8 +252,8 @@ export class Orchestrator {
                 const raw = lb.encoding === 'base64'
                     ? Buffer.from(String(lb.data), 'base64')
                     : Buffer.from(String(lb.data || ''));
-                const sl = raw.slice(0, REQ_BODY_CAP);
-                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > REQ_BODY_CAP, contentType: reqBodyMeta!.contentType };
+                const sl = raw.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
+                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES, contentType: reqBodyMeta!.contentType };
             }
             return { bodyUnchanged: true };
         };
@@ -273,8 +272,8 @@ export class Orchestrator {
                 const raw = encoding === 'base64'
                     ? Buffer.from(String(rb), 'base64')
                     : Buffer.from(String(rb));
-                const sl = raw.slice(0, RES_BODY_CAP);
-                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > RES_BODY_CAP, contentType: (prevMeta?.contentType || 'text/plain') };
+                const sl = raw.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
+                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES, contentType: (prevMeta?.contentType || 'text/plain') };
             }
             if (prevMeta) return { bodyUnchanged: true };
             return undefined;
@@ -335,11 +334,17 @@ export class Orchestrator {
                 }
             }
 
-            // 2. L@E Viewer Request (Atomic Phase)
+            // 2. L@E Request Hooks
+            liveReqBodyState = reqBodyMeta; 
             if (this.edgeRunner) {
                 const disabledIds = Array.from(this.disabledHookIds);
                 const viewerOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-request').map(h => h.id);
-                const { result: viewerResult, logs: viewerLogs } = await this.edgeRunner.runRequestHook(req, reqBody, requestId, [...disabledIds, ...viewerOnlyDisabled]);
+                
+                // Fidelity & Performance: Slicing the input body for the Lambda snapshot
+                const reqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
+                const reqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
+
+                const { result: viewerResult, logs: viewerLogs } = await this.edgeRunner.runRequestHook(req, reqBodySlice, requestId, [...disabledIds, ...viewerOnlyDisabled], reqBodyTruncated);
 
 
                 if (options.verbose && viewerLogs.length > 0) req._logBuffer.push(...viewerLogs);
@@ -371,7 +376,12 @@ export class Orchestrator {
 
                 // 2b. L@E Origin Request (Atomic Phase)
                 const originOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-request').map(h => h.id);
-                const { result: originResult, logs: originLogs } = await this.edgeRunner.runRequestHook(req, reqBody, requestId, [...disabledIds, ...originOnlyDisabled]);
+                
+                // Fidelity & Performance: Slicing the input body for the Origin Request Lambda snapshot
+                const originReqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
+                const originReqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
+
+                const { result: originResult, logs: originLogs } = await this.edgeRunner.runRequestHook(req, originReqBodySlice, requestId, [...disabledIds, ...originOnlyDisabled], originReqBodyTruncated);
 
                 if (options.verbose && originLogs.length > 0) req._logBuffer.push(...originLogs);
 
@@ -420,12 +430,12 @@ export class Orchestrator {
             // High-Fidelity Origin Pulse (Body Re-injection)
             let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options, reqBody);
 
-            // Body Forensics: Capture origin response body (10KB WebUI cap) and initialize live response body state
-            const resBodySlice = body.slice(0, RES_BODY_CAP);
+            // Body Forensics: Capture origin response body (1MB snapshot) and initialize live response body state
+            const resBodySlice = body.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
             const resBodyMeta = body.length > 0 ? {
                 body: resBodySlice.toString('base64'),
                 bodySize: body.length,
-                bodyTruncated: body.length > RES_BODY_CAP,
+                bodyTruncated: body.length > AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES,
                 contentType: (headers['content-type'] || headers['Content-Type'] || '') as string
             } : undefined;
             liveResBodyState = resBodyMeta; // Initialize: origin body is ground truth for response pipeline
@@ -466,11 +476,10 @@ export class Orchestrator {
                 
                 // 4a. L@E Origin Response (Atomic Phase)
                 const originResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-response').map(h => h.id);
-                const inputBodyBase64 = body ? body.toString('base64') : undefined;
                 const { result: originResResult, logs: originResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
-                    headers: HeaderManager.telemetryFlatten(headers),
-                    body: inputBodyBase64
+                    headers: HeaderManager.telemetryFlatten(headers)
+                    // Fidelity: Body is strictly NOT provided to response triggers in AWS
                 }, requestId, 'origin-response', [...disabledIds, ...originResOnlyDisabled]);
 
                 if (options.verbose && originResLogs.length > 0) req._logBuffer.push(...originResLogs);
@@ -491,19 +500,14 @@ export class Orchestrator {
                         rb = rb.data;
                     }
 
-                    // Change Detection: If hook didn't change the body, we must keep the original Buffer
-                    // to avoid re-wrapping base-64 transport strings as literal text.
-                    if (rb === inputBodyBase64 && !originResResult.bodyEncoding) {
-                        // Pass-through: Keep existing 'body' Buffer
-                    } else {
-                        const rawBody = (typeof rb === 'object' && rb !== null)
-                            ? JSON.stringify(rb)
-                            : String(rb);
+                    // Strict AWS: Replacement always overwrites origin (no pass-through)
+                    const rawBody = (typeof rb === 'object' && rb !== null)
+                        ? JSON.stringify(rb)
+                        : String(rb);
 
-                        body = encoding === 'base64'
-                            ? Buffer.from(rawBody, 'base64')
-                            : Buffer.from(rawBody);
-                    }
+                    body = encoding === 'base64'
+                        ? Buffer.from(rawBody, 'base64')
+                        : Buffer.from(rawBody);
                 }
 
                 liveResBodyState = captureLeResBody(originResResult, liveResBodyState);
@@ -514,11 +518,10 @@ export class Orchestrator {
 
                 // 4b. L@E Viewer Response (Atomic Phase)
                 const viewerResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-response').map(h => h.id);
-                const postOriginBodyBase64 = body ? body.toString('base64') : undefined;
                 const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
-                    headers: HeaderManager.telemetryFlatten(headers),
-                    body: postOriginBodyBase64
+                    headers: HeaderManager.telemetryFlatten(headers)
+                    // Fidelity: Body is strictly NOT provided to response triggers in AWS
                 }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
 
                 if (options.verbose && viewerResLogs.length > 0) req._logBuffer.push(...viewerResLogs);
@@ -539,19 +542,14 @@ export class Orchestrator {
                         rb = rb.data;
                     }
 
-                    // Change Detection: Prevent base-64 leakage if body wasn't changed
-                    if (rb === postOriginBodyBase64 && !viewerResResult.bodyEncoding) {
-                        // Pass-through: Keep existing 'body' Buffer
-                    } else {
-                        const encoding = viewerResResult.bodyEncoding || 'text';
-                        const rawBody = (typeof rb === 'object' && rb !== null)
-                            ? JSON.stringify(rb)
-                            : String(rb);
+                    // Strict AWS: Replacement always overwrites origin (no pass-through)
+                    const rawBody = (typeof rb === 'object' && rb !== null)
+                        ? JSON.stringify(rb)
+                        : String(rb);
 
-                        body = encoding === 'base64'
-                            ? Buffer.from(rawBody, 'base64')
-                            : Buffer.from(rawBody);
-                    }
+                    body = encoding === 'base64'
+                        ? Buffer.from(rawBody, 'base64')
+                        : Buffer.from(rawBody);
                 }
 
                 liveResBodyState = captureLeResBody(viewerResResult, liveResBodyState);
