@@ -26,9 +26,20 @@ export default function FidelityCloud() {
     const edgeRess = (ress || []).filter(h => h.type.includes('Lambda'));
     const stations: { top?: DistributionHook, bottom?: DistributionHook }[] = [];
     const maxCff = Math.max(cffReqs.length, cffRess.length);
-    for (let i = 0; i < maxCff; i++) stations.push({ top: cffReqs[i], bottom: cffRess[i] });
+    for (let i = 0; i < maxCff; i++) {
+        stations.push({ 
+            top: cffReqs[i], 
+            bottom: cffRess[maxCff - 1 - i] 
+        });
+    }
+
     const maxEdge = Math.max(edgeReqs.length, edgeRess.length);
-    for (let i = 0; i < maxEdge; i++) stations.push({ top: edgeReqs[i], bottom: edgeRess[i] });
+    for (let i = 0; i < maxEdge; i++) {
+        stations.push({ 
+            top: edgeReqs[i], 
+            bottom: edgeRess[maxEdge - 1 - i] 
+        });
+    }
     return stations;
   };
 
