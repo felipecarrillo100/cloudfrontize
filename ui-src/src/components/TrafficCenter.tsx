@@ -16,6 +16,65 @@ const copyAsCurl = (r: RequestEntry) => {
   navigator.clipboard.writeText(curl);
 };
 
+const isTextContentType = (ct: string) => {
+  if (!ct) return false;
+  const lower = ct.toLowerCase();
+  return lower.includes('text/') || lower.includes('application/json') || lower.includes('application/xml') || lower.includes('application/x-www-form-urlencoded');
+};
+
+const formatBytes = (n: number) => n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`;
+
+function BodyBox({ title, body, bodySize, bodyTruncated, contentType, color, unchanged }: {
+  title: string; body?: string; bodySize?: number; bodyTruncated?: boolean; contentType?: string; color: string; unchanged?: boolean;
+}) {
+  const [decoded, setDecoded] = useState(false);
+  const hasBody = !!body;
+  const canDecode = hasBody && !unchanged && !bodyTruncated && isTextContentType(contentType || '');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ fontSize: '0.6rem', color, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{title}</div>
+        {bodySize != null && <span style={{ fontSize: '0.55rem', color: '#484f58', fontWeight: 600 }}>{formatBytes(bodySize)}</span>}
+        {contentType && <span style={{ fontSize: '0.55rem', color: '#484f58', fontWeight: 600 }}>· {contentType.split(';')[0]}</span>}
+      </div>
+      <div style={{
+        padding: '10px', fontSize: '0.75rem', color: '#8b949e', background: '#0d1117',
+        borderRadius: 8, border: `1px solid ${color}33`, marginBottom: '4px'
+      }}>
+        {unchanged ? (
+          <span style={{ color: '#484f58', fontStyle: 'italic' }}>↩ Unchanged — same as previous step</span>
+        ) : !hasBody ? (
+          <span style={{ color: '#484f58', fontStyle: 'italic' }}>No body</span>
+        ) : bodyTruncated ? (
+          <span style={{ color: '#f97316' }}>⚠ Body truncated at cap — decoding unavailable (original: {formatBytes(bodySize || 0)})</span>
+        ) : !isTextContentType(contentType || '') ? (
+          <span style={{ color: '#484f58' }}>Binary content — {formatBytes(bodySize || 0)} · decoding unavailable</span>
+        ) : decoded ? (
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6, maxHeight: 400, overflowY: 'auto' }}>
+            {atob(body!)}
+          </pre>
+        ) : (
+          <span style={{ color: '#484f58', fontStyle: 'italic' }}>Base64 encoded — click DECODE to view</span>
+        )}
+      </div>
+      {canDecode && (
+        <button
+          onClick={() => setDecoded(d => !d)}
+          style={{
+            alignSelf: 'flex-start', background: decoded ? '#f9731620' : '#0d1117',
+            border: `1px solid ${decoded ? '#f97316' : '#30363d'}`, color: decoded ? '#f97316' : '#8b949e',
+            borderRadius: 4, cursor: 'pointer', fontSize: '0.6rem', padding: '3px 10px', fontWeight: 800,
+            textTransform: 'uppercase', letterSpacing: '0.05em'
+          }}
+        >
+          {decoded ? 'RAW ▲' : 'DECODE ▼'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 const HeaderBox = ({ title, headers, color, subTitle }: { title: string, headers: any, color: string, subTitle?: string }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -31,6 +90,97 @@ const HeaderBox = ({ title, headers, color, subTitle }: { title: string, headers
     </pre>
   </div>
 );
+
+function AtomicStageViewer({ stage, color, reqHeaders, originResHeaders, resHeaders, reqBody, reqBodySize, reqBodyTruncated, reqContentType, stages }: {
+  stage: any; color: string;
+  reqHeaders?: any; originResHeaders?: any; resHeaders?: any;
+  reqBody?: string; reqBodySize?: number; reqBodyTruncated?: boolean; reqContentType?: string;
+  stages?: any[];
+}) {
+  const [activeTab, setActiveTab] = useState<'headers' | 'body'>('headers');
+  const hasBodyData = stage
+    ? (!!stage.body || !!stage.bodyUnchanged)
+    : !!(reqBody || (stages || []).find(s => (s as any).name === 'Origin Response' && (s as any).body));
+
+  return (
+    <div style={{ background: '#161b22', borderRadius: 12, border: '1px solid #30363d', padding: '1.25rem' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: '1rem' }}>
+        {(['headers', 'body'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              background: activeTab === tab ? '#f9731615' : 'transparent',
+              border: `1px solid ${activeTab === tab ? '#f97316' : '#30363d'}`,
+              color: activeTab === tab ? '#f97316' : '#484f58',
+              borderRadius: 6, cursor: 'pointer', fontSize: '0.6rem', padding: '4px 12px',
+              fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
+              display: 'flex', alignItems: 'center', gap: 5
+            }}
+          >
+            {tab === 'headers' ? 'Headers' : 'Body'}
+            {tab === 'body' && hasBodyData && (
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'headers' ? (
+        stage ? (
+          <HeaderBox
+            title="Headers Post-Execution"
+            color={color}
+            headers={stage.headers}
+            subTitle="High Fidelity Snapshot"
+          />
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
+            <HeaderBox title="Viewer Provided" color="#f97316" headers={reqHeaders} subTitle="Initial" />
+            <HeaderBox title="Origin Returned" color="#3b82f6" headers={originResHeaders} subTitle="Mid-Flight" />
+            <HeaderBox title="Final Response" color="#22c55e" headers={resHeaders} subTitle="Terminal" />
+          </div>
+        )
+      ) : (
+        stage ? (
+          <BodyBox
+            title="Body State"
+            body={stage.body}
+            bodySize={stage.bodySize}
+            bodyTruncated={stage.bodyTruncated}
+            contentType={stage.contentType}
+            unchanged={stage.bodyUnchanged}
+            color={color}
+          />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <BodyBox
+              title="Request Body"
+              body={reqBody}
+              bodySize={reqBodySize}
+              bodyTruncated={reqBodyTruncated}
+              contentType={reqContentType}
+              color="#f97316"
+            />
+            {(() => {
+              const originRes = (stages || []).find(s => (s as any).name === 'Origin Response') as any;
+              return (
+                <BodyBox
+                  title="Origin Response Body"
+                  body={originRes?.body}
+                  bodySize={originRes?.bodySize}
+                  bodyTruncated={originRes?.bodyTruncated}
+                  contentType={originRes?.contentType}
+                  color="#3b82f6"
+                />
+              );
+            })()}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 function RequestRow({ r, isExpanded, onToggle }: { r: RequestEntry, isExpanded: boolean, onToggle: () => void }) {
   const [selectedStageIdx, setSelectedStageIdx] = useState<number | null>(null);
@@ -172,22 +322,19 @@ function RequestRow({ r, isExpanded, onToggle }: { r: RequestEntry, isExpanded: 
                 </div>
               </div>
 
-              <div style={{ background: '#161b22', borderRadius: 12, border: '1px solid #30363d', padding: '1.25rem' }}>
-                {selectedStageIdx !== null ? (
-                  <HeaderBox
-                    title="Headers Post-Execution"
-                    color="#f97316"
-                    headers={(r.stages![selectedStageIdx] as any).headers}
-                    subTitle="High Fidelity Snapshot"
-                  />
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
-                    <HeaderBox title="Viewer Provided" color="#f97316" headers={r.reqHeaders} subTitle="Initial" />
-                    <HeaderBox title="Origin Returned" color="#3b82f6" headers={r.originResHeaders} subTitle="Mid-Flight" />
-                    <HeaderBox title="Final Response" color="#22c55e" headers={r.resHeaders} subTitle="Terminal" />
-                  </div>
-                )}
-              </div>
+              <AtomicStageViewer
+                key={selectedStageIdx ?? 'final'}
+                stage={selectedStageIdx !== null ? r.stages![selectedStageIdx] : null}
+                color={selectedStageIdx !== null ? '#f97316' : 'transparent'}
+                reqHeaders={r.reqHeaders}
+                originResHeaders={r.originResHeaders}
+                resHeaders={r.resHeaders}
+                reqBody={r.reqBody}
+                reqBodySize={r.reqBodySize}
+                reqBodyTruncated={r.reqBodyTruncated}
+                reqContentType={r.reqContentType}
+                stages={r.stages}
+              />
             </div>
           )}
         </div>

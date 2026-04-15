@@ -37,6 +37,13 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
       entry.url = details?.url;
       entry.reqHeaders = details?.headers;
       entry.timestamp = timestamp;
+      // Body forensics: map request body fields from the initial broadcast
+      if (details?.body) {
+        entry.reqBody = details.body;
+        entry.reqBodySize = details.bodySize;
+        entry.reqBodyTruncated = details.bodyTruncated;
+        entry.reqContentType = details.contentType;
+      }
       if (!entry.stages) entry.stages = [{ name: 'Client Request', uri: details?.url, headers: details?.headers }];
     } else if (type === 'response') {
       entry.status = details?.status;
@@ -51,6 +58,7 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
     }
     return entry;
   };
+
 
   const mergeSseEvent = (prev: RequestEntry[], ev: any): RequestEntry[] => {
     const idx = prev.findIndex(r => r.id === ev.id);

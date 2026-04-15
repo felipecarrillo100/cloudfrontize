@@ -50,6 +50,8 @@ export function printBottomBanner(options: any) {
 export function startServer(options: any) {
     // Normalize: --debug (CLI flag) is the canonical name; verbose is the internal alias.
     // This ensures request logging works regardless of which property name is used.
+    options.verbose = options.debug || options.verbose;
+
     const historyStore = new InMemoryHistoryStore(5000);
     const telemetry = new Telemetry(historyStore);
 

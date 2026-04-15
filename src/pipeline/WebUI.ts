@@ -32,12 +32,9 @@ export class WebUI {
             res.write(`data: ${initData}\n\n`);
 
             const onEvent = (event: any) => {
-                // Strip body but keep headers for real-time diagnostic parity
-                const lightEvent = {
-                    ...event,
-                    details: { ...event.details, body: undefined }
-                };
-                res.write(`data: ${JSON.stringify(lightEvent)}\n\n`);
+                // Body is already bounded at 40KB (request) / 10KB (response) by the Orchestrator.
+                // Safe to send as-is through the SSE stream.
+                res.write(`data: ${JSON.stringify(event)}\n\n`);
             };
 
             this.telemetry.on('event', onEvent);

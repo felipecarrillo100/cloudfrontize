@@ -6,13 +6,24 @@ import serveHandler from 'serve-handler';
 import { OriginConfig } from '../core/types';
 
 export interface OriginProvider {
-    fetch(req: any, res: any, options: any): Promise<void>;
+    fetch(req: any, res: any, options: any, body?: Buffer): Promise<void>;
 }
 
 export class LocalProvider implements OriginProvider {
     constructor(private directory: string) {}
 
-    public async fetch(req: any, res: any, options: any): Promise<void> {
+    public async fetch(req: any, res: any, options: any, body?: Buffer): Promise<void> {
+        // If we have a mutated or captured body buffer, we must ensure the provider
+        // (and its sub-handlers like serve-handler) can read it as a stream.
+        if (body) {
+            const { Readable } = require('stream');
+            const bodyStream = Readable.from(body);
+            // Re-map the stream properties that serve-handler expects
+            bodyStream.headers = req.headers;
+            bodyStream.method = req.method;
+            bodyStream.url = req.url;
+            req = bodyStream;
+        }
         const cleanPath = req.url.split('?')[0];
         const fullPath = path.resolve(this.directory, cleanPath.startsWith('/') ? cleanPath.slice(1) : cleanPath);
         
@@ -81,7 +92,7 @@ export class S3Provider implements OriginProvider {
         this.client = new S3Client(s3Options);
     }
 
-    public async fetch(req: any, res: any, _options: any): Promise<void> {
+    public async fetch(req: any, res: any, _options: any, _body?: Buffer): Promise<void> {
         const key = req.url.startsWith('/') ? req.url.slice(1) : req.url;
         res.resolvedUri = `s3://${this.config.bucket}/${key || 'index.html'}`;
         

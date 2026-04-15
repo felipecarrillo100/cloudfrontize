@@ -229,6 +229,53 @@ export class Orchestrator {
             req.headers.host = req.headers.host.toLowerCase();
         }
 
+        // Body Forensics: Capture initial request body (L@E rules: POST/PUT/PATCH/DELETE, 40KB cap)
+        const BODY_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+        const REQ_BODY_CAP = 40 * 1024;         // 40KB — L@E viewer/origin-request limit
+        const RES_BODY_CAP = 10 * 1024;         // 10KB — WebUI display cap for response bodies
+        let reqBodyMeta: { body: string; bodySize: number; bodyTruncated: boolean; contentType: string } | undefined;
+        if (reqBody && reqBody.length > 0 && BODY_METHODS.includes(req.method)) {
+            const slice = reqBody.slice(0, REQ_BODY_CAP);
+            reqBodyMeta = {
+                body: slice.toString('base64'),
+                bodySize: reqBody.length,
+                bodyTruncated: reqBody.length > REQ_BODY_CAP,
+                contentType: req.headers['content-type'] || ''
+            };
+        }
+
+        // Body Forensics: Pipeline body tracking helpers.
+        // Contract: actual data on first capture/mutation; {bodyUnchanged:true} on pass-through; nothing if no body.
+        const captureLeReqBody = (result: any): any => {
+            if (!reqBodyMeta) return undefined;
+            const lb = result?.body;
+            if (lb?.action === 'replace' && lb?.data) {
+                const raw = lb.encoding === 'base64'
+                    ? Buffer.from(String(lb.data), 'base64')
+                    : Buffer.from(String(lb.data || ''));
+                const sl = raw.slice(0, REQ_BODY_CAP);
+                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > REQ_BODY_CAP, contentType: reqBodyMeta!.contentType };
+            }
+            return { bodyUnchanged: true };
+        };
+        const captureLeResBody = (result: any, prevMeta: any): any => {
+            const rb = result?.body;
+            // Response hooks return the body directly (not action: replace)
+            if (rb !== undefined && rb !== null) {
+                const encoding = result.bodyEncoding || 'text';
+                const raw = encoding === 'base64'
+                    ? Buffer.from(String(rb), 'base64')
+                    : Buffer.from(String(rb));
+                const sl = raw.slice(0, RES_BODY_CAP);
+                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > RES_BODY_CAP, contentType: (prevMeta?.contentType || 'text/plain') };
+            }
+            if (prevMeta) return { bodyUnchanged: true };
+            return undefined;
+        };
+        // Live body state — updated as the pipeline progresses
+        let liveReqBodyState: any = reqBodyMeta ? { bodyUnchanged: true } : undefined;
+        let liveResBodyState: any = undefined;
+
         this.telemetry.broadcast({
             id: requestId,
             type: 'request',
@@ -240,7 +287,8 @@ export class Orchestrator {
                 // Fidelity Fix: Use rawHeaders for wire-casing, but FALLBACK to req.headers if empty to prevent UI {} bugs
                 headers: HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0)
                     ? this.headerManager.parseIncomingHeaders(req.rawHeaders)
-                    : req.headers)
+                    : req.headers),
+                ...reqBodyMeta
             }
         });
 
@@ -266,8 +314,8 @@ export class Orchestrator {
 
                 for (const hook of hooks) {
                     const filename = path.basename(hook.path);
-                    // Fidelity Fix: Use rawHeaders for hook entrance snapshots, falling back to req.headers if empty
-                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: hook.id }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
+                    // CFF cannot access/modify body — propagate unchanged signal
+                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: hook.id, ...liveReqBodyState }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
                 }
 
                 const cffEvent = this.cffRunner.toCFFEvent(req, null, 'viewer-request');
@@ -295,41 +343,76 @@ export class Orchestrator {
                 this._syncHeadersToRequest(req, mutatedRequest?.headers);
             }
 
-            // 2. L@E Viewer Request / Origin Request
+            // 2. L@E Viewer Request (Atomic Phase)
             if (this.edgeRunner) {
                 const disabledIds = Array.from(this.disabledHookIds);
-                const { result: edgeResult, logs: edgeLogs } = await this.edgeRunner.runRequestHook(req, reqBody, requestId, disabledIds);
+                const viewerOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-request').map(h => h.id);
+                const { result: viewerResult, logs: viewerLogs } = await this.edgeRunner.runRequestHook(req, reqBody, requestId, [...disabledIds, ...viewerOnlyDisabled]);
 
-                // Clinical Alignment: Capture hook logs into the block-level buffer.
-                if (options.verbose && edgeLogs.length > 0) {
-                    req._logBuffer.push(...edgeLogs);
+
+                if (options.verbose && viewerLogs.length > 0) req._logBuffer.push(...viewerLogs);
+
+                // Body Roll-Forward (Viewer Request)
+                if (viewerResult?.body?.action === 'replace') {
+                    reqBody = Buffer.from(viewerResult.body.data, 'base64');
                 }
 
-                // Fidelity: Re-broadcast executed stages for visual journey
-                const filenames = this.hookRegistry
-                    .filter(h => h.type === 'Lambda@Edge' && (h.stage === 'viewer-request' || h.stage === 'origin-request') && !this.disabledHookIds.has(h.id))
-                    .map(h => path.basename(h.path));
-
-                if (filenames.length > 0) {
-                    // Fidelity Fix: Use rawHeaders for hook entrance snapshots, falling back to req.headers if empty
-                    this.broadcastStage(`[L@E: viewer-request] ${filenames.join(' + ')}`, { requestId, uri: req.url, fid: 'viewer-request-le-0' }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
+                liveReqBodyState = captureLeReqBody(viewerResult);
+                const viewerReqHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'viewer-request' && !this.disabledHookIds.has(h.id));
+                if (viewerReqHooks.length > 0) {
+                    this.broadcastStage(
+                        `[L@E: viewer-request] ${viewerReqHooks.map(h => path.basename(h.path)).join(' + ')}`,
+                        { requestId, uri: req.url, fid: viewerReqHooks[0].id, ...liveReqBodyState },
+                        HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers)
+                    );
                 }
 
-                if (edgeResult?._isResponse) {
-                    this.broadcastStage('L@E Short-Circuit', { requestId, status: edgeResult.status, uri: req.url, fid: edgeResult.id }, HeaderManager.telemetryFlatten(edgeResult.headers));
-                    if (options.verbose) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Generated Response`);
-                    }
-                    return this._sendResponse(res, edgeResult, requestId, startTime, req, options);
+                if (viewerResult?._isResponse) {
+                    this.broadcastStage('L@E Short-Circuit', { requestId, status: viewerResult.status, uri: req.url, fid: viewerResult.id }, HeaderManager.telemetryFlatten(viewerResult.headers));
+                    if (options.verbose) req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E: viewer-request]\x1b[0m Generated Response`);
+                    return this._sendResponse(res, viewerResult, requestId, startTime, req, options);
                 }
-                const newUrl = edgeResult?.url || edgeResult?.uri;
+
+                // Header Roll-Forward
+                this.headerManager.syncToRequest(req, viewerResult?.headers, true);
+                if (viewerResult?.url || viewerResult?.uri) req.url = viewerResult?.url || viewerResult?.uri;
+
+                // 2b. L@E Origin Request (Atomic Phase)
+                const originOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-request').map(h => h.id);
+                const { result: originResult, logs: originLogs } = await this.edgeRunner.runRequestHook(req, reqBody, requestId, [...disabledIds, ...originOnlyDisabled]);
+
+                if (options.verbose && originLogs.length > 0) req._logBuffer.push(...originLogs);
+
+                // Body Roll-Forward (Origin Request)
+                if (originResult?.body?.action === 'replace') {
+                    reqBody = Buffer.from(originResult.body.data, 'base64');
+                }
+
+                liveReqBodyState = captureLeReqBody(originResult);
+                const originReqHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'origin-request' && !this.disabledHookIds.has(h.id));
+                if (originReqHooks.length > 0) {
+                    this.broadcastStage(
+                        `[L@E: origin-request] ${originReqHooks.map(h => path.basename(h.path)).join(' + ')}`,
+                        { requestId, uri: req.url, fid: originReqHooks[0].id, ...liveReqBodyState },
+                        HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers)
+                    );
+                }
+
+                if (originResult?._isResponse) {
+                    this.broadcastStage('L@E Short-Circuit', { requestId, status: originResult.status, uri: req.url, fid: originResult.id }, HeaderManager.telemetryFlatten(originResult.headers));
+                    if (options.verbose) req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E: origin-request]\x1b[0m Generated Response`);
+                    return this._sendResponse(res, originResult, requestId, startTime, req, options);
+                }
+
+                const newUrl = originResult?.url || originResult?.uri;
                 if (newUrl) {
                     if (options.verbose && req.url !== newUrl) {
                         req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Origin Request  \x1b[33m⟹\x1b[0m Rewrote to ${newUrl}`);
                     }
                     req.url = newUrl;
                 }
-                this._syncHeadersToRequest(req, edgeResult?.headers);
+                // Header Roll-Forward
+                this._syncHeadersToRequest(req, originResult?.headers);
             }
 
             // 3. Provider Selection
@@ -339,11 +422,23 @@ export class Orchestrator {
 
             if (!provider) throw new Error(`No provider found for origin ID: ${targetOriginId}`);
 
-            // 4. Origin Fetch
+            // 4. Origin Fetch — body going to origin is the final post-L@E request body state
             // Fidelity Fix: Use rawHeaders for origin fetch snapshots, falling back to req.headers if empty
-            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request' }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
-            let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options);
-            this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response' }, HeaderManager.telemetryFlatten(headers));
+            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request', ...liveReqBodyState }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
+            // High-Fidelity Origin Pulse (Body Re-injection)
+            let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options, reqBody);
+
+            // Body Forensics: Capture origin response body (10KB WebUI cap) and initialize live response body state
+            const resBodySlice = body.slice(0, RES_BODY_CAP);
+            const resBodyMeta = body.length > 0 ? {
+                body: resBodySlice.toString('base64'),
+                bodySize: body.length,
+                bodyTruncated: body.length > RES_BODY_CAP,
+                contentType: (headers['content-type'] || headers['Content-Type'] || '') as string
+            } : undefined;
+            liveResBodyState = resBodyMeta; // Initialize: origin body is ground truth for response pipeline
+
+            this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response', ...resBodyMeta }, HeaderManager.telemetryFlatten(headers));
 
             // Fidelity Fallback: If rewritten URL 404s and not in strict mode, try original URL
             if (statusCode === 404 && !options.strict && req.url !== originalUrl) {
@@ -373,30 +468,80 @@ export class Orchestrator {
                 headers: { ...this.stickyHeaders.response, ...headers }
             };
 
+            // 4. Trace Response Hooks
             if (this.edgeRunner) {
-                const { result: edgeResResult, logs: edgeResLogs } = await this.edgeRunner.runResponseHook(req, {
+                const disabledIds = Array.from(this.disabledHookIds);
+                
+                // 4a. L@E Origin Response (Atomic Phase)
+                const originResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-response').map(h => h.id);
+                const { result: originResResult, logs: originResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
-                    headers: { ...this.stickyHeaders.response, ...headers }
-                }, requestId, Array.from(this.disabledHookIds));
+                    headers: HeaderManager.telemetryFlatten(headers),
+                    body: body ? body.toString('base64') : undefined
+                }, requestId, 'origin-response', [...disabledIds, ...originResOnlyDisabled]);
 
-                // Clinical Alignment: Capture hook logs into the block-level buffer.
-                if (options.verbose && edgeResLogs.length > 0) {
-                    req._logBuffer.push(...edgeResLogs);
+                if (options.verbose && originResLogs.length > 0) req._logBuffer.push(...originResLogs);
+
+                // State Roll-Forward (Origin Response -> Viewer Response)
+                if (originResResult.status) statusCode = parseInt(String(originResResult.status));
+                if (originResResult.headers) {
+                    const normalizedHeaders = HeaderManager.telemetryFlatten(originResResult.headers);
+                    Object.entries(normalizedHeaders).forEach(([k, v]) => { headers[k] = v; });
+                }
+                if (originResResult.body !== undefined && originResResult.body !== null) {
+                    const encoding = originResResult.bodyEncoding || 'text';
+                    body = encoding === 'base64'
+                        ? Buffer.from(String(originResResult.body), 'base64')
+                        : Buffer.from(String(originResResult.body));
                 }
 
-                const activeLERes = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && (h.stage === 'viewer-response' || h.stage === 'origin-response') && !this.disabledHookIds.has(h.id));
-                activeLERes.forEach(h => {
-                    this.broadcastStage(`[L@E: viewer-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id }, HeaderManager.telemetryFlatten(edgeResResult.headers));
+                liveResBodyState = captureLeResBody(originResResult, liveResBodyState);
+                const originResHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'origin-response' && !this.disabledHookIds.has(h.id));
+                originResHooks.forEach(h => {
+                    this.broadcastStage(`[L@E: origin-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
                 });
 
-                finalRes = edgeResResult;
+                // 4b. L@E Viewer Response (Atomic Phase)
+                const viewerResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-response').map(h => h.id);
+                const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
+                    status: statusCode,
+                    headers: HeaderManager.telemetryFlatten(headers),
+                    body: body ? body.toString('base64') : undefined
+                }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
+
+                if (options.verbose && viewerResLogs.length > 0) req._logBuffer.push(...viewerResLogs);
+
+                // Final State Roll-Forward
+                if (viewerResResult.status) statusCode = parseInt(String(viewerResResult.status));
+                if (viewerResResult.headers) {
+                    const normalizedHeaders = HeaderManager.telemetryFlatten(viewerResResult.headers);
+                    Object.entries(normalizedHeaders).forEach(([k, v]) => { headers[k] = v; });
+                }
+                if (viewerResResult.body !== undefined && viewerResResult.body !== null) {
+                    const encoding = viewerResResult.bodyEncoding || 'text';
+                    body = encoding === 'base64'
+                        ? Buffer.from(String(viewerResResult.body), 'base64')
+                        : Buffer.from(String(viewerResResult.body));
+                }
+
+                liveResBodyState = captureLeResBody(viewerResResult, liveResBodyState);
+                const viewerResHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'viewer-response' && !this.disabledHookIds.has(h.id));
+                viewerResHooks.forEach(h => {
+                    this.broadcastStage(`[L@E: viewer-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
+                });
+
+                finalRes = {
+                    status: statusCode,
+                    headers: headers,
+                    body: body
+                };
             }
 
-            // 6. CFF Viewer Response
+            // 6. CFF Viewer Response — CFF cannot access/modify body
             if (this.cffRunner) {
                 const hook = this.hookRegistry.find(h => h.type === 'CloudFront Function' && h.stage === 'viewer-response');
                 const stageName = hook ? `[CFF: viewer-response] ${path.basename(hook.path)}` : '[CFF: viewer-response] Unknown';
-                this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: hook?.id }, HeaderManager.telemetryFlatten(finalRes.headers));
+                this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: hook?.id, ...(liveResBodyState ? { bodyUnchanged: true } : {}) }, HeaderManager.telemetryFlatten(finalRes.headers));
                 const cffResEvent = this.cffRunner.toCFFEvent(req, finalRes, 'viewer-response');
                 const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent);
 
@@ -415,7 +560,8 @@ export class Orchestrator {
                 }
             }
 
-            this.broadcastStage('Final Response', { requestId, status: finalRes.status, uri: req.url }, HeaderManager.telemetryFlatten(finalRes.headers));
+            // Final Response: body the viewer receives — same as last response body state (possibly mutated by L@E)
+            this.broadcastStage('Final Response', { requestId, status: finalRes.status, uri: req.url, ...liveResBodyState }, HeaderManager.telemetryFlatten(finalRes.headers));
             this._sendResponse(res, finalRes, requestId, startTime, req, options, body);
 
         } catch (err: any) {
@@ -431,7 +577,7 @@ export class Orchestrator {
         }
     }
 
-    private async _fetchFromProvider(provider: OriginProvider, req: any, options: any): Promise<{ statusCode: number; headers: any; body: Buffer; resolvedUri?: string }> {
+    private async _fetchFromProvider(provider: OriginProvider, req: any, options: any, body?: Buffer): Promise<{ statusCode: number; headers: any; body: Buffer; resolvedUri?: string }> {
         const capturedRes: any = new PassThrough();
         capturedRes.statusCode = 200;
         capturedRes.headers = {};
@@ -457,7 +603,7 @@ export class Orchestrator {
         capturedRes.on('data', (chunk: Buffer) => capturedRes.bodyData.push(chunk));
 
         // Provider contract: fetch() only resolves when the response is fully written
-        await provider.fetch(req, capturedRes, options);
+        await provider.fetch(req, capturedRes, options, body);
 
         return {
             statusCode: capturedRes.statusCode,

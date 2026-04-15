@@ -295,6 +295,7 @@ export class EdgeRunner extends HotRunner {
                 headers: request.headers,
                 uri: request.uri,
                 querystring: request.querystring,
+                body: request.body,
                 totalDurationMs: String(totalDurationMs),
                 type: 'viewer-request' 
             };
@@ -303,19 +304,23 @@ export class EdgeRunner extends HotRunner {
         return { result: finalResult, logs: allLogs };
     }
 
-    public async runResponseHook(req: any, resData: any, requestID = 'UNKNOWN', disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
+    public async runResponseHook(req: any, resData: any, requestID = 'UNKNOWN', stage?: HookType, disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
         const request = this._buildRequestRecord(req);
         let totalDurationMs = 0;
         let reconciledHeaders = this.headerManager.normalizeHeaders(resData.headers || {});
         const allLogs: string[] = [];
 
-        for (const type of ['viewer-response', 'origin-response'] as HookType[]) {
+        // If no specific stage is targetted, run both as per legacy behavior
+        // But for forensic accuracy, forensic-aware callers should pass a stage.
+        const stages = stage ? [stage] : (['origin-response', 'viewer-response'] as HookType[]);
+
+        for (const type of stages) {
             const mods = this.modules[type].filter(m => !disabledIds.includes(m.id));
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(reconciledHeaders);
 
                 if (this.options.verbose) {
-                    allLogs.push(`\x1b[90m[${requestID}] \x1b[90m├─\x1b[0m \x1b[35m○ [L@E: ${type}] ${path.basename(mod.filePath)}\x1b[0m`);
+                    allLogs.push(`\x1b[90m[${requestID}]\x1b[0m \x1b[90m├─\x1b[0m ○ \x1b[35m[L@E: ${type}]\x1b[0m ${path.basename(mod.filePath)}`);
                 }
 
                 const { result, durationMs } = await this.logContext.run({ 
@@ -323,7 +328,7 @@ export class EdgeRunner extends HotRunner {
                     hookType: type, 
                     filename: path.basename(mod.filePath),
                     logs: allLogs 
-                }, () => this._invoke(mod.handler, { request, response: { status: resData.status, statusDescription: resData.statusDescription, headers: reconciledHeaders } }, type));
+                }, () => this._invoke(mod.handler, { request, response: { status: String(resData.status), statusDescription: resData.statusDescription, headers: reconciledHeaders } }, type));
 
                 totalDurationMs += durationMs;
 
@@ -332,6 +337,7 @@ export class EdgeRunner extends HotRunner {
 
                 if (result.status) resData.status = result.status;
                 if (result.statusDescription) resData.statusDescription = result.statusDescription;
+                if (result.body) resData.body = result.body;
                 if (result.headers) {
                     const mutatedHeaders = this.headerManager.normalizeHeaders(result.headers);
                     this.headerManager.reconcile(mutatedHeaders, originalHeaders, type, this.options.strict);
@@ -344,6 +350,7 @@ export class EdgeRunner extends HotRunner {
             headers: reconciledHeaders,
             status: String(resData.status || 200),
             statusDescription: resData.statusDescription || 'OK',
+            body: resData.body,
             totalDurationMs: String(totalDurationMs),
             type: 'viewer-response'
         };
