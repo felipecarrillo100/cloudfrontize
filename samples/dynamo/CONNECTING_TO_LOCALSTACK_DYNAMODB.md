@@ -110,11 +110,12 @@ aws --endpoint-url=http://localhost:4566 secretsmanager get-secret-value --secre
    ```
 
 2. **Run Script**:
+To save time you can use this nodejs script that configures the DB and create the secrets and creates users in a single line.
 
    ```bash
    node scripts/dynamo-setup --username "user123" --password "password123"
    ```
-Where the user123 and password123 are the username and credential of a new user.
+Where `--username` and `--password` are the username and password of a new user.
 ---
 
 ## Lambda Function Overview
@@ -170,13 +171,17 @@ Yuo will be asked to log in,  use any of the user you created
    - Ensure the DynamoDB table `Users` is created.
    - Verify the endpoint URL.
 
-2. **Secret Not Found**:
+2. **Dynamo in Localstack** is ephemeral,
+    - By design, if you restart the localstack container you will lose all your dynamo data.
+    - All secrets and users are gone, follow the steps using aws cli or just run the nodejs script to set up everything and create a user at the same time.
+
+3. **Secret Not Found**:
    - Ensure the secret `MyDBCredentials` exists in Secrets Manager.
 
-3. **Authentication Failure**:
+4. **Authentication Failure**:
    - Verify the `Authorization` header value.
    - Check the stored password in the `Users` table.
-
+   
 ---
 
 ## Conclusion
