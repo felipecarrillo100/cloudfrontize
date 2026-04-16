@@ -38,7 +38,6 @@ export class CFFRunner extends HotRunner {
         super(sourcePath, options);
         this.validator = new CFFValidator({ strict: !!options.strict });
         CFFRunner._calculateOverhead();
-        this.load();
     }
 
     private static _calculateOverhead() {

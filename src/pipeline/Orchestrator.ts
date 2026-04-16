@@ -55,6 +55,12 @@ export class Orchestrator {
         this.selector = new OriginSelector(behaviors);
         this._initializeHookRegistry();
         this._setupRunnerListeners();
+        
+        // Final Forensic Audit: Trigger initial build check ONLY after listeners are active.
+        // This ensures synth errors present at startup are captured in the health registry.
+        this.edgeRunner?.load();
+        this.cffRunner?.load();
+        
         this._startSafetyWatchdog();
     }
 
@@ -159,12 +165,17 @@ export class Orchestrator {
             hooks: this.hookRegistry.map(h => ({
                 ...h,
                 disabled: this.disabledHookIds.has(h.id),
+                error: this.buildErrors.get(h.path), // Metadata Hydration: Include health in core distribution
                 code: fs.existsSync(h.path) ? fs.readFileSync(h.path, 'utf8') : '// Source not found'
             })),
             origins: this.config.origins || [],
             mode: this.config.mode,
             port: this.config.port
         };
+    }
+
+    public getBuildErrors(): Record<string, any> {
+        return Object.fromEntries(this.buildErrors);
     }
 
     public toggleHook(id: string, disabled: boolean): void {

@@ -39,7 +39,6 @@ export class EdgeRunner extends HotRunner {
     constructor(runnerPath: string, public options: any = {}) {
         super(runnerPath, options);
         EdgeRunner._calculateOverhead();
-        this.load();
     }
 
     private static _calculateOverhead() {

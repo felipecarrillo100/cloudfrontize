@@ -101,6 +101,15 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/distribution');
       const data = await res.json();
       setDist(data);
+
+      // Hydration: Extract build errors from metadata during initial load
+      if (data.hooks) {
+        const errors: Record<string, any> = {};
+        for (const h of data.hooks) {
+          if (h.error) errors[h.path] = h.error;
+        }
+        setBuildErrors(prev => ({ ...prev, ...errors }));
+      }
     } catch (err) {
       console.error('Failed to fetch distribution:', err);
     } finally {
@@ -120,6 +129,7 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
         
         if (data.type === 'init') {
           rebuildHistory(data.history || []);
+          if (data.buildErrors) setBuildErrors(data.buildErrors);
         } else if (data.type === 'distribution') {
           setDist(data.data);
         } else if (data.id === 'SYSTEM_BUILD') {

@@ -1,6 +1,6 @@
 import React from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { Eye, Files, Power, Target, Activity, ExternalLink, XCircle, FileEdit, HeartPulse } from 'lucide-react';
+import { Eye, Files, Power, Target, Activity, ExternalLink, FileEdit, HeartPulse } from 'lucide-react';
 import type { DistributionHook } from '../types';
 import { useDistribution } from '../contexts/DistributionContext';
 import { useUI } from '../contexts/UIContext';
@@ -74,29 +74,73 @@ export default function FidelityCloud() {
                     title={hook.path}
                     className="fidelity-node"
                     style={{
-                        padding: '6px 14px', borderRadius: 10, background: `${color}1A`, border: `1px solid ${color}4D`,
-                        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.4s', width: 160, height: 54, zIndex: 10, backdropFilter: 'blur(4px)',
-                        boxShadow: `0 4px 12px ${color}11`, flexShrink: 0, overflow: 'hidden',
-                        filter: isDisabled ? 'grayscale(1) brightness(0.6)' : 'none',
-                        opacity: isDisabled ? 0.5 : 1, position: 'relative'
+                        borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', 
+                        alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', 
+                        width: 160, height: 54, zIndex: 10, flexShrink: 0, 
+                        overflow: 'visible', position: 'relative'
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <img src={icon} alt={hook.type} style={{ width: 18, height: 18, objectFit: 'contain', filter: `drop-shadow(0 0 4px ${color}88)` }} />
-                        <div style={{ fontSize: '0.42rem', fontWeight: 950, color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{hook.type} {isDisabled && '(BYPASSED)'}</div>
-                    </div>
-                    <div className="node-marquee-container" style={{ width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                        <div className="node-marquee-text" style={{ fontSize: '0.65rem', color: '#f8fafc', fontWeight: 800, display: 'inline-block', minWidth: '100%' }}>
-                            {filename}
+                    {/* Filtered Content Layer */}
+                    <div style={{
+                        width: '100%', height: '100%', borderRadius: 10,
+                        padding: '6px 14px', background: `${color}1A`, border: `1px solid ${color}4D`,
+                        backdropFilter: 'blur(4px)', boxShadow: `0 4px 12px ${color}11`,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        filter: hasError ? 'grayscale(0.6) brightness(0.6)' : (isDisabled ? 'grayscale(1) brightness(0.6)' : 'none'),
+                        opacity: (hasError || isDisabled) ? 0.7 : 1,
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <img src={icon} alt={hook.type} style={{ width: 18, height: 18, objectFit: 'contain', filter: `drop-shadow(0 0 4px ${color}88)` }} />
+                            <div style={{ fontSize: '0.42rem', fontWeight: 950, color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{hook.type} {isDisabled && '(BYPASSED)'}</div>
+                        </div>
+                        
+                        <div style={{ width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                            <div className="node-marquee-container" style={{ width: '100%' }}>
+                                <div className="node-marquee-text" style={{ fontSize: '0.65rem', color: '#f8fafc', fontWeight: 800, display: 'inline-block', minWidth: '100%' }}>
+                                    {filename}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Health Indicators (Top-Right) */}
-                    <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 2 }}>
-                        {hasError && <XCircle size={10} color="#ef4444" fill="#ef444433" />}
-                        {isDisabled && <Power size={8} color="#94a3b8" />}
-                    </div>
+                    {/* Vibrant Professor's Mark (Outside Filter - Naked Sharpie Style) */}
+                    {hasError && (
+                        <div style={{ 
+                            position: 'absolute', 
+                            top: -6, 
+                            right: -2, 
+                            zIndex: 100,
+                            transform: 'rotate(12deg)',
+                            pointerEvents: 'none',
+                            userSelect: 'none',
+                            lineHeight: 1
+                        }}>
+                             {error?.severity === 'warning' ? (
+                                <span style={{ 
+                                    fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
+                                    fontSize: '40px',
+                                    fontWeight: 900,
+                                    color: '#f59e0b',
+                                    textShadow: '0 0 10px rgba(245, 158, 11, 0.7), 0 0 2px rgba(0, 0, 0, 0.8)'
+                                }}>!</span>
+                             ) : (
+                                <span style={{ 
+                                    fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
+                                    fontSize: '40px',
+                                    fontWeight: 900,
+                                    color: '#ef4444',
+                                    textShadow: '0 0 10px rgba(239, 68, 68, 0.7), 0 0 2px rgba(0, 0, 0, 0.8)'
+                                }}>X</span>
+                             )}
+                        </div>
+                    )}
+
+                    {/* Power Status Icon */}
+                    {isDisabled && !hasError && (
+                        <div style={{ position: 'absolute', top: 4, right: 4 }}>
+                            <Power size={10} color="#94a3b8" />
+                        </div>
+                    )}
                 </div>
             </ContextMenu.Trigger>
             <ContextMenu.Portal>

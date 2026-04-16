@@ -27,8 +27,9 @@ export class WebUI {
             const initData = JSON.stringify({
                 type: 'init',
                 port: this.options.port,
-                version: '1.10.2',
-                history
+                version: '1.10.3',
+                history,
+                buildErrors: this.orchestrator.getBuildErrors()
             });
             res.write(`data: ${initData}\n\n`);
 
