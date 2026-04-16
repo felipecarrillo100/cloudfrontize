@@ -5,6 +5,7 @@ import { Telemetry } from './Telemetry';
 import { Orchestrator } from './Orchestrator';
 import { exec } from 'child_process';
 import { TransformationLevel } from '../core/CodeProcessor';
+import { EditorUtility } from '../core/EditorUtility';
 
 export class WebUI {
     constructor(private telemetry: Telemetry, private orchestrator: Orchestrator, private options: any) {}
@@ -89,14 +90,7 @@ export class WebUI {
             const query = new URL(url, `http://${req.headers.host}`).searchParams;
             const filePath = query.get('path');
             if (filePath && fs.existsSync(filePath)) {
-                // Determine platform-specific open command
-                const cmd = process.platform === 'win32' ? 'start' : (process.platform === 'darwin' ? 'open' : 'xdg-open');
-                // Try 'code' (VS Code) first, fall back to default
-                exec(`code "${filePath}" || ${cmd} "${filePath}"`, (err) => {
-                    if (err) {
-                        console.error(`🛑 [WebUI] Could not open editor for: ${filePath}`);
-                    }
-                });
+                EditorUtility.open(filePath);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
             } else {

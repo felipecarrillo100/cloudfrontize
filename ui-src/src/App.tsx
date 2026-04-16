@@ -11,6 +11,9 @@ import FidelityAuditModal from './components/FidelityAuditModal';
 import { UIProvider, useUI } from './contexts/UIContext';
 import { DistributionProvider, useDistribution } from './contexts/DistributionContext';
 import { HeaderProvider } from './contexts/HeaderContext';
+import ErrorBanner from './components/ErrorBanner';
+import StatusModal from './components/StatusModal';
+import { useEffect } from 'react';
 
 /**
  * The root component of the CloudFrontize Forensic Dashboard.
@@ -21,13 +24,25 @@ import { HeaderProvider } from './contexts/HeaderContext';
  * the unified context providers for UI state and Distribution data.
  */
 function DashboardContent() {
-  const { dist } = useDistribution();
+  const { dist, buildErrors } = useDistribution();
   const ui = useUI();
   const [showAbout, setShowAbout] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
 
+  // Get first error for overlay
+  const activeError = Object.values(buildErrors)[0];
+  const [dismissedPath, setDismissedPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeError || activeError.path !== dismissedPath) {
+      setDismissedPath(null);
+    }
+  }, [activeError]);
+
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100%', background: '#0e1117', color: '#f8fafc', fontFamily: "'Inter', -apple-system, sans-serif", overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100%', background: '#0e1117', color: '#f8fafc', fontFamily: "'Inter', -apple-system, sans-serif", overflow: 'hidden', position: 'relative' }}>
+      
+
       <Sidebar
         onShowAbout={() => setShowAbout(true)}
       />
@@ -55,6 +70,13 @@ function DashboardContent() {
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {ui.activeHook && <CodeViewer hook={ui.activeHook} onClose={ui.closeCode} />}
       {showAudit && <FidelityAuditModal hooks={dist?.hooks || []} onClose={() => setShowAudit(false)} />}
+      {ui.activeStatusHook && (
+        <StatusModal 
+          hook={ui.activeStatusHook} 
+          error={buildErrors[ui.activeStatusHook.path]} 
+          onClose={ui.closeStatus} 
+        />
+      )}
 
       {/* Detail Transitions */}
       {ui.detailPanel && (
@@ -65,6 +87,24 @@ function DashboardContent() {
           path={ui.detailPanel.path}
           onClose={ui.closeDetail}
         />
+      )}
+
+      {/* Global Build Error Overlay (Vite-Style) */}
+      {activeError && activeError.path !== dismissedPath && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 60, 
+          left: '50%', 
+          transform: 'translateX(-50%)', 
+          zIndex: 999999, 
+          width: 'calc(100% - 40px)', 
+          maxWidth: 700,
+          pointerEvents: 'none' // Allow clicking through the container except banner
+        }}>
+           <div style={{ pointerEvents: 'auto' }}>
+              <ErrorBanner error={activeError} onDismiss={() => setDismissedPath(activeError.path)} />
+           </div>
+        </div>
       )}
     </div>
   );

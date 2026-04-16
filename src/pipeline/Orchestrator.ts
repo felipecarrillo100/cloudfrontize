@@ -29,6 +29,7 @@ export class Orchestrator {
     private headerManager = new HeaderManager();
     private hookRegistry: any[] = [];
     private disabledHookIds: Set<string> = new Set();
+    private buildErrors: Map<string, any> = new Map();
     private selector: OriginSelector;
 
     /**
@@ -77,6 +78,7 @@ export class Orchestrator {
         const runners = [this.edgeRunner, this.cffRunner].filter(Boolean);
         for (const runner of runners) {
             runner!.on('build_error', (data) => {
+                this.buildErrors.set(data.path, data);
                 this.telemetry.broadcast({
                     id: 'SYSTEM_BUILD',
                     type: 'error',
@@ -85,9 +87,10 @@ export class Orchestrator {
             });
 
             runner!.on('build_success', (data) => {
+                this.buildErrors.delete(data.file); // file property is the full path in emitted data
                 this.telemetry.broadcast({
                     id: 'SYSTEM_BUILD',
-                    type: 'stage',
+                    type: 'success',
                     details: { name: 'Build Success', ...data }
                 });
             });
@@ -167,10 +170,20 @@ export class Orchestrator {
     public toggleHook(id: string, disabled: boolean): void {
         if (disabled) this.disabledHookIds.add(id);
         else this.disabledHookIds.delete(id);
+        
+        // Broadcast change to keep all Forensic UI tabs in sync
+        this.telemetry.broadcast({
+            type: 'distribution',
+            data: this.getDistribution()
+        });
     }
 
     public resetHooks(): void {
         this.disabledHookIds.clear();
+        this.telemetry.broadcast({
+            type: 'distribution',
+            data: this.getDistribution()
+        });
     }
 
     public disableAllHooks(disable: boolean = true): void {
@@ -181,6 +194,10 @@ export class Orchestrator {
         } else {
             this.disabledHookIds.clear();
         }
+        this.telemetry.broadcast({
+            type: 'distribution',
+            data: this.getDistribution()
+        });
     }
 
     /**
@@ -207,6 +224,10 @@ export class Orchestrator {
         for (const h of this.hookRegistry) {
             if (h.id !== id) this.disabledHookIds.add(h.id);
         }
+        this.telemetry.broadcast({
+            type: 'distribution',
+            data: this.getDistribution()
+        });
     }
 
     public getConfig() {
@@ -274,6 +295,30 @@ export class Orchestrator {
         req.requestID = requestId;
         const logPrefix = `\x1b[90m[${requestId}]\x1b[0m`;
         req._logBuffer = [`${logPrefix} ${req.method} ${req.url} \x1b[90m(Host: ${req.headers.host || 'unknown'})\x1b[0m`];
+
+        // 0. Build Health Check: AWS Parity - Return 502 if any active hook has a syntax error
+        for (const hook of this.hookRegistry) {
+            if (!this.disabledHookIds.has(hook.id) && this.buildErrors.has(hook.path)) {
+                const error = this.buildErrors.get(hook.path);
+                const awsErrorCode = hook.type.toLowerCase().includes('function') ? 'CloudFrontFunctionExecutionError' : 'LambdaExecutionError';
+                
+                res.statusCode = 502;
+                res.setHeader('Content-Type', 'application/xml');
+                res.end(`<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+    <Code>${awsErrorCode}</Code>
+    <Message>The hook ${path.basename(hook.path)} has a syntax error and cannot be executed.</Message>
+    <RequestId>${requestId}</RequestId>
+</Error>`);
+                
+                this.telemetry.broadcast({
+                    id: requestId,
+                    type: 'error',
+                    details: { message: `Blocked by syntax error in ${path.basename(hook.path)}`, error }
+                });
+                return;
+            }
+        }
 
         // Forensic Alignment: Log the initial request entrance to the Black Box
         this._logToFile('INFO', 'Orchestrator', requestId, `${req.method} ${req.url} (Host: ${req.headers.host || 'unknown'})`);

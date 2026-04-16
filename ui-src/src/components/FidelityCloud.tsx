@@ -1,6 +1,6 @@
 import React from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { Eye, Files, Power, Target, Activity, ExternalLink } from 'lucide-react';
+import { Eye, Files, Power, Target, Activity, ExternalLink, XCircle, FileEdit, HeartPulse } from 'lucide-react';
 import type { DistributionHook } from '../types';
 import { useDistribution } from '../contexts/DistributionContext';
 import { useUI } from '../contexts/UIContext';
@@ -9,8 +9,8 @@ import lambdaIcon from '../assets/lambda-edge.png';
 import cffIcon from '../assets/cloudfront-function.png';
 
 export default function FidelityCloud() {
-  const { dist, toggleHook, isolateHook } = useDistribution();
-  const { openDetail, openCode } = useUI();
+  const { dist, toggleHook, isolateHook, buildErrors } = useDistribution();
+  const ui = useUI();
 
   if (!dist) return null;
 
@@ -64,6 +64,8 @@ export default function FidelityCloud() {
     const isDisabled = (hook as any).disabled;
     const isCff = hook.type.toLowerCase().includes('function');
     const icon = isCff ? cffIcon : lambdaIcon;
+    const error = buildErrors[hook.path];
+    const hasError = !!error;
 
     return (
         <ContextMenu.Root>
@@ -89,6 +91,12 @@ export default function FidelityCloud() {
                             {filename}
                         </div>
                     </div>
+
+                    {/* Health Indicators (Top-Right) */}
+                    <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 2 }}>
+                        {hasError && <XCircle size={10} color="#ef4444" fill="#ef444433" />}
+                        {isDisabled && <Power size={8} color="#94a3b8" />}
+                    </div>
                 </div>
             </ContextMenu.Trigger>
             <ContextMenu.Portal>
@@ -98,7 +106,9 @@ export default function FidelityCloud() {
                         border: '1px solid #30363d', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', zIndex: 1200 
                     }}
                 >
-                    <ContextItem label="View Source" icon={<Eye size={14}/>} onClick={() => openCode(hook)} />
+                    <ContextItem label="View Source" icon={<Eye size={14}/>} onClick={() => ui.openCode(hook)} />
+                    <ContextItem label="Status" icon={<HeartPulse size={14} color={hasError ? "#ef4444" : "#22c55e"}/>} onClick={() => ui.openStatus(hook)} />
+                    <ContextItem label="Edit File" icon={<FileEdit size={14}/>} onClick={() => fetch(`/api/open-editor?path=${encodeURIComponent(hook.path)}`)} />
                     <ContextItem label="Copy Path" icon={<Files size={14}/>} onClick={() => navigator.clipboard.writeText(hook.path || '')} />
                     <ContextMenu.Separator style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
                     <ContextItem 
@@ -119,7 +129,7 @@ export default function FidelityCloud() {
     const rootDir = dist.mode === 'website' ? './www' : './';
 
     const handleInspectViewer = () => {
-        openDetail("Viewer Ingress", "Edge Entry Point Configuration", { 
+        ui.openDetail("Viewer Ingress", "Edge Entry Point Configuration", { 
             url: accessUrl, mode: dist.mode, port, 
             fidelity: dist.mode === 'website' ? "S3 Website Hosting Mode" : "Standard API Mode",
             root: rootDir
@@ -129,7 +139,7 @@ export default function FidelityCloud() {
     const handleInspectOrigin = () => {
         const origin = dist.origins[0];
         if (!origin) return;
-        openDetail(`Origin: ${origin.id}`, "Operational Identity Audit", origin, origin.configFile || origin.directory || (origin.bucket ? `s3://${origin.bucket}` : null));
+        ui.openDetail(`Origin: ${origin.id}`, "Operational Identity Audit", origin, origin.configFile || origin.directory || (origin.bucket ? `s3://${origin.bucket}` : null));
     };
 
     return (
@@ -247,6 +257,7 @@ export default function FidelityCloud() {
               <HeroIcon emoji="📦" label="ORIGIN" radius="12px" type="origin" />
           </div>
       </div>
+
       <style>{`
           .fidelity-node:hover .node-marquee-text {
               animation: node-marquee 4s linear infinite;

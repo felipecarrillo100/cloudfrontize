@@ -26,6 +26,7 @@ interface UIContextType {
     path?: string;
   } | null;
   activeHook: DistributionHook | null;
+  activeStatusHook: DistributionHook | null;
   
   openMenu: (e: React.MouseEvent, title: string, items: ContextMenuItem[], metadata?: any, onAction?: (action: string) => void) => void;
   closeMenu: () => void;
@@ -33,6 +34,8 @@ interface UIContextType {
   closeDetail: () => void;
   openCode: (hook: DistributionHook) => void;
   closeCode: () => void;
+  openStatus: (hook: DistributionHook) => void;
+  closeStatus: () => void;
 }
 
 /**
@@ -50,6 +53,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const [contextMenu, setContextMenu] = useState<UIContextType['contextMenu']>(null);
   const [detailPanel, setDetailPanel] = useState<UIContextType['detailPanel']>(null);
   const [activeHook, setActiveHook] = useState<DistributionHook | null>(null);
+  const [activeStatusHook, setActiveStatusHook] = useState<DistributionHook | null>(null);
 
   const openMenu = (e: React.MouseEvent, title: string, items: ContextMenuItem[], metadata?: any, onAction?: (action: string) => void) => {
     e.preventDefault();
@@ -66,11 +70,14 @@ export function UIProvider({ children }: { children: ReactNode }) {
 
   const openCode = (hook: DistributionHook) => setActiveHook(hook);
   const closeCode = () => setActiveHook(null);
+  
+  const openStatus = (hook: DistributionHook) => setActiveStatusHook(hook);
+  const closeStatus = () => setActiveStatusHook(null);
 
   return (
     <UIContext.Provider value={{
-      contextMenu, detailPanel, activeHook,
-      openMenu, closeMenu, openDetail, closeDetail, openCode, closeCode
+      contextMenu, detailPanel, activeHook, activeStatusHook,
+      openMenu, closeMenu, openDetail, closeDetail, openCode, closeCode, openStatus, closeStatus
     }}>
       {children}
     </UIContext.Provider>

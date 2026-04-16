@@ -13,6 +13,7 @@ interface DistributionContextType {
   disableAllHooks: (disableAll: boolean) => Promise<void>;
   resetHooks: () => Promise<void>;
   clearHistory: () => void;
+  buildErrors: Record<string, any>;
 }
 
 /**
@@ -35,6 +36,7 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
   const [requests, setRequests] = useState<RequestEntry[]>([]);
   const [lastEventId, setLastEventId] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [buildErrors, setBuildErrors] = useState<Record<string, any>>({});
   const esRef = useRef<EventSource | null>(null);
 
   const applyEvent = (entry: RequestEntry, ev: any) => {
@@ -120,6 +122,18 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
           rebuildHistory(data.history || []);
         } else if (data.type === 'distribution') {
           setDist(data.data);
+        } else if (data.id === 'SYSTEM_BUILD') {
+           if (data.type === 'error') {
+               setBuildErrors(prev => ({ ...prev, [data.details.path]: data.details }));
+           } else if (data.type === 'success') {
+               setBuildErrors(prev => {
+                   const next = { ...prev };
+                   delete next[data.details.file];
+                   return next;
+               });
+               // Refresh distribution to get clean code/metadata
+               refreshDistribution();
+           }
         } else {
           // It's a traffic event (request, response, stage, etc.)
           setRequests(prev => mergeSseEvent(prev, data));
@@ -175,7 +189,7 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
 
   return (
     <DistributionContext.Provider value={{
-      dist, requests, lastEventId, loading, refreshDistribution, toggleHook, isolateHook, disableAllHooks, resetHooks, clearHistory
+      dist, requests, lastEventId, loading, refreshDistribution, toggleHook, isolateHook, disableAllHooks, resetHooks, clearHistory, buildErrors
     }}>
       {children}
     </DistributionContext.Provider>

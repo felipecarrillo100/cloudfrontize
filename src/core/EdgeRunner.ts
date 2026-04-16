@@ -163,6 +163,9 @@ export class EdgeRunner extends HotRunner {
                     handler: mod.handler, 
                     filePath: filePath 
                 });
+                if (this.options.verbose) {
+                    console.log(`\x1b[32m✅ [L@E] Build Success: ${path.basename(filePath)}\x1b[0m`);
+                }
                 this.emit('build_success', { type: 'edge', file: filePath });
             }
         } catch (err: any) {

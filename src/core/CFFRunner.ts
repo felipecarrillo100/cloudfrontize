@@ -174,6 +174,9 @@ export class CFFRunner extends HotRunner {
             this._warmup(mod);
             
             registry[type].push(mod);
+            if (this.options.verbose) {
+                console.log(`\x1b[32m✅ [CFF] Build Success: ${path.basename(filePath)}\x1b[0m`);
+            }
             this.emit('build_success', { type: 'cff', file: filePath });
 
         } catch (err: any) {
