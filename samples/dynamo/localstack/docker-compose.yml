@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:1.4
+    container_name: localstack_dynamo
+    ports:
+      - "4566:4566" # LocalStack Gateway
+      - "8000:8000" # DynamoDB Service
+    environment:
+      - SERVICES=dynamodb,secretsmanager
+      - DEFAULT_REGION=us-east-1
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack-data:/tmp/localstack_dynamo/data"
+
+volumes:
+  localstack-data:
