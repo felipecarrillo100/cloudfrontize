@@ -1,103 +1,11 @@
-import fs from 'fs';
-import path from 'path';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-// @ts-ignore - serve-handler doesn't have good types
-import serveHandler from 'serve-handler';
-import { OriginConfig } from '../core/types';
-
-/**
- * Common interface for all CloudFrontize origin providers.
- * 
- * @namespace Backend
- * Origin Providers are responsible for the "Origin Fetch" stage of the pipeline.
- * They resolve request URIs to physical assets and stream the results back 
- * while maintaining the correct HTTP metadata.
- */
-export interface OriginProvider {
-    /**
-     * Fetches a resource from the origin.
-     * @param req - The current pipeline request object.
-     * @param res - The response object to stream data into.
-     * @param options - Provider execution options.
-     * @param body - Optional request body Buffer (post-L@E mutation).
-     */
-    fetch(req: any, res: any, options: any, body?: Buffer): Promise<void>;
-}
-
-/**
- * Serves assets from a local directory.
- * 
- * @namespace Backend
- * Used when the CloudFront origin points to a local folder (e.g. `--origins ./www`).
- * It emulates S3-like behaviors such as "Default Root Object" and 403s for directory indexing.
- */
-export class LocalProvider implements OriginProvider {
-    /**
-     * @param directory - The base directory to serve files from.
-     */
-    constructor(private directory: string) {}
-
-    public async fetch(req: any, res: any, options: any, body?: Buffer): Promise<void> {
-        // If we have a mutated or captured body buffer, we must ensure the provider
-        // (and its sub-handlers like serve-handler) can read it as a stream.
-        if (body) {
-            const { Readable } = require('stream');
-            const bodyStream = Readable.from(body);
-            // Re-map the stream properties that serve-handler expects
-            bodyStream.headers = req.headers;
-            bodyStream.method = req.method;
-            bodyStream.url = req.url;
-            req = bodyStream;
-        }
-        const cleanPath = req.url.split('?')[0];
-        const fullPath = path.resolve(this.directory, cleanPath.startsWith('/') ? cleanPath.slice(1) : cleanPath);
-        
-        let isActuallyDir = false;
-        try {
-            const stats = fs.statSync(fullPath);
-            isActuallyDir = stats.isDirectory();
-        } catch (e) {}
-
-        // AWS REST API/CloudFront doesn't auto-index (403 for directories)
-        if (options.mode === 'rest' && cleanPath !== '/') {
-            if (isActuallyDir) {
-                res.statusCode = 403;
-                // Provider contract: await full flush before resolving
-                await new Promise<void>((resolve, reject) => {
-                    res.on('finish', resolve);
-                    res.on('error', reject);
-                    res.end('Directory indexing is disabled in strict mode');
-                });
-                return;
-            }
-        }
-
-        res.resolvedUri = `file://${fullPath}${isActuallyDir ? '/index.html' : ''}`.replace(/(?<!:)\/\//g, '/');
-
-        if (fs.existsSync(fullPath)) {
-            if (fullPath.endsWith('.br')) res.setHeader('content-encoding', 'br');
-            if (fullPath.endsWith('.gz')) res.setHeader('content-encoding', 'gzip');
-        }
-
-        // CloudFront (REST) supports Default Root Object, but not for subfolders.
-        if (cleanPath === '/' && isActuallyDir) {
-            req.url = '/index.html';
-        }
-
-        return serveHandler(req, res, {
-            public: this.directory,
-            cleanUrls: false,
-            trailingSlash: false,
-            directoryListing: options.mode === 'website'
-        });
-    }
-}
+import { OriginProvider } from './base';
+import { OriginConfig } from '../../core/types';
 
 /**
  * Proxies requests to an S3-compatible service (AWS S3 or MinIO).
  * 
  * @namespace Backend
- * @description
  * This provider uses the `@aws-sdk/client-s3` to fetch assets. It supports
  * custom endpoints (for MinIO), path-style addressing, and AWS credentials.
  * It also handles the mapping of S3 response properties (e.g. `ContentType`, `ETag`)
@@ -146,7 +54,7 @@ export class S3Provider implements OriginProvider {
             res.statusCode = response.$metadata.httpStatusCode || 200;
             
             // Fidelity Header Propagation: Map SDK response properties to headers
-            const skipProps = ['$metadata', 'Body', 'Metadata']; // Skip Metadata object to prevent [object Object]
+            const skipProps = ['$metadata', 'Body', 'Metadata']; // Skip Metadata object to prevent [object Object] leaks
             for (const [k, v] of Object.entries(response)) {
                 if (skipProps.includes(k) || v === undefined || v === null) continue;
                 
