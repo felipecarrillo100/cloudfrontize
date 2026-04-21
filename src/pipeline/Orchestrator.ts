@@ -116,7 +116,7 @@ export class Orchestrator {
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
-        });
+        } as any);
     }
 
     public resetHooks(): void {
@@ -124,7 +124,7 @@ export class Orchestrator {
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
-        });
+        } as any);
     }
 
     public disableAllHooks(disable: boolean = true): void {
@@ -132,7 +132,7 @@ export class Orchestrator {
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
-        });
+        } as any);
     }
 
     /**
@@ -159,7 +159,7 @@ export class Orchestrator {
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
-        });
+        } as any);
     }
 
     public getConfig() {
@@ -314,7 +314,7 @@ export class Orchestrator {
             if (this.cffRunner) {
                 const cffEvent = this.cffRunner.toCFFEvent(req, null, 'viewer-request');
                 const { result: cffResult, logs: cffLogs } = await this.cffRunner.runChain('viewer-request', cffEvent, this.hookRegistry.getDisabledHookIds(), (mod, result) => {
-                    const intermediateMutated = this.cffRunner.fromCFFEvent(result);
+                    const intermediateMutated = this.cffRunner!.fromCFFEvent(result);
                     if (intermediateMutated) {
                         this._syncUrlToRequest(req, intermediateMutated);
                         this._syncHeadersToRequest(req, intermediateMutated.headers);
@@ -569,7 +569,7 @@ export class Orchestrator {
             if (this.cffRunner) {
                 const cffResEvent = this.cffRunner.toCFFEvent(req, finalRes, 'viewer-response');
                 const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent, this.hookRegistry.getDisabledHookIds(), (mod, result) => {
-                    const cffFinal = this.cffRunner.fromCFFEvent(result);
+                    const cffFinal = this.cffRunner!.fromCFFEvent(result);
                     if (cffFinal) {
                         finalRes = {
                             ...finalRes,
