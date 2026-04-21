@@ -52,7 +52,10 @@ export class LocalProvider implements OriginProvider {
             }
         }
 
-        res.resolvedUri = `file://${fullPath}${isActuallyDir ? '/index.html' : ''}`.replace(/(?<!:)\/\//g, '/');
+        // High Fidelity Logging: Show the preserved query string in the console output
+        const [, qs] = req.url.split('?');
+        const displayQs = qs ? `?${qs}` : '';
+        res.resolvedUri = `file://${fullPath}${isActuallyDir ? '/index.html' : ''}${displayQs}`.replace(/(?<!:)\/\//g, '/');
 
         if (fs.existsSync(fullPath)) {
             if (fullPath.endsWith('.br')) res.setHeader('content-encoding', 'br');

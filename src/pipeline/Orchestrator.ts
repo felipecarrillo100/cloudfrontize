@@ -430,7 +430,7 @@ export class Orchestrator {
                 const { result: cffResult, logs: cffLogs } = await this.cffRunner.runChain('viewer-request', cffEvent, Array.from(this.disabledHookIds), (mod, result) => {
                     const intermediateMutated = this.cffRunner.fromCFFEvent(result);
                     if (intermediateMutated) {
-                        if (intermediateMutated.url) req.url = intermediateMutated.url;
+                        this._syncUrlToRequest(req, intermediateMutated);
                         this._syncHeadersToRequest(req, intermediateMutated.headers);
                     }
                     const filename = path.basename(mod.filePath);
@@ -486,7 +486,7 @@ export class Orchestrator {
 
                 // Header Roll-Forward
                 this.headerManager.syncToRequest(req, viewerResult?.headers, true);
-                if (viewerResult?.url || viewerResult?.uri) req.url = viewerResult?.url || viewerResult?.uri;
+                this._syncUrlToRequest(req, viewerResult);
 
                 // 2b. L@E Origin Request (Atomic Phase)
                 const originOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-request').map(h => h.id);
@@ -520,12 +520,12 @@ export class Orchestrator {
                     return this._sendResponse(res, originResult, requestId, startTime, req, options);
                 }
 
-                const newUrl = originResult?.url || originResult?.uri;
-                if (newUrl) {
-                    if (options.verbose && req.url !== newUrl) {
-                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Origin Request  \x1b[33m⟹\x1b[0m Rewrote to ${newUrl}`);
+                if (originResult?.url || originResult?.uri || originResult?.querystring) {
+                    const oldUrl = req.url;
+                    this._syncUrlToRequest(req, originResult);
+                    if (options.verbose && req.url !== oldUrl) {
+                        req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Origin Request  \x1b[33m⟹\x1b[0m Rewrote to ${req.url}`);
                     }
-                    req.url = newUrl;
                 }
                 // Header Roll-Forward
                 this._syncHeadersToRequest(req, originResult?.headers);
@@ -831,6 +831,25 @@ export class Orchestrator {
             this.logStream.write(logLine);
         } catch (err) {
             // Silently fail to avoid blocking request on logging errors
+        }
+    }
+    /**
+     * Fidelity URL Sync: Reconstructs the internal req.url from a hook result's uri and querystring.
+     * This ensures that query string mutations (like normalization or filtering) are preserved.
+     */
+    private _syncUrlToRequest(req: any, result: any): void {
+        if (!result) return;
+        
+        // Prefer explicit 'url' if provided, otherwise use 'uri' (pathname) + 'querystring'
+        const newUri = result.url || result.uri;
+        const newQs = result.querystring;
+
+        if (newUri !== undefined) {
+            req.url = newUri + (newQs ? '?' + newQs : '');
+        } else if (newQs !== undefined) {
+            // Path didn't change, but query string did
+            const [pathPart] = req.url.split('?');
+            req.url = pathPart + (newQs ? '?' + newQs : '');
         }
     }
 }

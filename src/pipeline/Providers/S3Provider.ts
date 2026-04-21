@@ -41,8 +41,13 @@ export class S3Provider implements OriginProvider {
     }
 
     public async fetch(req: any, res: any, _options: any, _body?: Buffer): Promise<void> {
-        const key = req.url.startsWith('/') ? req.url.slice(1) : req.url;
-        res.resolvedUri = `s3://${this.config.bucket}/${key || 'index.html'}`;
+        // Fidelity: S3 Keys represent the path. Query parameters must be stripped before key calculation.
+        const [pathOnly, qs] = req.url.split('?');
+        const key = pathOnly.startsWith('/') ? pathOnly.slice(1) : pathOnly;
+        
+        // Append query string to resolvedUri for diagnostic logging
+        const displayQs = qs ? `?${qs}` : '';
+        res.resolvedUri = `s3://${this.config.bucket}/${key || 'index.html'}${displayQs}`;
         
         try {
             const command = new GetObjectCommand({

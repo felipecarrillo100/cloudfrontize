@@ -233,6 +233,15 @@ export class CFFRunner extends HotRunner {
             request: { method: req.method, uri: url.pathname, headers: {}, querystring: {}, cookies: {} }
         };
 
+        // Fidelity Query String Mapping: Convert string to CFF object structure
+        url.searchParams.forEach((value, key) => {
+            if (!event.request.querystring[key]) {
+                event.request.querystring[key] = { value, multiValue: [{ value }] };
+            } else {
+                event.request.querystring[key].multiValue.push({ value });
+            }
+        });
+
         if (resData) {
             event.response = { statusCode: resData.status || 200, statusDescription: resData.statusDescription || 'OK', headers: {}, cookies: {} };
             for (const [key, value] of Object.entries(resData.headers || {})) {
@@ -288,8 +297,21 @@ export class CFFRunner extends HotRunner {
                 _isResponse: true
             };
         }
-        if (target.method || target.uri) {
-            return { url: target.uri, headers, _isResponse: false };
+        if (target.method || target.uri || target.querystring) {
+            let querystring = '';
+            if (target.querystring) {
+                const params = new URLSearchParams();
+                for (const [key, val] of Object.entries(target.querystring)) {
+                    const cffVal = val as any;
+                    if (cffVal.multiValue) {
+                        cffVal.multiValue.forEach((mv: any) => params.append(key, mv.value));
+                    } else if (cffVal.value !== undefined) {
+                        params.append(key, cffVal.value);
+                    }
+                }
+                querystring = params.toString();
+            }
+            return { url: target.uri, querystring, headers, _isResponse: false };
         }
         return null;
     }
