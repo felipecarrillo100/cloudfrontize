@@ -52,6 +52,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
         `);
 
         runner = new CFFRunner(testDir);
+runner.load();
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
         const { result } = await runner.runChain('viewer-request', event);
 
@@ -73,6 +74,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
 
         const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
         runner = new CFFRunner(testDir);
+        runner.load();
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
         await runner.runChain('viewer-request', event);
 
@@ -98,6 +100,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
         `);
 
         runner = new CFFRunner(testDir, { debug: true });
+runner.load();
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');
         const { result } = await runner.runChain('viewer-request', event);
 
@@ -154,6 +157,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
             bakePath: bakeFile,
             outputPath: outputDir
         });
+runner.load();
 
         // Test the runtime injection
         const event = runner.toCFFEvent({ method: 'GET', url: '/', headers: {} }, null, 'viewer-request');

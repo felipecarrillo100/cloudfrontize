@@ -53,6 +53,7 @@ describe('Production Patterns: Test of Fire', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
 
         const { result: resExp } = await runner.runRequestHook({
             headers: { cookie: [{ key: 'Cookie', value: 'session=123; experiment=true' }] },
@@ -94,6 +95,7 @@ describe('Production Patterns: Test of Fire', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
 
         const { result: resUnauth } = await runner.runRequestHook({ headers: {}, url: '/protected' });
         expect(resUnauth.status).toBe('401');
@@ -128,6 +130,7 @@ describe('Production Patterns: Test of Fire', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ headers: {}, url: '/any-page' });
         expect(result.status).toBe('503');
@@ -156,6 +159,7 @@ describe('Production Patterns: Test of Fire', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'index.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
 
         const originResponse = {
             status: '200',

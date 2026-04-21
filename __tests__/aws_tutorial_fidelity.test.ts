@@ -44,6 +44,7 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testHooksDir, 'redirect.js'), code);
         runner = new EdgeRunner(testHooksDir, { watch: false });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ url: '/old-page' });
         expect(result.status).toBe('301');
@@ -62,6 +63,7 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testHooksDir, 'rewrite.js'), code);
         runner = new EdgeRunner(testHooksDir, { watch: false });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ url: '/api/v1/user' });
         expect(result.uri).toBe('/internal/v1/user');
@@ -78,6 +80,7 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testHooksDir, 'headers.js'), code);
         runner = new EdgeRunner(testHooksDir, { watch: false });
+        runner.load();
 
         const { result } = await runner.runResponseHook({ url: '/' }, { status: 200, headers: {} });
         expect(result.headers['x-frame-options'][0].value).toBe('DENY');
@@ -106,6 +109,7 @@ describe('AWS Tutorial Compliance: EdgeRunner Fidelity', () => {
         `);
 
         runner = new EdgeRunner(testHooksDir, { watch: false });
+runner.load();
         const { result } = await runner.runRequestHook({ url: '/test' });
 
         expect(result.uri).toBe('/traced/test');

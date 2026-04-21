@@ -30,6 +30,7 @@ describe('Execution Timeout Fidelity', () => {
         `);
 
         const runner = new EdgeRunner(testDir, { strict: true, watch: false });
+        runner.load();
         const { result } = await runner.runRequestHook({ url: '/' });
         expect(result._timeout).toBe(true);
         runner.close();
@@ -47,6 +48,7 @@ describe('Execution Timeout Fidelity', () => {
         `);
 
         const runner = new EdgeRunner(testDir, { strict: true, watch: false });
+        runner.load();
         const { result } = await runner.runRequestHook({ url: '/' });
         
         expect(result).not.toBeNull();
@@ -69,6 +71,7 @@ describe('Execution Timeout Fidelity', () => {
 
         const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
         const runner = new EdgeRunner(testDir, { strict: false, watch: false });
+        runner.load();
         
         const { result } = await runner.runRequestHook({ url: '/' });
         
@@ -98,6 +101,7 @@ describe('Execution Timeout Fidelity', () => {
         `);
 
         const runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
         const { result } = await runner.runRequestHook({ url: '/' });
         
         const [t1, t2] = result.headers['x-times'][0].value.split(',').map(Number);

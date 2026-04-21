@@ -29,6 +29,7 @@ describe('Edge Hook Fidelity (Single-Hook Enforcement)', () => {
         
         // EdgeRunner uses lexicographical order for directory reading
         const runner = new EdgeRunner(tmpDir, { watch: false });
+        runner.load();
 
         // Verify only one module is loaded for viewer-request
         expect(runner.modules['viewer-request']).toHaveLength(1);

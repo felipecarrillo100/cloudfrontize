@@ -29,6 +29,7 @@ describe('Env Var Parity: AWS Mock Environment', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'env.js'), code);
         const runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ url: '/' });
         expect(result.headers['x-aws-region'][0].value).toBe('us-east-1');
@@ -52,6 +53,7 @@ describe('Env Var Parity: AWS Mock Environment', () => {
         fs.writeFileSync(path.join(testDir, 'override.js'), code);
 
         const runner = new EdgeRunner(testDir, { envPath, watch: false });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ url: '/' });
         expect(result.headers['x-aws-region'][0].value).toBe('eu-central-1');
@@ -63,7 +65,8 @@ describe('Env Var Parity: AWS Mock Environment', () => {
         fs.writeFileSync(envPath, 'FORBIDDEN_VAR=danger');
 
         expect(() => {
-            new EdgeRunner(testDir, { envPath, watch: false });
+            const runner = new EdgeRunner(testDir, { envPath, watch: false });
+            runner.load();
         }).toThrow(/Restricted Variable: "FORBIDDEN_VAR"/);
     });
 });

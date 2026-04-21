@@ -35,6 +35,7 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
         `);
 
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
+edgeRunner.load();
     });
 
     afterAll(() => {

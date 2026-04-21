@@ -41,6 +41,7 @@ describe('RequestBody & Strict Mode Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'body.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true });
 
         const res = await fetch(`http://localhost:${port}/`, {
@@ -65,6 +66,7 @@ describe('RequestBody & Strict Mode Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'forbidden.js'), code);
         runner = new EdgeRunner(testDir, { watch: false, strict: true });
+runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true, strict: true });
 
         const res = await fetch(`http://localhost:${port}/`, {
@@ -84,6 +86,7 @@ describe('RequestBody & Strict Mode Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'limit.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true, strict: true });
 
         const massiveBody = 'a'.repeat(41 * 1024);
@@ -106,6 +109,7 @@ describe('RequestBody & Strict Mode Fidelity', () => {
         `;
         fs.writeFileSync(path.join(testDir, 'warn.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
+runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true, strict: false });
 
         const massiveBody = 'a'.repeat(41 * 1024);

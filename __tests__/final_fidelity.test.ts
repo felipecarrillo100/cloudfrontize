@@ -53,6 +53,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
 
     test('1. 10MB Bypass: Large files must NOT be compressed (Fidelity Fix)', async () => {
         runner = new EdgeRunner(mockDir, { watch: false });
+        runner.load();
         server = startServer({
             port,
             directory: mockDir,
@@ -92,6 +93,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
             bakePath: bakeFile,
             watch: false
         });
+runner.load();
 
         const { result } = await runner.runRequestHook({ url: '/', headers: {} });
 
@@ -122,6 +124,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
         `);
 
         runner = new EdgeRunner(chainDir, { watch: false });
+runner.load();
         const { result } = await runner.runRequestHook({ url: '/data', headers: {} });
 
         // Verify the viewer change was passed into the origin hook

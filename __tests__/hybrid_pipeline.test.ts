@@ -108,6 +108,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
         `);
         
         const cffRunnerShort = new CFFRunner(cffDirShort);
+        cffRunnerShort.load();
         const serverShort = startServer({
             port: 0,
             directory: wwwDir,

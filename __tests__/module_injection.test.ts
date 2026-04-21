@@ -30,6 +30,7 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         edgeRunner = new EdgeRunner(hookPath, { watch: false });
+edgeRunner.load();
         // Loading should NOT throw
         expect(edgeRunner.modules['viewer-request']).toBeDefined();
     });
@@ -44,6 +45,7 @@ describe('Context-Aware Module Injection', () => {
         `);
         
         const runner = new EdgeRunner(hookPath, { watch: false });
+        runner.load();
         expect(runner.compileError).toMatch(/Forbidden: fs is not available/);
     });
 
@@ -56,6 +58,7 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         edgeRunner = new EdgeRunner(hookPath, { watch: false });
+edgeRunner.load();
         expect(edgeRunner.modules['origin-request']).toBeDefined();
     });
 
@@ -69,6 +72,7 @@ describe('Context-Aware Module Injection', () => {
         `);
         
         const runner = new EdgeRunner(hookPath, { watch: false });
+        runner.load();
         expect(runner.compileError).toMatch(/Forbidden: child_process is restricted/);
     });
 
@@ -80,6 +84,7 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         edgeRunner = new EdgeRunner(hookPath, { watch: false });
+edgeRunner.load();
         expect(edgeRunner.modules['viewer-response']).toBeDefined();
     });
 
@@ -92,6 +97,7 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         edgeRunner = new EdgeRunner(hookPath, { watch: false });
+edgeRunner.load();
         expect(edgeRunner.modules['origin-request']).toBeDefined();
     });
 
@@ -104,6 +110,7 @@ describe('Context-Aware Module Injection', () => {
             };
         `);
         edgeRunner = new EdgeRunner(hookPath, { watch: false });
+edgeRunner.load();
         expect(edgeRunner.modules['viewer-request']).toBeDefined();
     });
 
@@ -117,6 +124,7 @@ describe('Context-Aware Module Injection', () => {
         `);
         
         const runner = new EdgeRunner(hookPath, { watch: false });
+        runner.load();
         expect(runner.compileError).toMatch(/Forbidden: @aws-sdk\/client-s3 is not available/);
     });
 });

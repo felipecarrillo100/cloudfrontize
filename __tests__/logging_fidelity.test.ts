@@ -42,6 +42,7 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
 
     test('Should format logs and write to file with correct metadata', async () => {
         edgeRunner = new EdgeRunner(edgeDir, { logPath: logFile, watch: false });
+        edgeRunner.load();
         server = startServer({ directory: tmpDir, port: 0, edgeRunner, noRequestLogging: true });
 
         await request(server).get('/');
@@ -71,6 +72,7 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
         fs.writeFileSync(logFile, 'old logs');
         
         edgeRunner = new EdgeRunner(edgeDir, { logPath: logFile, watch: false });
+        edgeRunner.load();
         const content = fs.readFileSync(logFile, 'utf8');
         expect(content).toBe('');
     });
@@ -80,6 +82,7 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
         const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
         edgeRunner = new EdgeRunner(edgeDir, { debug: true, watch: false });
+edgeRunner.load();
         server = startServer({ 
             directory: tmpDir, 
             port: 0, 

@@ -122,6 +122,7 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
 
         test('Lambda@Edge Rewrite: /subfolder/ rewritten to /subfolder/index.html should succeed', async () => {
             edgeRunner = new EdgeRunner(edgeDir, { watch: false });
+edgeRunner.load();
             server = startServer({ directory: baseDir, port, mode: 'rest', noRequestLogging: true, edgeRunner });
 
             // The origin-request hook intercepts /subfolder/ and transforms it to /subfolder/index.html

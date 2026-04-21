@@ -1,5 +1,4 @@
-export {};
-const { EdgeRunner } = require('../src/edgeRunner');
+import { EdgeRunner } from '../src/core/EdgeRunner';
 
 /**
  * AWS SAMPLES FIDELITY TEST SUITE
@@ -7,7 +6,7 @@ const { EdgeRunner } = require('../src/edgeRunner');
  * AWS CloudFront Lambda@Edge documentation examples.
  */
 describe('EdgeRunner: AWS Documentation Sample Tests', () => {
-    let runners = [];
+    let runners: EdgeRunner[] = [];
 
     beforeAll(() => {
         jest.spyOn(console, 'log').mockImplementation(() => { });
@@ -30,6 +29,7 @@ describe('EdgeRunner: AWS Documentation Sample Tests', () => {
      */
     test('AWS Sample: Query String Normalization (Alphabetizing)', async () => {
         const runner = new EdgeRunner('./samples/aws/query-normalization.js');
+        runner.load();
         runners.push(runner);
 
         // Input: Jumbled and uppercase params
@@ -48,6 +48,7 @@ describe('EdgeRunner: AWS Documentation Sample Tests', () => {
      */
     test('AWS Sample: Security Header Injection', async () => {
         const runner = new EdgeRunner('./samples/aws/security-headers.js');
+        runner.load();
         runners.push(runner);
 
         const request = { headers: {}, url: '/' };
@@ -66,6 +67,7 @@ describe('EdgeRunner: AWS Documentation Sample Tests', () => {
      */
     test('AWS Sample: Content-Based Redirection (Mobile)', async () => {
         const runner = new EdgeRunner('./samples/aws/mobile-redirect.js');
+        runner.load();
         runners.push(runner);
 
         const mobileHeaders = {

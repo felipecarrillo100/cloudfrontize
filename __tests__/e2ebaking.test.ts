@@ -43,7 +43,8 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
     test('🛡️ Should BLOCK non-reserved AWS variables in .env', () => {
         fs.writeFileSync(tempEnv, `DATABASE_URL=postgres://localhost`);
         expect(() => {
-            new EdgeRunner(testDir, { envPath: tempEnv, watch: false });
+            const runner = new EdgeRunner(testDir, { envPath: tempEnv, watch: false });
+            runner.load();
         }).toThrow(/Restricted Variable/);
     });
 
@@ -54,6 +55,7 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
             bakePath: tempBake,
             watch: false
         });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
@@ -71,6 +73,7 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
             outputPath: tempOut,
             watch: false
         });
+        runner.load();
 
         const actualOutPath = path.join(tempOut, 'bakeTest.js');
         expect(fs.existsSync(actualOutPath)).toBe(true);

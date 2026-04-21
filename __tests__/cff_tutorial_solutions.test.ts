@@ -65,6 +65,7 @@ describe('CFF Tutorial Solutions Verification', () => {
         `;
         fs.writeFileSync(path.join(edgeDir, 'viewer-response-reflect.js'), reflectHook);
         edgeRunner = new EdgeRunner(edgeDir);
+edgeRunner.load();
     });
 
     afterEach(async () => {

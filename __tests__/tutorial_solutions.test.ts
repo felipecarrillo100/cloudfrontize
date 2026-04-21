@@ -23,6 +23,7 @@ describe('Tutorial Solutions: Automated Verification', () => {
 
         const o = options ? options : {};
         const runner = new EdgeRunner(tempDir, { watch: false, ...o });
+        runner.load();
         runners.push({
             runner,
             cleanup: () => {

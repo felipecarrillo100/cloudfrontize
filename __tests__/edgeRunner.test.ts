@@ -32,6 +32,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('1. Resolves async handlers natively (Promise support)', async () => {
         const runner = new EdgeRunner('./samples/edgecases/asyncHandler.js');
+        runner.load();
         runners.push(runner);
         const { result: res } = await runner.runRequestHook({ headers: {}, url: '/original.html' });
 
@@ -41,6 +42,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('2. Injects mocked AWS context object to prevent crashes', async () => {
         const runner = new EdgeRunner('./samples/edgecases/contextLogger.js');
+        runner.load();
         runners.push(runner);
         const { result: res } = await runner.runRequestHook({ headers: {}, url: '/' });
 
@@ -50,6 +52,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('3. Natively extracts and splits query strings', async () => {
         const runner = new EdgeRunner('./samples/edgecases/queryStringRewriter.js');
+        runner.load();
         runners.push(runner);
         const { result: res } = await runner.runRequestHook({ headers: {}, url: '/page?utm_source=twitter&other=keep' });
 
@@ -67,6 +70,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
             strict: false,
             watch: false 
         });
+        resRunner.load();
         runners.push(resRunner);
 
         await resRunner.runResponseHook({ headers: {}, url: '/' }, { status: 200, headers: {} });
@@ -88,6 +92,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         fs.writeFileSync(tempPath, mutatorCode);
 
         const hostRunner = new EdgeRunner(tempPath, { debug: true, strict: false, watch: false });
+        hostRunner.load();
         runners.push(hostRunner);
         await hostRunner.runRequestHook({ headers: {}, url: '/' });
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('host'));
@@ -97,6 +102,7 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
 
     test('5. Multi-hook directories execute sequentially without collision', async () => {
         const runner = new EdgeRunner('./samples/advanced/multi-hook-app/');
+        runner.load();
         runners.push(runner);
 
         const { result: reqRes } = await runner.runRequestHook({ headers: {}, url: '/test' });

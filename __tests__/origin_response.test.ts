@@ -60,6 +60,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
         `;
         fs.writeFileSync(path.join(dir, 'safe.js'), code);
         runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
+runner.load();
         runner.load();
         server = startServer({ port, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
 
@@ -80,6 +81,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
         `;
         fs.writeFileSync(path.join(dir, 'forbidden.js'), code);
         runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
+runner.load();
         runner.load();
         server = startServer({ port: port + 1, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
 
@@ -101,6 +103,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
         `;
         fs.writeFileSync(path.join(dir, 'warn.js'), code);
         runner = new EdgeRunner(dir, { watch: false });
+runner.load();
         runner.load();
         server = startServer({ port: port + 2, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: false });
 
@@ -120,6 +123,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
         `;
         fs.writeFileSync(path.join(dir, 'host_res.js'), code);
         runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
+runner.load();
         runner.load();
         server = startServer({ port: port + 3, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
 

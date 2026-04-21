@@ -46,6 +46,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         `);
 
         const runner = new EdgeRunner(jailDir, { watch: false });
+        runner.load();
         const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
         expect(result).toBeDefined();
@@ -79,6 +80,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
 
         // Give the runner debug access to see why it's loading (or not)
         const runner = new EdgeRunner(stateDir, { watch: false, debug: true });
+        runner.load();
 
         const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
@@ -107,6 +109,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         `);
 
         const runner = new EdgeRunner(zombieDir, { watch: false });
+        runner.load();
         const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
 
         // Wait for potential leaked timers to fire

@@ -54,6 +54,7 @@ describe('Default Header Injection (--headers)', () => {
         };
 
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
+edgeRunner.load();
         server = startServer({ 
             directory: tmpDir, 
             port: 0, 
@@ -73,6 +74,7 @@ describe('Default Header Injection (--headers)', () => {
         };
 
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
+edgeRunner.load();
         server = startServer({ 
             directory: tmpDir, 
             port: 0, 
@@ -96,6 +98,7 @@ describe('Default Header Injection (--headers)', () => {
         };
 
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
+edgeRunner.load();
         server = startServer({ 
             directory: tmpDir, 
             port: 0, 
