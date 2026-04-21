@@ -191,4 +191,34 @@ export class HeaderManager {
         }
         return flat as Record<string, string | string[]>;
     }
+
+    /**
+     * applyToResponse: The final step in the fidelity pipeline. 
+     * Extracts complex header structures (arrays, objects, {value}) and top-level convenience 
+     * properties from a hook response, and writes them directly to the Node.js ServerResponse.
+     */
+    public static applyToResponse(res: any, responseData: any): void {
+        const processedHeaders = new Set<string>();
+
+        // 1. Fidelity Resolver Layer 1: Unwrap complex structures (Arrays, Objects, {value})
+        if (responseData.headers) {
+            const flat = HeaderManager.telemetryFlatten(responseData.headers);
+            for (const [k, v] of Object.entries(flat)) {
+                const lowerK = k.toLowerCase();
+                processedHeaders.add(lowerK);
+                res.setHeader(k, v);
+            }
+        }
+
+        // 2. Fidelity Resolver Layer 2: pick up top-level convenience properties (flattened keys)
+        for (const [k, v] of Object.entries(responseData)) {
+            const lowerK = k.toLowerCase();
+            if (lowerK === 'headers' || lowerK === 'status' || lowerK === 'statusdescription' || lowerK === 'body' || lowerK.startsWith('_')) continue;
+            if (processedHeaders.has(lowerK)) continue;
+
+            if (typeof v === 'string' || typeof v === 'number') {
+                res.setHeader(k, String(v));
+            }
+        }
+    }
 }

@@ -9,8 +9,8 @@ import { HookType, CacheBehavior } from '../core/types';
 import { OriginSelector } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
-import { HookUtility } from '../core/HookUtility';
 import { AWS_LIMITS } from '../constants';
+import { HookRegistry } from './HookRegistry';
 
 /**
  * The core orchestration engine for the CloudFrontize pipeline.
@@ -27,9 +27,7 @@ import { AWS_LIMITS } from '../constants';
  */
 export class Orchestrator {
     private headerManager = new HeaderManager();
-    private hookRegistry: any[] = [];
-    private disabledHookIds: Set<string> = new Set();
-    private buildErrors: Map<string, any> = new Map();
+    private hookRegistry: HookRegistry;
     private selector: OriginSelector;
 
     /**
@@ -53,8 +51,7 @@ export class Orchestrator {
         private logStream: fs.WriteStream | null = null
     ) {
         this.selector = new OriginSelector(behaviors);
-        this._initializeHookRegistry();
-        this._setupRunnerListeners();
+        this.hookRegistry = new HookRegistry(edgeRunner, cffRunner, telemetry);
         
         // Final Forensic Audit: Trigger initial build check ONLY after listeners are active.
         // This ensures synth errors present at startup are captured in the health registry.
@@ -80,73 +77,7 @@ export class Orchestrator {
         }, 1000).unref();
     }
 
-    private _setupRunnerListeners() {
-        const runners = [this.edgeRunner, this.cffRunner].filter(Boolean);
-        for (const runner of runners) {
-            runner!.on('build_error', (data) => {
-                this.buildErrors.set(data.path, data);
-                this.telemetry.broadcast({
-                    id: 'SYSTEM_BUILD',
-                    type: 'error',
-                    details: data
-                });
-            });
-
-            runner!.on('build_success', (data) => {
-                this.buildErrors.delete(data.file); // file property is the full path in emitted data
-                this.telemetry.broadcast({
-                    id: 'SYSTEM_BUILD',
-                    type: 'success',
-                    details: { name: 'Build Success', ...data }
-                });
-            });
-        }
-    }
-
-    private _initializeHookRegistry() {
-        const hooks: any[] = [];
-        // L@E
-        const edgePath = this.edgeRunner?.getRunnerPath?.();
-        if (edgePath && fs.existsSync(edgePath)) {
-            if (fs.lstatSync(edgePath).isFile()) {
-                const content = fs.readFileSync(edgePath, 'utf8');
-                const stage = HookUtility.detectStage(content, path.basename(edgePath));
-                hooks.push({ id: `${stage}-le-0`, type: 'Lambda@Edge', path: edgePath, stage });
-            } else if (fs.lstatSync(edgePath).isDirectory()) {
-                const files = fs.readdirSync(edgePath).filter(f => f.endsWith('.js')).sort();
-                const counts: Record<string, number> = {};
-                files.forEach((f) => {
-                    const filePath = path.join(edgePath, f);
-                    const content = fs.readFileSync(filePath, 'utf8');
-                    const stage = HookUtility.detectStage(content, f);
-                    const idx = counts[stage] || 0;
-                    hooks.push({ id: `${stage}-le-${idx}`, type: 'Lambda@Edge', path: filePath, stage });
-                    counts[stage] = idx + 1;
-                });
-            }
-        }
-        // CFF
-        const cffPath = this.cffRunner?.getRunnerPath?.();
-        if (cffPath) {
-            if (fs.existsSync(cffPath) && fs.lstatSync(cffPath).isFile()) {
-                const content = fs.readFileSync(cffPath, 'utf8');
-                const stage = HookUtility.detectStage(content, path.basename(cffPath));
-                hooks.push({ id: `${stage}-cff-0`, type: 'CloudFront Function', path: cffPath, stage });
-            } else if (fs.existsSync(cffPath) && fs.lstatSync(cffPath).isDirectory()) {
-                const files = fs.readdirSync(cffPath).filter(f => f.endsWith('.js')).sort();
-                const counts: Record<string, number> = {};
-                files.forEach((f) => {
-                    const filePath = path.join(cffPath, f);
-                    const content = fs.readFileSync(filePath, 'utf8');
-                    const stage = HookUtility.detectStage(content, f);
-                    const idx = counts[stage] || 0;
-                    hooks.push({ id: `${stage}-cff-${idx}`, type: 'CloudFront Function', path: filePath, stage });
-                    counts[stage] = idx + 1;
-                });
-            }
-        }
-        this.hookRegistry = hooks;
-    }
+    // Hook registry discovery and state management extracted to HookRegistry.ts
 
     private broadcastStage(name: string, details: any, headers?: any) {
         if (headers) {
@@ -162,10 +93,10 @@ export class Orchestrator {
 
     public getDistribution() {
         return {
-            hooks: this.hookRegistry.map(h => ({
+            hooks: this.hookRegistry.getAllHooks().map(h => ({
                 ...h,
-                disabled: this.disabledHookIds.has(h.id),
-                error: this.buildErrors.get(h.path), // Metadata Hydration: Include health in core distribution
+                disabled: this.hookRegistry.hasDisabledHook(h.id),
+                error: this.hookRegistry.getBuildError(h.path), // Metadata Hydration: Include health in core distribution
                 code: fs.existsSync(h.path) ? fs.readFileSync(h.path, 'utf8') : '// Source not found'
             })),
             origins: this.config.origins || [],
@@ -175,12 +106,11 @@ export class Orchestrator {
     }
 
     public getBuildErrors(): Record<string, any> {
-        return Object.fromEntries(this.buildErrors);
+        return this.hookRegistry.getBuildErrors();
     }
 
     public toggleHook(id: string, disabled: boolean): void {
-        if (disabled) this.disabledHookIds.add(id);
-        else this.disabledHookIds.delete(id);
+        this.hookRegistry.toggleHook(id, disabled);
         
         // Broadcast change to keep all Forensic UI tabs in sync
         this.telemetry.broadcast({
@@ -190,7 +120,7 @@ export class Orchestrator {
     }
 
     public resetHooks(): void {
-        this.disabledHookIds.clear();
+        this.hookRegistry.resetHooks();
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
@@ -198,13 +128,7 @@ export class Orchestrator {
     }
 
     public disableAllHooks(disable: boolean = true): void {
-        if (disable) {
-            for (const h of this.hookRegistry) {
-                this.disabledHookIds.add(h.id);
-            }
-        } else {
-            this.disabledHookIds.clear();
-        }
+        this.hookRegistry.disableAllHooks(disable);
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
@@ -215,7 +139,7 @@ export class Orchestrator {
      * Generates production-ready code with tiered transformations.
      */
     public async getProductionCode(hookId: string, level: TransformationLevel): Promise<string> {
-        const hook = this.hookRegistry.find(h => h.id === hookId);
+        const hook = this.hookRegistry.getAllHooks().find(h => h.id === hookId);
         if (!hook || !fs.existsSync(hook.path)) return '// Error: Hook path not found';
 
         const content = fs.readFileSync(hook.path, 'utf8');
@@ -231,10 +155,7 @@ export class Orchestrator {
     }
 
     public isolateHook(id: string): void {
-        this.disabledHookIds.clear();
-        for (const h of this.hookRegistry) {
-            if (h.id !== id) this.disabledHookIds.add(h.id);
-        }
+        this.hookRegistry.isolateHook(id);
         this.telemetry.broadcast({
             type: 'distribution',
             data: this.getDistribution()
@@ -308,9 +229,9 @@ export class Orchestrator {
         req._logBuffer = [`${logPrefix} ${req.method} ${req.url} \x1b[90m(Host: ${req.headers.host || 'unknown'})\x1b[0m`];
 
         // 0. Build Health Check: AWS Parity - Return 502 if any active hook has a syntax error
-        for (const hook of this.hookRegistry) {
-            if (!this.disabledHookIds.has(hook.id) && this.buildErrors.has(hook.path)) {
-                const error = this.buildErrors.get(hook.path);
+        for (const hook of this.hookRegistry.getAllHooks()) {
+            if (!this.hookRegistry.hasDisabledHook(hook.id) && this.hookRegistry.hasBuildError(hook.path)) {
+                const error = this.hookRegistry.getBuildError(hook.path);
                 const awsErrorCode = hook.type.toLowerCase().includes('function') ? 'CloudFrontFunctionExecutionError' : 'LambdaExecutionError';
                 
                 res.statusCode = 502;
@@ -357,41 +278,6 @@ export class Orchestrator {
             };
         }
 
-        // Body Forensics: Pipeline body tracking helpers.
-        // Contract: actual data on first capture/mutation; {bodyUnchanged:true} on pass-through; nothing if no body.
-        const captureLeReqBody = (result: any): any => {
-            if (!reqBodyMeta) return undefined;
-            const lb = result?.body;
-            if (lb?.action === 'replace' && lb?.data) {
-                const raw = lb.encoding === 'base64'
-                    ? Buffer.from(String(lb.data), 'base64')
-                    : Buffer.from(String(lb.data || ''));
-                const sl = raw.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
-                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES, contentType: reqBodyMeta!.contentType };
-            }
-            return { bodyUnchanged: true };
-        };
-        const captureLeResBody = (result: any, prevMeta: any): any => {
-            let rb = result?.body;
-            let encoding = result.bodyEncoding || 'text';
-
-            // Unpack Internal Body Object if present
-            if (typeof rb === 'object' && rb !== null && rb.data !== undefined) {
-                encoding = rb.encoding || encoding;
-                rb = rb.data;
-            }
-
-            // Response hooks return the body directly (not action: replace)
-            if (rb !== undefined && rb !== null) {
-                const raw = encoding === 'base64'
-                    ? Buffer.from(String(rb), 'base64')
-                    : Buffer.from(String(rb));
-                const sl = raw.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
-                return { body: sl.toString('base64'), bodySize: raw.length, bodyTruncated: raw.length > AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES, contentType: (prevMeta?.contentType || 'text/plain') };
-            }
-            if (prevMeta) return { bodyUnchanged: true };
-            return undefined;
-        };
         // Live body state — updated as the pipeline progresses
         let liveReqBodyState: any = reqBodyMeta ? { bodyUnchanged: true } : undefined;
         let liveResBodyState: any = undefined;
@@ -427,7 +313,7 @@ export class Orchestrator {
             // 1. CFF Viewer Request (Atomic Forensic Journey)
             if (this.cffRunner) {
                 const cffEvent = this.cffRunner.toCFFEvent(req, null, 'viewer-request');
-                const { result: cffResult, logs: cffLogs } = await this.cffRunner.runChain('viewer-request', cffEvent, Array.from(this.disabledHookIds), (mod, result) => {
+                const { result: cffResult, logs: cffLogs } = await this.cffRunner.runChain('viewer-request', cffEvent, this.hookRegistry.getDisabledHookIds(), (mod, result) => {
                     const intermediateMutated = this.cffRunner.fromCFFEvent(result);
                     if (intermediateMutated) {
                         this._syncUrlToRequest(req, intermediateMutated);
@@ -451,8 +337,8 @@ export class Orchestrator {
             // 2. L@E Request Hooks
             liveReqBodyState = reqBodyMeta; 
             if (this.edgeRunner) {
-                const disabledIds = Array.from(this.disabledHookIds);
-                const viewerOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-request').map(h => h.id);
+                const disabledIds = this.hookRegistry.getDisabledHookIds();
+                const viewerOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-request').map(h => h.id);
                 
                 // Fidelity & Performance: Slicing the input body for the Lambda snapshot
                 const reqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
@@ -468,8 +354,8 @@ export class Orchestrator {
                     reqBody = Buffer.from(viewerResult.body.data, 'base64');
                 }
 
-                liveReqBodyState = captureLeReqBody(viewerResult);
-                const viewerReqHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'viewer-request' && !this.disabledHookIds.has(h.id));
+                liveReqBodyState = Telemetry.captureLeReqBody(viewerResult, reqBodyMeta);
+                const viewerReqHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'viewer-request');
                 if (viewerReqHooks.length > 0) {
                     this.broadcastStage(
                         `[L@E: viewer-request] ${viewerReqHooks.map(h => path.basename(h.path)).join(' + ')}`,
@@ -489,7 +375,7 @@ export class Orchestrator {
                 this._syncUrlToRequest(req, viewerResult);
 
                 // 2b. L@E Origin Request (Atomic Phase)
-                const originOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-request').map(h => h.id);
+                const originOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'viewer-request').map(h => h.id);
                 
                 // Fidelity & Performance: Slicing the input body for the Origin Request Lambda snapshot
                 const originReqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
@@ -504,8 +390,8 @@ export class Orchestrator {
                     reqBody = Buffer.from(originResult.body.data, 'base64');
                 }
 
-                liveReqBodyState = captureLeReqBody(originResult);
-                const originReqHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'origin-request' && !this.disabledHookIds.has(h.id));
+                liveReqBodyState = Telemetry.captureLeReqBody(originResult, reqBodyMeta);
+                const originReqHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'origin-request');
                 if (originReqHooks.length > 0) {
                     this.broadcastStage(
                         `[L@E: origin-request] ${originReqHooks.map(h => path.basename(h.path)).join(' + ')}`,
@@ -586,10 +472,10 @@ export class Orchestrator {
 
             // 4. Trace Response Hooks
             if (this.edgeRunner) {
-                const disabledIds = Array.from(this.disabledHookIds);
+                const disabledIds = this.hookRegistry.getDisabledHookIds();
                 
                 // 4a. L@E Origin Response (Atomic Phase)
-                const originResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'viewer-response').map(h => h.id);
+                const originResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'viewer-response').map(h => h.id);
                 const { result: originResResult, logs: originResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
                     headers: HeaderManager.telemetryFlatten(headers)
@@ -624,14 +510,14 @@ export class Orchestrator {
                         : Buffer.from(rawBody);
                 }
 
-                liveResBodyState = captureLeResBody(originResResult, liveResBodyState);
-                const originResHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'origin-response' && !this.disabledHookIds.has(h.id));
+                liveResBodyState = Telemetry.captureLeResBody(originResResult, liveResBodyState);
+                const originResHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'origin-response');
                 originResHooks.forEach(h => {
                     this.broadcastStage(`[L@E: origin-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
                 });
 
                 // 4b. L@E Viewer Response (Atomic Phase)
-                const viewerResOnlyDisabled = this.hookRegistry.filter(h => h.stage === 'origin-response').map(h => h.id);
+                const viewerResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-response').map(h => h.id);
                 const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
                     headers: HeaderManager.telemetryFlatten(headers)
@@ -666,8 +552,8 @@ export class Orchestrator {
                         : Buffer.from(rawBody);
                 }
 
-                liveResBodyState = captureLeResBody(viewerResResult, liveResBodyState);
-                const viewerResHooks = this.hookRegistry.filter(h => h.type === 'Lambda@Edge' && h.stage === 'viewer-response' && !this.disabledHookIds.has(h.id));
+                liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
+                const viewerResHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'viewer-response');
                 viewerResHooks.forEach(h => {
                     this.broadcastStage(`[L@E: viewer-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
                 });
@@ -682,7 +568,7 @@ export class Orchestrator {
             // 6. CFF Viewer Response (Atomic Forensic Journey)
             if (this.cffRunner) {
                 const cffResEvent = this.cffRunner.toCFFEvent(req, finalRes, 'viewer-response');
-                const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent, Array.from(this.disabledHookIds), (mod, result) => {
+                const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent, this.hookRegistry.getDisabledHookIds(), (mod, result) => {
                     const cffFinal = this.cffRunner.fromCFFEvent(result);
                     if (cffFinal) {
                         finalRes = {
@@ -754,28 +640,7 @@ export class Orchestrator {
     private _sendResponse(res: any, responseData: any, requestId: string, startTime: number, req: any, options: any, originalBody?: Buffer): void {
         res.statusCode = Number(responseData.status || 200);
 
-        const processedHeaders = new Set<string>();
-
-        // 1. Fidelity Resolver Layer 1: Unwrap complex structures (Arrays, Objects, {value})
-        if (responseData.headers) {
-            const flat = HeaderManager.telemetryFlatten(responseData.headers);
-            for (const [k, v] of Object.entries(flat)) {
-                const lowerK = k.toLowerCase();
-                processedHeaders.add(lowerK);
-                res.setHeader(k, v);
-            }
-        }
-
-        // 2. Fidelity Resolver Layer 2: pick up top-level convenince properties (flattened keys)
-        for (const [k, v] of Object.entries(responseData)) {
-            const lowerK = k.toLowerCase();
-            if (lowerK === 'headers' || lowerK === 'status' || lowerK === 'statusdescription' || lowerK === 'body' || lowerK.startsWith('_')) continue;
-            if (processedHeaders.has(lowerK)) continue;
-
-            if (typeof v === 'string' || typeof v === 'number') {
-                res.setHeader(k, String(v));
-            }
-        }
+        HeaderManager.applyToResponse(res, responseData);
 
         const duration = Date.now() - startTime;
         const statusStr = res.statusCode >= 400 ? `\x1b[31m${res.statusCode}\x1b[0m` : `\x1b[32m${res.statusCode}\x1b[0m`;
