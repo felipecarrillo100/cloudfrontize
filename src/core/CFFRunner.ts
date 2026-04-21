@@ -78,7 +78,18 @@ export class CFFRunner extends HotRunner {
         }
 
         const stagedRegistry = this._createEmptyRegistry();
-        if (!this.runnerPath || !fs.existsSync(this.runnerPath)) return;
+        if (!this.runnerPath || !fs.existsSync(this.runnerPath)) {
+            if (this.runnerPath) {
+                console.error(`\n\x1b[31m🛑 [CFFRunner] Hook file or directory not found: ${this.runnerPath}\x1b[0m`);
+                this.emit('build_error', { 
+                    type: 'CloudFront Function', 
+                    path: this.runnerPath,
+                    error: `File or directory not found: ${this.runnerPath}`
+                });
+            }
+            this.modules = stagedRegistry; // Ensure empty state
+            return;
+        }
 
         const stat = fs.statSync(this.runnerPath);
         const files = stat.isDirectory()

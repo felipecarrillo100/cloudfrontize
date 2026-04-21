@@ -178,4 +178,12 @@ export abstract class HotRunner extends EventEmitter {
     public getRunnerPath(): string | null {
         return this.runnerPath;
     }
+
+    /**
+     * Professional Fidelity: Check if any hooks are actually registered in the internal registry.
+     * This is used to prevent the CLI from reporting a runner as "Active" if it failed to load any files.
+     */
+    public hasLoadedModules(): boolean {
+        return Object.values(this.modules).some(hooks => hooks.length > 0);
+    }
 }

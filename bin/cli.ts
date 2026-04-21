@@ -97,13 +97,22 @@ program
 
         const displayPort = parseInt(port);
 
-        startServer({
+        const server = startServer({
             ...options,
             port: displayPort,
             directory: directory ? path.resolve(directory) : undefined,
             edgeRunner,
             cffRunner
         });
+
+        const shutdown = async () => {
+            console.log(`\n\n👋 \x1b[1mCloudFrontize shutting down gracefully...\x1b[0m`);
+            await server.closeGracefully();
+            process.exit(0);
+        };
+
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
     });
 
 program.parse(process.argv);

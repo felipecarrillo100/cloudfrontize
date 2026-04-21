@@ -44,12 +44,17 @@ export function printTopBanner(options: any) {
 
 export function printBottomBanner(options: any) {
     const { edgeRunner, cffRunner } = options;
+    const hasActiveEdge = edgeRunner && edgeRunner.hasLoadedModules();
+    const hasActiveCff = cffRunner && cffRunner.hasLoadedModules();
+
+    if (!hasActiveEdge && !hasActiveCff) return;
+
     console.log(`  ⚙️  Active Environment`);
-    if (edgeRunner) {
+    if (hasActiveEdge) {
         const p = edgeRunner.getRunnerPath();
         console.log(`     - \x1b[35mLambda@Edge\x1b[0m: ${p ? path.basename(p) : 'Active'}`);
     }
-    if (cffRunner) {
+    if (hasActiveCff) {
         const p = cffRunner.getRunnerPath();
         console.log(`     - \x1b[35mCloudFront Function\x1b[0m: ${p ? path.basename(p) : 'Active'}`);
     }
@@ -194,6 +199,17 @@ export function startServer(options: any) {
         socket.on('close', () => openSockets.delete(socket));
     });
 
+    mainServer.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`\n\x1b[31m🛑 [Error] Port ${options.port} is already in use.\x1b[0m`);
+            console.error(`   Please use '--port <number>' to specify a different port.\n`);
+            process.exit(1);
+        } else {
+            console.error(`\n\x1b[31m🛑 [Error] Server failed to start: ${err.message}\x1b[0m\n`);
+            process.exit(1);
+        }
+    });
+
     mainServer.listen(options.port, () => {
         applyHeaderConfig();
         if (!options.noBanner) {
@@ -212,6 +228,18 @@ export function startServer(options: any) {
         uiServer = http.createServer((req, res) => {
             webui.handleRequest(req, res);
         });
+        
+        uiServer.on('error', (err: any) => {
+            if (err.code === 'EADDRINUSE') {
+                console.error(`\n\x1b[31m🛑 [Error] WebUI Port ${options.webui} is already in use.\x1b[0m`);
+                console.error(`   Please use '--webui <number>' to specify a different port.\n`);
+                process.exit(1);
+            } else {
+                console.error(`\n\x1b[31m🛑 [Error] WebUI Server failed to start: ${err.message}\x1b[0m\n`);
+                process.exit(1);
+            }
+        });
+
         uiServer.listen(parseInt(options.webui));
     }
 

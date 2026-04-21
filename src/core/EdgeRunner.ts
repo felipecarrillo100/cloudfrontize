@@ -58,14 +58,26 @@ export class EdgeRunner extends HotRunner {
     }
 
     public load(changedFile?: string): void {
-        if (!this.runnerPath || !fs.existsSync(this.runnerPath)) return;
+        const newModules = this._createEmptyRegistry();
+        
+        if (!this.runnerPath || !fs.existsSync(this.runnerPath)) {
+            if (this.runnerPath) {
+                console.error(`\n\x1b[31m🛑 [EdgeRunner] Hook file or directory not found: ${this.runnerPath}\x1b[0m`);
+                this.emit('build_error', { 
+                    type: 'Lambda@Edge', 
+                    path: this.runnerPath,
+                    error: `File or directory not found: ${this.runnerPath}`
+                });
+            }
+            this.modules = newModules; // Ensure empty state
+            return;
+        }
 
         // Fidelity Fix: Ensure DEFAULT_ENV is always present and merged correctly
         this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._loadEnv(this.options.envPath) };
         this.bakeVars = this._loadBake(this.options.bakePath);
         this.compileError = null;
 
-        const newModules = this._createEmptyRegistry();
         const stat = fs.statSync(this.runnerPath);
 
         if (stat.isDirectory()) {
