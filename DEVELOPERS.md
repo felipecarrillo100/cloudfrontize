@@ -37,21 +37,24 @@ npm run build
 
 When modifying the engine, always prioritize **AWS Production Parity** over "Developer Convenience."
 
-### 3.1 The Snapshot Rule
-Do not log full request/response bodies to the console. Large files will cause the process to hang or OOM. Use the centralized `AWS_LIMITS` constants to slice forensic snapshots.
+#### 3.1 The Snapshot Rule
+Do not log full request/response bodies to the console. Use the centralized `AWS_LIMITS` constants to slice forensic snapshots.
 
-### 3.2 Header Reconciliation
-Always use `HeaderManager.telemetryFlatten()` to prepare headers for the UI. This ensures "Wire Case" fidelity is preserved while providing a clean JSON object for the dashboard.
+#### 3.2 State Roll-Forward Rule
+Never manually "fix" or merge a hook's output. If a hook returns an invalid structure or deletes a required header, the emulator must reflect that exactly as AWS would. We use the **State Roll-Forward** pattern to hand off state between stages.
+
+#### 3.3 Header Reconciliation
+Always use `HeaderManager.telemetryFlatten()` to prepare headers for the UI and `HeaderManager.applyToResponse()` for final delivery. This ensures "Wire Case" fidelity is preserved.
 
 ---
 
 ## 4. The Pulse (Telemetry) 📡
 
-CloudFrontize uses a Server-Sent Events (SSE) stream to push live request journeys to the dashboard.
-- **Server**: `src/pipeline/TelemetryServer.ts`.
+CloudFrontize uses a Server-Sent Events (SSE) stream to push the **Execution Journey** to the dashboard.
+- **Server**: `src/pipeline/WebUI.ts` (Event Stream Handler).
 - **Client**: `ui-src/src/components/TrafficCenter.tsx`.
 
-When adding a new stage to the `Orchestrator`, call `this.telemetry.broadcast()` to ensure the stage appears in the "Atomic Journey" visualization.
+When adding a new stage to the `Orchestrator`, call `this.broadcastStage()` to ensure the stage appears in the "Execution Journey" visualization.
 
 ---
 

@@ -1,113 +1,162 @@
-# 🪣 S3 & Multi-Origin Support
+# 🪣 Origins & Provider Specification
 
-CloudFrontize isn't just for local files. You can point it at a real **AWS S3 Bucket** or an S3-compatible service like **MinIO**, **LocalStack**, or **Cloudflare R2**. This allows you to test your Lambda@Edge logic against the exact same data you use in production.
-
----
-
-## ⚡ Quick Start: S3 Proxying
-
-To start CloudFrontize as a proxy to an S3 bucket instead of a local directory, use the `--s3-origin` flag.
-
-### 1. Basic AWS S3
-If your machine is already configured with AWS credentials (via `~/.aws/credentials` or environment variables):
-
-```bash
-cloudfrontize --s3-origin my-production-bucket --edge ./my-hook.js
-```
-
-### 2. S3-Compatible (MinIO / LocalStack)
-When using MinIO or other local S3 clones, you must specify the custom endpoint. CloudFrontize will automatically enable `forcePathStyle` for these services.
-
-```bash
-# Set credentials if not already in environment
-$env:AWS_ACCESS_KEY_ID="minioadmin"
-$env:AWS_SECRET_ACCESS_KEY="minioadmin123"
-
-cloudfrontize --s3-origin www --s3-endpoint http://localhost:9000 --edge ./my-hook.js
-```
+CloudFrontize uses a modular **Provider Architecture** to resolve content. This document defines how to configure and manage different data sources (Origins) and how the emulator routes traffic between them.
 
 ---
 
-## 🛠️ Advanced: Multi-Origin Configuration
+## 1. Origin Provider Types
 
-In production, CloudFront often has multiple origins (e.g., an S3 bucket for assets and an ALB for the API). You can simulate this complex routing using a JSON configuration file.
+CloudFrontize supports three primary provider types, each emulating specific AWS behaviors.
 
-### Multiple Origins Example (`origins.json`)
+| Type | Backend Engine | Use Case | AWS Parity Level |
+| :--- | :--- | :--- | :--- |
+| **`s3`** | `S3Provider.ts` | Real AWS S3, MinIO, LocalStack, R2. | **High.** Emulates S3 metadata and error XML. |
+| **`local`** | `LocalProvider.ts` | Local filesystem folders. | **Medium.** Emulates S3-like index.html resolution. |
+| **`custom`** | (Experimental) | External HTTP/REST endpoints. | **Low.** Currently falls back to local. |
 
+---
+
+## 2. The Unified Origin Schema (`--origins`)
+
+The most powerful way to configure CloudFrontize is via a JSON file. This file combines **Data Sources** (Origins) and **Routing Rules** (Behaviors).
+
+### 2.1 Origin Configuration Object
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **`id`** | `string` | **Required.** Unique ID for routing (e.g., `primary-s3`). |
+| **`type`** | `string` | **Required.** `s3`, `local`, or `custom`. |
+| **`bucket`** | `string` | (S3 Only) The name of the bucket. |
+| **`endpoint`** | `string` | (S3 Only) Custom URL (e.g., `http://localhost:9000`). |
+| **`region`** | `string` | (S3 Only) AWS Region (default: `us-east-1`). |
+| **`mode`** | `string` | (S3 Only) `rest` (OAC/OAI) or `website` (Static Hosting). |
+| **`directory`** | `string` | (Local Only) Path to the local content folder. |
+| **`credentials`**| `object` | `{ accessKeyId, secretAccessKey }` for protected buckets. |
+
+### 2.2 Cache Behavior Object
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **`pathPattern`** | `string` | **Required.** CloudFront pattern (e.g., `/api/*`, `*.css`). |
+| **`targetOriginId`**| `string` | **Required.** The `id` of the origin to handle this path. |
+
+---
+
+## 3. High-Fidelity S3 Modes: REST vs Website
+
+The `mode` property in your configuration significantly changes how CloudFrontize resolves files.
+
+### 3.1 `rest` Mode (Default)
+Simulates an S3 bucket accessed via an **Origin Access Control (OAC)** or Identity (OAI).
+- **Behavior**: No automatic index files. A request for `/folder/` will result in a **403 Forbidden** (or 404 depending on bucket permissions).
+- **Use Case**: Secure API or private asset storage.
+
+### 3.2 `website` Mode
+Simulates an S3 bucket configured for **Static Website Hosting**.
+- **Behavior**: If a request points to a directory, the provider automatically appends `index.html`.
+- **Behavior**: Custom 404 error pages defined in S3 are honored.
+- **Use Case**: Front-end single-page applications (SPAs).
+
+---
+
+## 4. Example Gallery: The Origin Cookbook 👨‍🍳
+
+Use these patterns as a template. An AI agent can read these examples to generate a custom `--origins` JSON based on your specific infrastructure.
+
+### Level 1: Basic S3 Proxy
+**Goal**: Point CloudFrontize to a single AWS S3 bucket using default credentials.
 ```json
 {
   "origins": [
-    {
-      "id": "s3-assets",
-      "type": "s3",
-      "bucket": "my-assets",
-      "region": "us-east-1"
-    },
-    {
-      "id": "local-api",
-      "type": "local",
-      "directory": "./api-stubs"
-    }
+    { "id": "main", "type": "s3", "bucket": "my-prod-bucket" }
   ],
   "behaviors": [
-    { "pathPattern": "/assets/*", "targetOriginId": "s3-assets" },
-    { "pathPattern": "/api/*", "targetOriginId": "local-api" },
-    { "pathPattern": "*", "targetOriginId": "s3-assets" }
+    { "pathPattern": "*", "targetOriginId": "main" }
   ]
 }
 ```
 
-**Run with:**
-```bash
-cloudfrontize --origins ./origins.json --edge ./my-hook.js
-```
-
----
-
-## 🔑 Credential Management
-
-CloudFrontize looks for credentials in the following order:
-
-1.  **JSON Config**: Explicitly defined `credentials` inside your `--origins` file.
-2.  **Environment Variables**: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-3.  **AWS Profile**: Your default AWS CLI profile (if using standard AWS S3).
-
-### JSON Credential Format
-> 💡 **Note**: If you are using a simple flat config file (single origin), the `"type": "s3"` property is optional—CloudFrontize will automatically infer the type if a `bucket` property is present.
-
+### Level 2: MinIO with Explicit Auth
+**Goal**: Use a local MinIO server with specific credentials and website-mode enabled.
 ```json
 {
-  "bucket": "www",
-  "region": "us-east-1",
-  "endpoint": "http://localhost:9000",
-  "credentials": {
-    "accessKeyId": "minioadmin",
-    "secretAccessKey": "minioadmin123"
-  }
+  "origins": [
+    { 
+      "id": "minio", 
+      "type": "s3", 
+      "bucket": "www",
+      "endpoint": "http://localhost:9000",
+      "mode": "website",
+      "credentials": {
+        "accessKeyId": "minioadmin",
+        "secretAccessKey": "minioadmin123"
+      }
+    }
+  ],
+  "behaviors": [
+    { "pathPattern": "*", "targetOriginId": "minio" }
+  ]
+}
+```
+
+### Level 3: The "Split-Horizon" Routing
+**Goal**: Serve images from S3, but keep your API stubs and CSS on your local machine for rapid editing.
+```json
+{
+  "origins": [
+    { "id": "cloud-assets", "type": "s3", "bucket": "production-images" },
+    { "id": "local-code", "type": "local", "directory": "./src/static" }
+  ],
+  "behaviors": [
+    { "pathPattern": "/images/*", "targetOriginId": "cloud-assets" },
+    { "pathPattern": "*.jpg", "targetOriginId": "cloud-assets" },
+    { "pathPattern": "*", "targetOriginId": "local-code" }
+  ]
+}
+```
+
+### Level 4: Multi-Bucket Aggregator
+**Goal**: Consolidate data from two different buckets (e.g., User Data and System Assets) behind one CloudFrontize endpoint.
+```json
+{
+  "origins": [
+    { "id": "user-bucket", "type": "s3", "bucket": "users-us-east-1" },
+    { "id": "sys-bucket", "type": "s3", "bucket": "system-assets-eu-west-1", "region": "eu-west-1" }
+  ],
+  "behaviors": [
+    { "pathPattern": "/u/*", "targetOriginId": "user-bucket" },
+    { "pathPattern": "/sys/*", "targetOriginId": "sys-bucket" },
+    { "pathPattern": "*", "targetOriginId": "sys-bucket" }
+  ]
 }
 ```
 
 ---
 
-## 🔍 Troubleshooting
+## 5. Security & Credentials Chain
 
-### 1. 502 Bad Gateway / Connection Refused
-If you receive a `502` and see `[S3 Error] ECONNREFUSED` in your terminal:
-- **Check MinIO Status**: Ensure your local S3 server is actually running.
-- **Localhost vs 127.0.0.1**: Sometimes `localhost` resolves to an IPv6 address (`::1`) while your service is only listening on IPv4. Try changing your endpoint to `http://127.0.0.1:9000`.
+CloudFrontize uses the standard AWS SDK v3 credential provider chain, supplemented by your JSON configuration.
 
-### 2. Forbidden Header Mutations
-AWS strictly forbids changing certain headers (like `Host` or `Content-Length`) in some hooks. Use the `--strict` flag to catch these errors locally with detailed explanations.
-
-### 3. Missing Data
-If your bucket shows a **404 Not Found** but the files exist on your disk, ensure you've actually synchronized them to S3. CloudFrontize does not automatically upload your local files to your S3 bucket.
+| Priority | Source | Implementation |
+| :--- | :--- | :--- |
+| **1 (Highest)**| **JSON Config** | Explicit `credentials` block in `--origins` file. |
+| **2** | **Env Vars** | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. |
+| **3** | **AWS Profile**| Default profile in `~/.aws/credentials`. |
 
 ---
 
-## ⚖️ Fidelity & Quirks
+## 6. Troubleshooting Origins
 
-CloudFrontize emulates specific S3/CloudFront integration behaviors:
+### `502 Bad Gateway` (S3 Error)
+- **Localhost resolution**: If your S3 clone (MinIO/LocalStack) is running in Docker, `localhost` may fail. Try using `127.0.0.1` or the specific container IP.
+- **Protocol Mismatch**: Ensure your `endpoint` starts with `http://` or `https://`.
 
-*   **REST vs Website Mode**: Use `--mode rest` (default) to simulate an S3 REST OAC/OAI endpoint (no auto-indexing). Use `--mode website` to simulate an S3 Static Website Hosting endpoint (automatic `index.html` resolution).
-*   **Redirects**: 301/307 redirects from S3 are properly passed through the `origin-response` hooks.
-*   **Case Sensitivity**: S3 keys are case-sensitive. CloudFrontize maintains this strictness even when running on Windows/macOS.
+### `403 Forbidden`
+- **REST vs Website**: If you expect `/` to return `index.html` but get a 403, check that your `mode` is set to `website`.
+- **Public Access**: Ensure your bucket (if real S3) allows the credentials you provided to perform `s3:GetObject`.
+
+---
+
+## 7. Operational Fidelity Specs
+
+*   **Header Passthrough**: All S3 metadata headers (e.g., `x-amz-meta-*`, `ETag`, `Content-Type`) are passed through the pipeline.
+*   **Case Sensitivity**: S3 is case-sensitive. CloudFrontize maintains this even when the underlying local filesystem (Windows/macOS) is not.
+*   **ForcePathStyle**: Automatically enabled when a custom `endpoint` is provided, ensuring compatibility with MinIO and LocalStack.

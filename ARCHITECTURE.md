@@ -25,22 +25,23 @@ graph LR
     D -.-> LOC[(Local Folder)]
 ```
 
-### 0.2 The Core Engines
-*   **The Brain (`Orchestrator.ts`)**: Manages the highway. Implements the **"Silver Bullet" Serializer** to ensure regardless of how a hook returns a body (Buffer, String, or AWS Object), it correctly resolves to raw bytes.
-*   **The Sandboxes (`Runners`)**: Executes code in isolation. 
-    *   **EdgeRunner** (L@E): Mirrors the Node.js runtime with 1MB body snapshots.
-    *   **CFFRunner** (CFF): Enforces a strict ES5.1 sandbox for ultra-fast header logic.
-*   **The Data Sources (`Providers`)**: Fetch the actual content.
-    *   **LocalProvider**: Emulates S3 website-hosting behaviors on local files.
-    *   **S3Provider**: Proxies to real S3/MinIO with AWS-SDK fidelity.
-*   **The Fidelity Layer (`HeaderManager.ts`)**: Bypasses standard Node.js normalization. It maintains **"Wire-Case" Fidelity** (e.g., `X-Custom-ID` stays as is) for bit-for-bit accuracy.
+### 0.2 The Core Engines (Component Reference)
 
-### 0.3 Developer Map: Where to Start Coding?
-If you want to contribute, here is where the logic lives:
-- **Core Pipeline**: `src/pipeline/Orchestrator.ts`
-- **Hook Runtimes**: `src/core/EdgeRunner.ts` / `src/core/CFFRunner.ts`
-- **Header Logic**: `src/core/HeaderManager.ts`
-- **Forensic UI (React)**: `ui-src/src/components/`
+| Component | Code Path | Architectural Role |
+| :--- | :--- | :--- |
+| **Orchestrator** | `src/pipeline/Orchestrator.ts` | **The Brain.** Manages the Hook Highway and State Roll-Forward. |
+| **HeaderManager** | `src/core/HeaderManager.ts` | **The Fidelity Layer.** Preserves casing and multi-value headers. |
+| **EdgeRunner** | `src/core/EdgeRunner.ts` | **Lambda@Edge Sandbox.** Simulates the Node.js L@E runtime. |
+| **CFFRunner** | `src/core/CFFRunner.ts` | **CFF Sandbox.** Strict ES5.1 sandbox for CloudFront Functions. |
+| **OriginSelector** | `src/pipeline/OriginSelector.ts` | **The Router.** Maps path patterns to specific providers. |
+| **Telemetry** | `src/pipeline/Telemetry.ts` | **The Black Box.** Captures and broadcasts stage-by-stage snapshots. |
+
+### 0.3 Developer Map: Core Logic Locations
+- **Pipeline Execution**: `src/pipeline/Orchestrator.ts`
+- **Sandbox Engines**: `src/core/EdgeRunner.ts` / `src/core/CFFRunner.ts`
+- **Fidelity Normalization**: `src/core/HeaderManager.ts`
+- **Origin Implementations**: `src/pipeline/Providers/`
+- **WebUI Backend**: `src/pipeline/WebUI.ts`
 
 ---
 
@@ -48,36 +49,56 @@ If you want to contribute, here is where the logic lives:
 
 CloudFrontize processes incoming HTTP requests through a strict, sequential pipeline mimicking the internal hook structure of AWS.
 
-### 1.1 Hook Chain Sequence
-1. **Viewer Request (CFF):** Lightweight "CloudFront Function". ES5.1 restricted sandbox, ultra-low latency. Can return a response instantly (Short-circuit).
-2. **Viewer Request (L@E):** "Lambda@Edge" Node.js runtime. Supports 1MB snapshots with `inputTruncated` flag.
-3. **Origin Request (L@E):** Authorized to rewrite URIs or modify bodies before they hit the origin provider.
-4. **Origin Provider (S3/MinIO or Local):** Resolves the target asset.
-5. **Origin Response (L@E):** **Strictly Blind** in production. It can replace headers and status but cannot read the origin body.
-6. **Viewer Response (L@E):** Final Lambda stage. Overwrites previous body replacements if returned.
-7. **Viewer Response (CFF):** Final lightweight header manipulations.
+### 1.1 The Network Simulation Layer
+Before the first hook runs, the Orchestrator injects **Sticky Headers** (Header Intelligence) into the request. This simulates the CloudFront Network Layer, providing hooks with realistic metadata such as Geo-location and Device type headers (`this._injectStickyHeaders`).
 
-### 1.2 The "Blind Response" Protocol
+### 1.2 The Hook Chain (Execution Matrix)
+
+| # | Stage Name | Runner | AWS Lifecycle Event | Mutation Power |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Viewer Request** | CFF | `viewer-request` | Headers, URI, Cookies |
+| 2 | **Viewer Request** | L@E | `viewer-request` | Full (Headers, Body, URI) |
+| 3 | **Origin Request** | L@E | `origin-request` | Full (Headers, Body, URI) |
+| 4 | **Origin Provider** | Provider | (The Fetch) | N/A (Produces Response) |
+| 5 | **Origin Response**| L@E | `origin-response`| Headers, Status (Blind Body) |
+| 6 | **Viewer Response**| L@E | `viewer-response`| Headers, Status (Blind Body) |
+| 7 | **Viewer Response**| CFF | `viewer-response`| Headers only |
+
+### 1.3 State Roll-Forward (Fidelity First)
+To ensure 100% production parity, the emulator enforces a **Strict Overwrite Rule**:
+- We do not "merge" hook outputs with previous state.
+- If a hook returns a response or a header modification, that object **replaces** the internal state for the next stage.
+- This ensures that if a developer's hook intends to delete a header, it is actually deleted in the emulator.
+
+### 1.4 The "Blind Response" Protocol
 To ensure 100% production parity, the emulator enforces the **Blind Response Rule**:
 - In `origin-response` and `viewer-response`, the `event.Records[0].cf.response.body` field is **absent** (undefined).
 - Functions can **replace** the body by returning a new one, but they can never inspect what the origin sent.
-
-### 1.3 High-Fidelity Body Handling
-- **Request Truncation**: Bodies passed to L@E are capped at **1 MB** (AWS Limit).
-- **Pass-through Safety**: Large files (up to GB-scale) pass through the emulator as raw Buffers. They are only encoded to base-64 for the L@E snapshot, ensuring the browser receives original binary data.
 
 ---
 
 ## 2. Component Breakdown 🧩
 
 ### A. The Orchestrator (`src/pipeline/Orchestrator.ts`)
-The "Brain" of the system. Coordinates execution and implements the **Silver Bullet Serializer**. It ensures the output is always a valid Node.js response while maintaining the internal "Hook Highway" state.
+The "Brain" of the system. Coordinates execution and implements the body resolution logic (`_resolveBody` / `_serializeBody`). It ensures the output is always a valid Node.js response while maintaining the internal "Hook Highway" state.
 
 ### B. Header Management Service (`src/core/HeaderManager.ts`)
-The central authority for header integrity. It handles:
-- **Normalization:** Translates between Node.js raw wire-headers and the Internal Fidelity Format (IFF) to bypass runtime normalization.
-- **Multi-Value Preservation:** Uses structured arrays to ensure headers like `Set-Cookie` are never truncated.
-- **Case Fidelity:** Preserves the original casing of headers (e.g. `X-Custom-ID`) for telemetry and final delivery.
+The central authority for header integrity. It uses the **Internal Fidelity Format (IFF)**:
+`Record<string, { key: string; value: string }[]>`
+
+#### **IFF Example (The "Source of Truth")**
+```json
+{
+  "set-cookie": [
+    { "key": "Set-Cookie", "value": "ID=123; Path=/" },
+    { "key": "Set-Cookie", "value": "Theme=Dark" }
+  ],
+  "x-custom-id": [
+    { "key": "X-Custom-ID", "value": "A-77" }
+  ]
+}
+```
+This format bypasses Node.js normalization (which would lowercase `x-custom-id`) and ensures multi-value preservation.
 
 ### C. The Runners (Execution Engines)
 Runners execute user-provided code within isolated environments using the Node.js `vm` module:
@@ -85,13 +106,96 @@ Runners execute user-provided code within isolated environments using the Node.j
 - **`CFFRunner.ts`**: Executes the high-performance **CloudFront Function** logic, enforcing strict ES5.1 compliance and CloudFront-global object availability.
 
 ### D. Origin Providers (Data Resolution)
-- **`LocalProvider`:** Efficiently serves local workspace assets while simulating S3-specific behaviors (e.g. 403 on folder index if not in website mode).
-- **`S3Provider`:** Simulates CloudFront connectivity to AWS S3 buckets (compatible with **MinIO**). It is responsible for bridging S3 metadata (ETags, Content-Types) back to standard HTTP headers.
+- **`LocalProvider`:** Efficiently serves local workspace assets while simulating S3-specific behaviors.
+- **`S3Provider`:** Simulates CloudFront connectivity to AWS S3. It bridges S3 metadata (ETags, Content-Types) back to standard HTTP headers and provides diagnostic context for connectivity failures.
 
 ---
 
-## 3. Telemetry & Forensics 📊
+## 3. Advanced Fidelity: Body Serialization (`_resolveBody`) 💾
 
-- **Atomic Journey**: Every request creates a forensic journey record, capturing the state of headers and bodies at every stage of the pipeline.
+The Orchestrator ensures that large binary files can pass through hooks safely without corruption or OOM errors.
+
+### 3.1 Transformation Pipeline
+| Stage | Data Format | Logic |
+| :--- | :--- | :--- |
+| **Origin Fetch** | `Buffer` | Raw binary stream from S3 or Local Disk. |
+| **Hook Handoff** | `Base64 String` | Sliced to **1MB** (AWS Limit) via `inputTruncated` flag. |
+| **Hook Return** | `String / Object` | The hook can return a new body. If it returns nothing, we "Roll-Forward" the original origin Buffer. |
+| **Final Resolution**| `Buffer` | The `_resolveBody` method converts the hook's return (Buffer, Base64, or Raw String) back into a bit-perfect binary for the wire. |
+
+---
+
+## 4. Origin & Routing Configuration (`--origins`) 🗺️
+
+CloudFrontize uses a simple model to manage routing between different data sources. This configuration is defined in the JSON file passed via the `--origins` flag.
+
+### 4.1 Technical Reference (JSON Schema)
+
+The configuration file consists of two primary arrays: `origins` and `behaviors`.
+
+#### **OriginConfig Object**
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `string` | **Required.** Unique identifier for the origin. |
+| `type` | `string` | **Required.** One of `s3`, `local`, or `custom`. |
+| `bucket` | `string` | (S3 Only) Name of the bucket. |
+| `region` | `string` | (S3 Only) AWS region (e.g., `us-east-1`). |
+| `endpoint` | `string` | (S3/Custom) URL of the server (e.g., `http://localhost:4566`). |
+| `credentials`| `object` | (S3 Only) Object with `accessKeyId` and `secretAccessKey`. |
+| `directory` | `string` | (Local Only) Absolute or relative path to the folder. |
+| `mode` | `string` | (S3 Only) Either `website` or `rest`. |
+
+#### **CacheBehavior Object**
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `pathPattern` | `string` | **Required.** CloudFront-style pattern (e.g., `*`, `/api/*`, `*.jpg`). |
+| `targetOriginId`| `string` | **Required.** The `id` of the origin defined in the `origins` array. |
+
+### 4.2 Multi-Provider "Power User" Example
+This example demonstrates routing between LocalStack, MinIO, and a Local Folder simultaneously:
+
+```json
+{
+  "origins": [
+    { 
+      "id": "LocalStack-Data", 
+      "type": "s3", 
+      "bucket": "dev-data",
+      "endpoint": "http://localhost:4566"
+    },
+    { 
+      "id": "MinIO-Assets", 
+      "type": "s3", 
+      "bucket": "media",
+      "endpoint": "http://localhost:9000",
+      "credentials": { "accessKeyId": "admin", "secretAccessKey": "password" }
+    },
+    { 
+      "id": "Static-UI", 
+      "type": "local", 
+      "directory": "./dist" 
+    }
+  ],
+  "behaviors": [
+    { "pathPattern": "/api/*", "targetOriginId": "LocalStack-Data" },
+    { "pathPattern": "/media/*", "targetOriginId": "MinIO-Assets" },
+    { "pathPattern": "*", "targetOriginId": "Static-UI" }
+  ]
+}
+```
+
+---
+
+## 5. System State & Concurrency 🧵
+
+- **Request-Scoped State**: Headers, Body Snapshots, and the "Journey ID" are unique per request. The Orchestrator creates a new **State Container** for every incoming connection to ensure 100% isolation.
+- **Singleton Services**: The `HistoryStore`, `HookRegistry`, and `WebUI` are singletons. They manage global state that persists across multiple requests.
+- **Thread Safety**: Since Node.js is single-threaded, the Orchestrator relies on asynchronous isolation. We use the **IFF (Internal Fidelity Format)** to ensure that one request's header mutations never bleed into another.
+
+---
+
+## 6. Telemetry & Forensics 📊
+
+- **Atomic Journey**: Every request creates a forensic journey record, capturing the state of headers and bodies at every stage of the pipeline via `broadcastStage()`.
 - **Live Stream**: The WebUI receives live updates via Server-Sent Events (SSE).
-- **Snapshot Logic**: Forensics use a **1 MB cap** for body previews to ensure the dashboard remains high-performance even when serving large assets.
+- **Snapshot Logic**: Forensics use a **1 MB cap** (configurable via `AWS_LIMITS`) for body previews to ensure the dashboard remains high-performance.
