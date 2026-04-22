@@ -1,7 +1,7 @@
-export {};
-const { exec } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { exec, execSync, ChildProcess } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as http from 'http';
 
 describe('E2E: Header Validation and Server Lifecycle', () => {
     jest.setTimeout(45000); // 45s total for the whole suite
@@ -53,12 +53,16 @@ describe('E2E: Header Validation and Server Lifecycle', () => {
         // Use node + tsx directly for better stability on Windows. Add --debug for [Ready] signal.
         const cmd = `node "${tsx_path}" "${cli_path}" "${www_dir}" --port ${port} --edge "${tmp_dir}" --headers "${headers_file}" --no-request-logging --debug`;
         
-        let child;
-        let failTimer;
-        let readyTimer;
-        const startup = new Promise((resolve, reject) => {
+        let child: ChildProcess | undefined;
+        let failTimer: any;
+        let readyTimer: any;
+        const startup = new Promise<void>((resolve, reject) => {
             child = exec(cmd);
-            child.stdout.on('data', (data) => {
+            if (!child.stdout || !child.stderr) {
+                reject(new Error('Failed to capture child process output streams'));
+                return;
+            }
+            child.stdout.on('data', (data: any) => {
                 const out = data.toString();
                 // Check specifically for the [Ready] signal which only appears after listen()
                 if (out.includes('[Ready]')) {
@@ -69,11 +73,11 @@ describe('E2E: Header Validation and Server Lifecycle', () => {
                     }, 1000);
                 }
             });
-            child.stderr.on('data', (data) => {
+            child.stderr.on('data', (data: any) => {
                 const err = data.toString();
                 if (err.includes('Error:')) {
-                    clearTimeout(failTimer);
-                    clearTimeout(readyTimer);
+                    if (failTimer) clearTimeout(failTimer);
+                    if (readyTimer) clearTimeout(readyTimer);
                     reject(new Error(`CLI Error during startup: ${err}`));
                 }
             });
@@ -87,11 +91,10 @@ describe('E2E: Header Validation and Server Lifecycle', () => {
             await startup;
 
             // Perform the request using a clean async wrapper
-            const response = await new Promise((resolve, reject) => {
-                const http = require('http');
-                const req = http.get(`http://localhost:${port}/`, (res) => {
+            const response = await new Promise<{ status?: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+                const req = http.get(`http://localhost:${port}/`, (res: http.IncomingMessage) => {
                     let body = '';
-                    res.on('data', (chunk) => body += chunk);
+                    res.on('data', (chunk: any) => body += chunk);
                     res.on('end', () => resolve({
                         status: res.statusCode,
                         headers: res.headers,
@@ -112,10 +115,9 @@ describe('E2E: Header Validation and Server Lifecycle', () => {
             expect(response.headers['x-e2e-test']).toBe('Passed');
 
         } finally {
-            clearTimeout(failTimer);
-            clearTimeout(readyTimer);
+            if (failTimer) clearTimeout(failTimer);
+            if (readyTimer) clearTimeout(readyTimer);
             if (child) {
-                const { execSync } = require('child_process');
                 // Kill process tree on Windows for clean exit
                 if (process.platform === 'win32') {
                     try { execSync(`taskkill /pid ${child.pid} /f /t`); } catch (e) {}

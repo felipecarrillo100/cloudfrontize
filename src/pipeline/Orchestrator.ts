@@ -430,6 +430,14 @@ export class Orchestrator {
             // High-Fidelity Origin Pulse (Body Re-injection)
             let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options, reqBody);
 
+            // Simulation Layer: Inject sticky response headers (simulating Origin/S3 headers)
+            // so they are visible to all subsequent hooks (Fidelity Requirement).
+            Object.entries(this.stickyHeaders.response).forEach(([k, v]) => {
+                if (!this.isDefaultSticky || headers[k] === undefined) {
+                    headers[k] = v;
+                }
+            });
+
             // Body Forensics: Capture origin response body (1MB snapshot) and initialize live response body state
             const resBodySlice = body.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
             const resBodyMeta = body.length > 0 ? {
@@ -478,7 +486,7 @@ export class Orchestrator {
                 const originResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'viewer-response').map(h => h.id);
                 const { result: originResResult, logs: originResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
-                    headers: HeaderManager.telemetryFlatten(headers)
+                    headers: headers
                     // Fidelity: Body is strictly NOT provided to response triggers in AWS
                 }, requestId, 'origin-response', [...disabledIds, ...originResOnlyDisabled]);
 
@@ -520,7 +528,7 @@ export class Orchestrator {
                 const viewerResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-response').map(h => h.id);
                 const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
                     status: statusCode,
-                    headers: HeaderManager.telemetryFlatten(headers)
+                    headers: headers
                     // Fidelity: Body is strictly NOT provided to response triggers in AWS
                 }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
 
