@@ -128,6 +128,14 @@ export class S3Provider implements OriginProvider {
             const requestId = err.$metadata?.requestId || headers['x-amz-request-id'] || 'N/A';
             const hostId = err.$metadata?.extendedRequestId || headers['x-amz-id-2'] || 'N/A';
             const errorCode = err.name || (status === 404 ? 'NoSuchKey' : status === 403 ? 'AccessDenied' : 'OriginError');
+            const baseMessage = err.message || 'S3 Origin Error';
+            
+            // Fidelity-Aware Context Injection: We only prefix the message if the SDK 
+            // failed before receiving a real HTTP response from the network (no httpStatusCode).
+            // This ensures 100% fidelity for real S3 errors while fixing environment-level crashes.
+            const finalMessage = (!err.$metadata?.httpStatusCode && requestId === 'N/A') 
+                ? `S3 Origin Error: ${baseMessage}` 
+                : baseMessage;
 
             await new Promise<void>((resolve, reject) => {
                 res.on('finish', resolve);
@@ -135,7 +143,7 @@ export class S3Provider implements OriginProvider {
                 res.end(`<?xml version="1.0" encoding="UTF-8"?>
 <Error>
     <Code>${errorCode}</Code>
-    <Message>${err.message || 'S3 Origin Error'}</Message>
+    <Message>${finalMessage}</Message>
     <RequestId>${requestId}</RequestId>
     <HostId>${hostId}</HostId>
 </Error>`);

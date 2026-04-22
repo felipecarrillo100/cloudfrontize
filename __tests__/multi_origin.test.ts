@@ -16,7 +16,7 @@ describe('Multi-Origin Routing Fidelity', () => {
         const s3Config = {
             origins: [
                 { id: 'local', type: 'local', directory: path.join(tmpDir, 'static') },
-                { id: 'remote', type: 's3', bucket: 'test-bucket', endpoint: 'http://localhost:9999' } // Mock endpoint
+                { id: 'remote', type: 's3', bucket: 'test-bucket', endpoint: 'http://localhost:9999', credentials: { accessKeyId: 'test', secretAccessKey: 'test' } } // Mock endpoint
             ],
             behaviors: [
                 { pathPattern: '/api/*', targetOriginId: 'remote' },
