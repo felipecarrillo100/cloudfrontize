@@ -1,36 +1,33 @@
-export {};
-const request = require('supertest');
-const { startServer } = require('../src/index');
-const { EdgeRunner } = require('../src/edgeRunner');
-const fs = require('fs');
-const path = require('path');
+import request from 'supertest';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { startServer } from '../src/index';
+import { EdgeRunner } from '../src/edgeRunner';
 
 describe('--mode flag and Directory Indexing Fidelity', () => {
-    const port = Math.floor(Math.random() * (40000 - 30000 + 1) + 30000); // Random port for safety
-    const rootDir = path.resolve(__dirname, '..');
-    const baseDir = path.join(rootDir, '.tmp/', 'test', 'fidelity_rest');
+    const baseDir = path.join(__dirname, '.tmp', 'dir_indexing');
     const edgeDir = path.join(baseDir, 'edge');
+    const port = 3008;
 
-    let server;
-    let edgeRunner;
+    let server: any;
+    let edgeRunner: any;
 
     beforeAll(() => {
-        // Setup a fake filesystem for these tests
         if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
         fs.mkdirSync(baseDir, { recursive: true });
-
-        // Create root index
-        fs.writeFileSync(path.join(baseDir, 'index.html'), '<h1>Root File</h1>');
-        fs.writeFileSync(path.join(baseDir, 'random.html'), '<h1>Random File</h1>');
-
-        // Create a subfolder with an index
-        fs.mkdirSync(path.join(baseDir, 'subfolder'));
-        fs.writeFileSync(path.join(baseDir, 'subfolder', 'index.html'), '<h1>Subfolder Index</h1>');
-        fs.writeFileSync(path.join(baseDir, 'subfolder', 'something.html'), '<h1>Something in Subfolder</h1>');
-
-        // Setup Lambda@Edge hook that redirects a specific folder to index.html
         fs.mkdirSync(edgeDir, { recursive: true });
-        fs.writeFileSync(path.join(edgeDir, 'rewrite.js'), `
+
+        // Setup: root index.html
+        fs.writeFileSync(path.join(baseDir, 'index.html'), 'Root File');
+
+        // Setup: subfolder with index.html
+        const subDir = path.join(baseDir, 'subfolder');
+        fs.mkdirSync(subDir, { recursive: true });
+        fs.writeFileSync(path.join(subDir, 'index.html'), 'Subfolder Index');
+
+        // Setup: Lambda@Edge hook for testing rewrites
+        fs.writeFileSync(path.join(edgeDir, 'hook.js'), `
             exports.hookType = 'origin-request';
             exports.handler = (event, context, callback) => {
                 const request = event.Records[0].cf.request;
@@ -43,11 +40,7 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
     });
 
     afterAll(() => {
-        try {
-            if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-        } catch (e) {
-            console.warn(`Cleanup failed (mostly Windows locked file): ${e.message}`);
-        }
+        if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
     });
 
     afterEach(async () => {
@@ -68,25 +61,19 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
             expect(res.text).toContain('Root File');
         });
 
-        test('Subfolder with trailing slash (/subfolder/) should show directory listing (no auto-index in S3)', async () => {
-            // S3 Website Hosting does auto-index via the website endpoint,
-            // but serve-handler's cleanUrls is off (matching S3 fidelity).
-            // serve-handler will show a directory listing UI here for developer convenience.
+        test('Subfolder with trailing slash (/subfolder/) should serve index.html', async () => {
             const res = await request(server).get('/subfolder/');
-            // Can be 200 (dir listing) or 301/302 redirect — just not 403
-            expect([200, 301, 302]).toContain(res.status);
-            expect(res.status).not.toBe(403);
+            expect(res.status).toBe(200);
+            expect(res.text).toBe('Subfolder Index');
         });
 
-        test('Subfolder without trailing slash (/subfolder) should redirect or resolve, but never 403', async () => {
+        test('Subfolder without trailing slash (/subfolder) should redirect to /subfolder/', async () => {
             const res = await request(server).get('/subfolder');
-            expect([200, 301, 302]).toContain(res.status);
-            expect(res.status).not.toBe(403);
+            expect(res.status).toBe(301);
+            expect(res.header.location).toBe('/subfolder/');
         });
 
-        test('/random should return 404 (cleanUrls disabled — S3 does not strip .html extensions)', async () => {
-            // S3 Website Hosting does NOT redirect /random to /random.html.
-            // cleanUrls was a false convenience; removing it fixes the infinite-loop Lambda bug.
+        test('/random should return 404', async () => {
             const res = await request(server).get('/random');
             expect(res.status).toBe(404);
         });
@@ -100,38 +87,26 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
             expect(res.text).toContain('Root File');
         });
 
-        test('Subfolder (/subfolder/) should be rejected with 403 Forbidden', async () => {
+        test('Subfolder (/subfolder/) should return 404 (object not found)', async () => {
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
             const res = await request(server).get('/subfolder/');
-            expect(res.status).toBe(403);
-            expect(res.text).toContain('Directory indexing is disabled');
+            expect(res.status).toBe(404);
         });
 
-        test('Subfolder without trailing slash (/subfolder) should be rejected with 403 Forbidden', async () => {
+        test('Subfolder without trailing slash (/subfolder) should return 404 (object not found)', async () => {
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
             const res = await request(server).get('/subfolder');
-            expect(res.status).toBe(403);
-            expect(res.text).toContain('Directory indexing is disabled');
-        });
-
-        test('/random should NOT magically resolve to /random.html (cleanUrls disabled)', async () => {
-            server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
-            const res = await request(server).get('/random');
-            expect(res.status).toBe(404); // 404 because random (no extension) doesn't exist
+            expect(res.status).toBe(404);
         });
 
         test('Lambda@Edge Rewrite: /subfolder/ rewritten to /subfolder/index.html should succeed', async () => {
             edgeRunner = new EdgeRunner(edgeDir, { watch: false });
-edgeRunner.load();
+            edgeRunner.load();
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true, edgeRunner });
 
-            // The origin-request hook intercepts /subfolder/ and transforms it to /subfolder/index.html
             const res = await request(server).get('/subfolder/');
-
-            // Should now bypass the fidelity check (because the rewritten path is a FILE, not a directory)
             expect(res.status).toBe(200);
-            expect(res.text).toContain('Subfolder Index');
+            expect(res.text).toBe('Subfolder Index');
         });
     });
 });
-

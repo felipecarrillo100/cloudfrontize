@@ -38,20 +38,9 @@ export class LocalProvider implements OriginProvider {
             isActuallyDir = stats.isDirectory();
         } catch (e) {}
 
-        // AWS REST API/CloudFront doesn't auto-index (403 for directories)
-        if (options.mode === 'rest' && cleanPath !== '/') {
-            if (isActuallyDir) {
-                res.statusCode = 403;
-                // Provider contract: await full flush before resolving
-                await new Promise<void>((resolve, reject) => {
-                    res.on('finish', resolve);
-                    res.on('error', reject);
-                    res.end('Directory indexing is disabled in strict mode');
-                });
-                return;
-            }
-        }
-
+        // AWS REST API/CloudFront doesn't auto-index (404 for directories because object doesn't exist)
+        // S3 Website redirects /folder to /folder/ and serves index.html
+        
         // High Fidelity Logging: Show the preserved query string in the console output
         const [, qs] = req.url.split('?');
         const displayQs = qs ? `?${qs}` : '';
@@ -62,13 +51,34 @@ export class LocalProvider implements OriginProvider {
             if (fullPath.endsWith('.gz')) res.setHeader('content-encoding', 'gzip');
         }
 
-        // CloudFront (REST) supports Default Root Object, but not for subfolders.
+        // S3 Website Fidelity: Handle trailing slash redirects and index documents
+        if (options.mode === 'website' && isActuallyDir) {
+            if (!cleanPath.endsWith('/')) {
+                // Redirect /folder to /folder/
+                res.statusCode = 301;
+                res.setHeader('Location', cleanPath + '/' + displayQs);
+                res.end();
+                return;
+            } else {
+                // Serve index.html for folders with trailing slash
+                req.url = cleanPath + 'index.html' + displayQs;
+            }
+        }
+
+        // CloudFront (REST) Fidelity: Non-root directories always 404 (object not found)
+        if (options.mode === 'rest' && isActuallyDir && cleanPath !== '/') {
+            res.statusCode = 404;
+            res.end();
+            return;
+        }
+
+        // Default Root Object: Supported by both REST (for root only) and Website (for all folders).
+        // Here we handle the root case for ALL modes to maintain compatibility.
         if (cleanPath === '/' && isActuallyDir) {
-            req.url = '/index.html';
+            req.url = '/index.html' + displayQs;
         }
 
         // High Fidelity Lifecycle: Wait for serve-handler to fully flush the response
-        // before resolving, ensuring the Orchestrator captures the full body buffer.
         return new Promise<void>(async (resolve, reject) => {
             res.on('finish', resolve);
             res.on('error', reject);
@@ -77,8 +87,8 @@ export class LocalProvider implements OriginProvider {
                 await serveHandler(req, res, {
                     public: this.directory,
                     cleanUrls: false,
-                    trailingSlash: false,
-                    directoryListing: options.mode === 'website'
+                    trailingSlash: false, // Handled manually for high fidelity
+                    directoryListing: false
                 });
             } catch (err) {
                 reject(err);
