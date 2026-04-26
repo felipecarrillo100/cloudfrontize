@@ -3,6 +3,21 @@ d:# Exercise 3.1: The Bouncer
 ## 🎭 The Scenario
 Your `/admin/` dashboard is currently public. You need to add a quick layer of security using Basic Auth, but you don't want to modify your backend code.
 
+## 📖 The Lesson: Security and Short-Circuiting
+
+When you need to protect a specific path (like `/admin/`), you don't always need to change your application code. You can use a `viewer-request` hook to act as a **Bouncer**.
+
+### The Magic of Short-Circuiting
+If your Lambda@Edge function returns a `response` object instead of the `request` object, CloudFront immediately sends that response back to the user. The request **never** reaches your origin server. This "short-circuit" is extremely efficient because:
+1.  **Saves Backend Resources**: Unauthorized users or bots never touch your database or application servers.
+2.  **Global Enforcement**: Your security policy is enforced at the edge, closest to the user.
+
+### Basic Auth Mechanics
+Basic Auth is a simple challenge-response protocol. If the user doesn't provide credentials, we send a `401 Unauthorized` with a `WWW-Authenticate` header. The browser then shows a login prompt and sends the credentials back in an `Authorization` header.
+
+> [!TIP]
+> **Technical Reference**: For a detailed breakdown of the Lambda@Edge event JSON and how to generate a custom response, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
+
 ## 🎯 Your Goal
 Return a `401 Unauthorized` response directly from the Edge if the `Authorization` header is missing or incorrect.
 

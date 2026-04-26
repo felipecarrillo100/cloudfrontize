@@ -1,16 +1,25 @@
 # Exercise 2.3: The Cloaker
 
 ## 🎭 The Scenario
-
 Your origin is leaking version data. Since we are serving a static `www` folder, it doesn't naturally produce PHP or Apache headers. To simulate a real-world vulnerable server, we must tell the emulator to "inject" these headers using a configuration file.
 
+## 📖 The Lesson: Security Hardening at the Edge
+
+Exposing the exact version of your server software (like `Apache/2.4.41` or `PHP/5.6.40`) is a major security risk. It gives attackers a clear roadmap of which vulnerabilities to target.
+
+### Why origin-response?
+The `origin-response` hook is the perfect place to "sanitize" your headers. By stripping these sensitive headers here, you ensure that:
+1.  **Clean Cache**: The headers are removed **before** CloudFront stores the response in its cache.
+2.  **Global Protection**: Every user, regardless of whether they hit the cache or the origin, will receive a "cloaked" response.
+
+### Handling Headers
+In Lambda@Edge, header keys are always lowercase in the `headers` object. This normalization ensures your code is robust, even if the origin's casing changes.
+
+> [!TIP]
+> **Technical Reference**: For a detailed breakdown of the Lambda@Edge event JSON and the specific "Fidelity Map" structure used for headers, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
+
 ## 🎯 Your Goal
-
 Strip the `Server` and `X-Powered-By` headers at the **Edge** before they are cached by CloudFront.
-
-## 🧠 The "Fidelity Map" Rule
-
-AWS CloudFront normalizes all header keys to **lowercase** in the `headers` object. To delete them, you must reference that lowercase key, even if the origin sent them with capital letters.
 
 ---
 

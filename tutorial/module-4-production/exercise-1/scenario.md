@@ -3,6 +3,23 @@
 ## 🎭 The Scenario
 Official Lambda@Edge functions do not support environment variables. However, you need to point your logic to different API endpoints depending on where it’s deployed. 
 
+## 📖 The Lesson: Solving the "No Env Vars" Limit
+
+Unlike standard AWS Lambda, **Lambda@Edge does not support environment variables**. This is a common pain point when you need your code to behave differently in `staging` vs `production`.
+
+### Why this limit exists?
+Environment variables are managed by the Lambda service, but Lambda@Edge code is replicated to hundreds of CloudFront edge locations globally. Synchronizing environment variables across all those locations would introduce significant latency.
+
+### The "Baking" Pattern
+To solve this, we use a pattern called **Baking**. Instead of looking up variables at runtime, we inject them into the source code during the build process.
+- **Source**: `const api = process.env.API_ENDPOINT;`
+- **Baked**: `const api = 'https://api.production.com';`
+
+This allows you to maintain a single codebase while producing different "deployment-ready" artifacts for each environment.
+
+> [!TIP]
+> **Technical Reference**: For a detailed breakdown of how the Lambda@Edge event structure remains consistent regardless of how your code is built, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
+
 ## 🎯 Your Goal
 Use CloudFrontize to "bake" a configuration variable into your code, creating a deployment-ready `.js` file.
 

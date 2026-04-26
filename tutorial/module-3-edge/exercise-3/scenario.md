@@ -3,6 +3,25 @@
 ## 🎭 The Scenario
 Your API is being targeted by a specific bot that always sends "SQL-INJECTION" in the POST body. You want to block these requests at the edge to save origin resources.
 
+## 📖 The Lesson: Request Body Inspection
+
+Most Lambda@Edge tasks focus on headers and URIs, but sometimes you need to look deeper into the actual payload being sent by the user.
+
+### Accessing the Body
+By default, CloudFront doesn't pass the request body to Lambda@Edge to save on performance. However, you can enable "Include Body" to gain visibility into POST or PUT requests.
+
+### Base64 Encoding
+Because request bodies can contain binary data, Lambda@Edge always passes the body to your function as a **Base64 encoded string**. To inspect the content, you must:
+1.  Verify if `request.body` exists.
+2.  Extract the `request.body.data`.
+3.  Decode it using `Buffer.from(data, 'base64').toString()`.
+
+### Security Filtering
+This pattern is perfect for building a lightweight Web Application Firewall (WAF) directly in code, allowing you to block known malicious payloads before they ever reach your backend.
+
+> [!TIP]
+> **Technical Reference**: For a detailed breakdown of the `request.body` object and its properties, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
+
 ## 🎯 Your Goal
 Inspect the request body and return a `403 Forbidden` if malicious content is detected.
 
