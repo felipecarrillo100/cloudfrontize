@@ -37,7 +37,7 @@ To choose the right tool for your logic, keep this comparison in mind:
 ---
 
 ## 🎯 Your Goal
-Internally rewrite the `request.uri` if the experiment cookie is present. Users with `experiment=true` should have their requests prefixed with `/experimental`, while all other users should see the original content.
+Internally rewrite the `request.uri`, for users with the experiment cookie is present. Users with Cookie `experiment=true` should have their requests prefixed with `/experimental`, while all other users should see the original content.
 
 ## 📝 Starter Code Template
 ```javascript
