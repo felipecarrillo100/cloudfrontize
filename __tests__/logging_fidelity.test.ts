@@ -43,7 +43,7 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
     test('Should format logs and write to file with correct metadata', async () => {
         edgeRunner = new EdgeRunner(edgeDir, { logPath: logFile, watch: false });
         edgeRunner.load();
-        server = startServer({ directory: tmpDir, port: 0, edgeRunner, noRequestLogging: true });
+        server = startServer({ directory: tmpDir, port: 0, edgeRunner, noBanner: true });
 
         await request(server).get('/');
 
@@ -88,7 +88,7 @@ edgeRunner.load();
             port: 0, 
             edgeRunner: edgeRunner, 
             logPath: logFile,
-            noRequestLogging: false 
+            noBanner: true 
         });
 
         await request(server).get('/');
@@ -100,3 +100,4 @@ edgeRunner.load();
         errorSpy.mockRestore();
     });
 });
+

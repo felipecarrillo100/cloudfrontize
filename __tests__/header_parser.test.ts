@@ -101,3 +101,4 @@ describe('HeaderParser: The "Gatekeeper" Fidelity Suite', () => {
         expect(log_spy).toHaveBeenCalledWith(expect.stringContaining('temp_header_test.json'));
     });
 });
+

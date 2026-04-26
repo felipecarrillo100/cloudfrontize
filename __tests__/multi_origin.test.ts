@@ -29,8 +29,7 @@ describe('Multi-Origin Routing Fidelity', () => {
         server = startServer({
             port,
             origins: configPath,
-            noBanner: true,
-            noRequestLogging: true
+            noBanner: true
         });
     });
 
@@ -65,3 +64,4 @@ describe('Multi-Origin Routing Fidelity', () => {
         expect(data).toContain('S3 Origin Error');
     });
 });
+

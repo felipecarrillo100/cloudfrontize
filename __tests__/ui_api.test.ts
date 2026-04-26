@@ -22,7 +22,7 @@ describe.skip('Developer UI API', () => {
             port,
             webui: uiPort,
             directory: testDir,
-            noRequestLogging: true,
+            noBanner: true,
             debug: true
         });
     });
@@ -129,3 +129,4 @@ describe.skip('Developer UI API', () => {
         });
     });
 });
+

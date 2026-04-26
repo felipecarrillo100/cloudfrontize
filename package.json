@@ -16,7 +16,7 @@
     "build": "npm run ui:build && tsup && node -e \"require('fs').rmSync('dist/ui', {recursive:true, force:true}); require('fs').cpSync('ui', 'dist/ui', {recursive:true, force:true})\"",
     "ui:build": "npm run build --prefix ui-src",
     "prepublishOnly": "npm run build",
-    "test": "jest --forceExit",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
     "test:local": "tsx ./bin/cli.ts -C ./www -e ./samples/medium/lambda-edge-authorization.js",
     "test:dist": "node ./dist/bin/cli.js -C ./www -e ./samples/medium/lambda-edge-authorization.js",
     "docs": "typedoc --plugin typedoc-material-theme"

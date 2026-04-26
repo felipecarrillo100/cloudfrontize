@@ -67,7 +67,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
             directory: wwwDir,
             edgeRunner: new EdgeRunner(edgeDir, { watch: false, debug: true }),
             cffRunner: new CFFRunner(cffDir, { debug: true }),
-            noRequestLogging: false,
+            noBanner: true,
             debug: true
         });
     });
@@ -114,7 +114,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
             directory: wwwDir,
             edgeRunner: new EdgeRunner(edgeDir, { watch: false }),
             cffRunner: cffRunnerShort,
-            noRequestLogging: true
+            noBanner: true
         });
 
         const res = await request(serverShort).get('/redirect');
@@ -128,3 +128,4 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
         await serverShort.closeGracefully();
     });
 });
+

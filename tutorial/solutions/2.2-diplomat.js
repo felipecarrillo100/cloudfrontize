@@ -23,6 +23,12 @@ exports.handler = async (event) => {
     // the backend will actually see a request for '/countries/FR/index.html'.
     request.uri = `/countries/${country}${request.uri}`;
 
+    // 🛠️ URI Normalization (Step 2): Handle trailing slashes
+    // If the path ends in '/', MinIO needs 'index.html' to avoid a 404.
+    // if (request.uri.endsWith('/')) {
+    //     request.uri += 'index.html';
+    // }
+
     // Return the modified request to tell CloudFront where to fetch the file.
     return request;
 };

@@ -5,12 +5,13 @@ import { EdgeRunner } from '../core/EdgeRunner';
 import { CFFRunner } from '../core/CFFRunner';
 import { OriginProvider } from './Providers';
 import { Telemetry } from './Telemetry';
-import { HookType, CacheBehavior } from '../core/types';
+import { HookType, CacheBehavior, CloudFrontizeOptions } from '../core/types';
 import { OriginSelector } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
 import { AWS_LIMITS } from '../constants';
 import { HookRegistry } from './HookRegistry';
+import { MultiOriginConfig } from './ConfigLoader';
 
 /**
  * The core orchestration engine for the CloudFrontize pipeline.
@@ -47,7 +48,7 @@ export class Orchestrator {
         private providers: Record<string, OriginProvider>,
         private behaviors: CacheBehavior[],
         private telemetry: Telemetry,
-        private config: any,
+        private config: MultiOriginConfig,
         private logStream: fs.WriteStream | null = null
     ) {
         this.selector = new OriginSelector(behaviors);
@@ -220,7 +221,7 @@ export class Orchestrator {
      * 
      * @throws {Error} If no provider is found for the matching origin.
      */
-    public async handleRequest(req: any, res: any, options: any, reqBody?: Buffer): Promise<void> {
+    public async handleRequest(req: any, res: any, options: CloudFrontizeOptions, reqBody?: Buffer): Promise<void> {
         const requestId = require('crypto').randomBytes(4).toString('hex');
         const startTime = Date.now();
         const originalUrl = req.url;
@@ -449,22 +450,6 @@ export class Orchestrator {
             liveResBodyState = resBodyMeta; // Initialize: origin body is ground truth for response pipeline
 
             this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response', ...resBodyMeta }, HeaderManager.telemetryFlatten(headers));
-
-            // Fidelity Fallback: If rewritten URL 404s and not in strict mode, try original URL
-            if (statusCode === 404 && !options.strict && req.url !== originalUrl) {
-                console.warn(`\x1b[33m⚠️  [Fidelity Warning] Lambda rewritten URI to "${req.url}" but file was not found. Falling back to original URI: "${originalUrl}"\x1b[0m`);
-                req.url = originalUrl;
-                this._syncHeadersToRequest(req, null);
-                const secondTry = await this._fetchFromProvider(provider, req, options);
-                statusCode = secondTry.statusCode;
-                headers = secondTry.headers;
-                body = secondTry.body;
-                resolvedUri = secondTry.resolvedUri;
-            }
-
-            if (options.verbose) {
-                req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m 🌐 \x1b[32m[Origin]\x1b[0m Fetch (${targetOriginId}) \x1b[33m⟹\x1b[0m ${resolvedUri || req.url}`);
-            }
 
             // Diagnostic Capture: Store origin info for the Two-Row Access Summary
             req._originInfo = { id: targetOriginId, uri: resolvedUri || req.url };

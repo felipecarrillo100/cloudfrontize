@@ -41,7 +41,7 @@ describe('Response Truncation: 1MB Limit Fidelity', () => {
         fs.writeFileSync(path.join(testDir, 'small.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
-        server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true });
+        server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true });
 
         const res = await fetch(`http://localhost:${port}/`);
         const body = await res.text();
@@ -63,7 +63,7 @@ runner.load();
         fs.writeFileSync(path.join(testDir, 'large_warn.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
-        server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true, strict: false });
+        server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: false });
 
         const res = await fetch(`http://localhost:${port}/`);
         const body = await res.text();
@@ -84,7 +84,7 @@ runner.load();
         fs.writeFileSync(path.join(testDir, 'large_strict.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
-        server = startServer({ port, directory: testDir, edgeRunner: runner, noRequestLogging: true, strict: true });
+        server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
 
         const res = await fetch(`http://localhost:${port}/`);
         const body = await res.text();
@@ -92,3 +92,4 @@ runner.load();
         expect(body).toContain('Generated response too large');
     });
 });
+

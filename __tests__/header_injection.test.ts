@@ -59,7 +59,7 @@ edgeRunner.load();
             directory: tmpDir, 
             port: 0, 
             edgeRunner, 
-            noRequestLogging: true,
+            noBanner: true,
             defaultHeaders
         });
 
@@ -79,7 +79,7 @@ edgeRunner.load();
             directory: tmpDir, 
             port: 0, 
             edgeRunner, 
-            noRequestLogging: true,
+            noBanner: true,
             defaultHeaders
         });
 
@@ -103,7 +103,7 @@ edgeRunner.load();
             directory: tmpDir, 
             port: 0, 
             edgeRunner, 
-            noRequestLogging: true,
+            noBanner: true,
             defaultHeaders
         });
 
@@ -111,3 +111,4 @@ edgeRunner.load();
         expect(res.header['x-echoed-country']).toBe('FR');
     });
 });
+

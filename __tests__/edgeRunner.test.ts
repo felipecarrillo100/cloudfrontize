@@ -112,3 +112,4 @@ describe('EdgeRunner 100% Emulation Fidelity', () => {
         expect(resHookRes.headers['cache-control'][0].value).toBe('public, max-age=86400');
     });
 });
+

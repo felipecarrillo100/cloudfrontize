@@ -81,3 +81,4 @@ describe('EdgeRunner: AWS Documentation Sample Tests', () => {
         expect(res.headers.location[0].value).toBe('https://m.example.com/home');
     });
 });
+

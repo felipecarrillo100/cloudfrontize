@@ -8,7 +8,7 @@ const cliPath = path.resolve(__dirname, '../bin/cli.ts');
 const tsxPath = path.resolve(__dirname, '../node_modules/tsx/dist/cli.mjs');
 
 describe('CLI Argument Validation', () => {
-    jest.setTimeout(15000); // Increase timeout for tsx bootstrap
+    jest.setTimeout(30000); // Global increase for tsx bootstrap
     const tmpDir = path.join(__dirname, '..', '.tmp', 'cli_test_' + Date.now());
     const edgeFile = path.join(tmpDir, 'edge.js');
     const outputFile = path.join(tmpDir, 'output.js');

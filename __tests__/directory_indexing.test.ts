@@ -59,7 +59,7 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
 
     describe('Mode: website (S3 Website Hosting Fidelity)', () => {
         beforeEach(() => {
-            server = startServer({ directory: baseDir, port, mode: 'website', noRequestLogging: true });
+            server = startServer({ directory: baseDir, port, mode: 'website', noBanner: true });
         });
 
         test('Root (/) should serve index.html', async () => {
@@ -94,28 +94,28 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
 
     describe('Mode: rest (Strict CloudFront Fidelity)', () => {
         test('Root (/) should STILL serve index.html safely', async () => {
-            server = startServer({ directory: baseDir, port, mode: 'rest', noRequestLogging: true });
+            server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
             const res = await request(server).get('/');
             expect(res.status).toBe(200);
             expect(res.text).toContain('Root File');
         });
 
         test('Subfolder (/subfolder/) should be rejected with 403 Forbidden', async () => {
-            server = startServer({ directory: baseDir, port, mode: 'rest', noRequestLogging: true });
+            server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
             const res = await request(server).get('/subfolder/');
             expect(res.status).toBe(403);
             expect(res.text).toContain('Directory indexing is disabled');
         });
 
         test('Subfolder without trailing slash (/subfolder) should be rejected with 403 Forbidden', async () => {
-            server = startServer({ directory: baseDir, port, mode: 'rest', noRequestLogging: true });
+            server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
             const res = await request(server).get('/subfolder');
             expect(res.status).toBe(403);
             expect(res.text).toContain('Directory indexing is disabled');
         });
 
         test('/random should NOT magically resolve to /random.html (cleanUrls disabled)', async () => {
-            server = startServer({ directory: baseDir, port, mode: 'rest', noRequestLogging: true });
+            server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
             const res = await request(server).get('/random');
             expect(res.status).toBe(404); // 404 because random (no extension) doesn't exist
         });
@@ -123,7 +123,7 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
         test('Lambda@Edge Rewrite: /subfolder/ rewritten to /subfolder/index.html should succeed', async () => {
             edgeRunner = new EdgeRunner(edgeDir, { watch: false });
 edgeRunner.load();
-            server = startServer({ directory: baseDir, port, mode: 'rest', noRequestLogging: true, edgeRunner });
+            server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true, edgeRunner });
 
             // The origin-request hook intercepts /subfolder/ and transforms it to /subfolder/index.html
             const res = await request(server).get('/subfolder/');
@@ -134,3 +134,4 @@ edgeRunner.load();
         });
     });
 });
+

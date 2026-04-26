@@ -128,3 +128,4 @@ edgeRunner.load();
         expect(runner.compileError).toMatch(/Forbidden: @aws-sdk\/client-s3 is not available/);
     });
 });
+

@@ -48,3 +48,29 @@ export interface CacheBehavior {
     pathPattern: string;
     targetOriginId: string;
 }
+
+export interface CloudFrontizeOptions {
+    port: number;
+    webui?: string | number;
+    mode?: 'rest' | 'website';
+    debug?: boolean;
+    strict?: boolean;
+    single?: boolean;
+    cors?: boolean;
+    verbose?: boolean;
+    log?: string;
+    origins?: string;
+    directory?: string;
+    edge?: string;
+    cff?: string;
+    headers?: string;
+    defaultHeaders?: Record<string, any>;
+    noCompression?: boolean;
+    noBanner?: boolean;
+    s3Origin?: string;
+    s3Endpoint?: string;
+    s3Region?: string;
+    edgeRunner?: any; // Avoiding circular dependency with EdgeRunner
+    cffRunner?: any; // Avoiding circular dependency with CFFRunner
+    logStream?: any; // Avoiding circular dependency with fs.WriteStream
+}

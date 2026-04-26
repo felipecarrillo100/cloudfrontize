@@ -175,3 +175,4 @@ describe('Production Patterns: Test of Fire', () => {
         expect(result.headers['strict-transport-security'][0].value).toBe('max-age=31536000; includeSubDomains; preload');
     });
 });
+

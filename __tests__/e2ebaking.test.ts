@@ -81,3 +81,4 @@ describe('End-to-End: Variable Baking & Env Whitelisting', () => {
         expect(content).toContain('value: "prod-live-key"');
     });
 });
+

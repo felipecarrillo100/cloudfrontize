@@ -116,3 +116,4 @@ runner.load();
         expect(result.headers['x-trace-id'][0].value).toBe('123');
     });
 });
+

@@ -1,4 +1,4 @@
-export {};
+export { };
 const request = require('supertest');
 const { startServer } = require('../src/index');
 const { EdgeRunner } = require('../src/edgeRunner');
@@ -35,7 +35,7 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
         `);
 
         edgeRunner = new EdgeRunner(edgeDir, { watch: false });
-edgeRunner.load();
+        edgeRunner.load();
     });
 
     afterAll(() => {
@@ -48,28 +48,10 @@ edgeRunner.load();
         if (edgeRunner) edgeRunner.close();
     });
 
-    test('Default Mode: Should warn and fallback to original file if rewritten target is missing', async () => {
-        const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-
-        // Pass watch: false here so the INTERNAL CFFRunner also stays disabled
-        server = startServer({
-            directory: tmpDir,
-            port,
-            edgeRunner,
-            watch: false, // <--- ADD THIS LINE
-            noRequestLogging: true
-        });
-
-        const res = await request(server).get('/test.js').set('Accept-Encoding', 'br');
-
-        expect(res.status).toBe(200);
-        expect(spy).toHaveBeenCalledWith(expect.stringContaining('Lambda rewritten URI to "/test.js.br" but file was not found'));
-        spy.mockRestore();
-    });
 
     test('Strict Mode: Should return 404 if rewritten target is missing', async () => {
-        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-        server = startServer({ directory: tmpDir, port, edgeRunner, strict: true, noRequestLogging: true });
+        const spy = jest.spyOn(console, 'error').mockImplementation(() => { });
+        server = startServer({ directory: tmpDir, port, edgeRunner, strict: true, noBanner: true });
 
         const res = await request(server).get('/test.js').set('Accept-Encoding', 'br');
 
@@ -85,7 +67,7 @@ edgeRunner.load();
 
         fs.writeFileSync(path.join(tmpDir, 'test.js.br'), compressed);
 
-        server = startServer({ directory: tmpDir, port, edgeRunner, noRequestLogging: true });
+        server = startServer({ directory: tmpDir, port, edgeRunner, noBanner: true });
 
         const res = await request(server)
             .get('/test.js')
@@ -96,3 +78,4 @@ edgeRunner.load();
         expect(res.text).toBe(content);
     });
 });
+

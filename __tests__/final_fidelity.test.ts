@@ -58,7 +58,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
             port,
             directory: mockDir,
             edgeRunner: runner,
-            noRequestLogging: true
+            noBanner: true
         });
 
         // Use global fetch (Node 20 native)
@@ -131,3 +131,4 @@ runner.load();
         expect(result.uri).toBe('/v1/data.json');
     });
 });
+

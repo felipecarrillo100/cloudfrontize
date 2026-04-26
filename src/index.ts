@@ -9,21 +9,13 @@ import { WebUI } from './pipeline/WebUI';
 import { EdgeRunner } from './core/EdgeRunner';
 import { CFFRunner } from './core/CFFRunner';
 import { AWS_HEADERS, AWS_LIMITS } from './constants';
+import { CloudFrontizeOptions } from './core/types';
 import { HeaderParser } from './headerParser';
 import { ConfigLoader } from './pipeline/ConfigLoader';
 
-/**
- * The main entry point for the CloudFrontize emulator.
- * 
- * @namespace Backend
- * This file contains the primary server lifecycle logic, CLI banner printing, 
- * and orchestrator initialization. It handles the parsing of origins, 
- * runners, and telemetry systems.
- */
+export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser, CloudFrontizeOptions };
 
-export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser };
-
-export function printTopBanner(options: any) {
+export function printTopBanner(options: CloudFrontizeOptions) {
     console.log(`\n☁️  \x1b[1mCloudfrontize v1.10.2\x1b[0m\n`);
     console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
     if (options.webui) {
@@ -42,7 +34,7 @@ export function printTopBanner(options: any) {
     console.log('');
 }
 
-export function printBottomBanner(options: any) {
+export function printBottomBanner(options: CloudFrontizeOptions) {
     const { edgeRunner, cffRunner } = options;
     const hasActiveEdge = edgeRunner && edgeRunner.hasLoadedModules();
     const hasActiveCff = cffRunner && cffRunner.hasLoadedModules();
@@ -61,7 +53,7 @@ export function printBottomBanner(options: any) {
     console.log('');
 }
 
-export function startServer(options: any) {
+export function startServer(options: CloudFrontizeOptions) {
     // Normalize: --debug (CLI flag) is the canonical name; verbose is the internal alias.
     // This ensures request logging works regardless of which property name is used.
     options.verbose = options.debug || options.verbose;
@@ -240,7 +232,7 @@ export function startServer(options: any) {
             }
         });
 
-        uiServer.listen(parseInt(options.webui));
+        uiServer.listen(Number(options.webui));
     }
 
     mainServer.closeGracefully = async () => {

@@ -70,3 +70,4 @@ describe('Env Var Parity: AWS Mock Environment', () => {
         }).toThrow(/Restricted Variable: "FORBIDDEN_VAR"/);
     });
 });
+

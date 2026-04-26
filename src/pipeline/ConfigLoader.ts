@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { OriginConfig, CacheBehavior } from '../core/types';
+import { OriginConfig, CacheBehavior, CloudFrontizeOptions } from '../core/types';
 
 export interface MultiOriginConfig {
     origins: OriginConfig[];
@@ -32,7 +32,7 @@ export class ConfigLoader {
         return { ...parsed, edge: (parsed as any).edge, cff: (parsed as any).cff, configFile: fullPath } as any;
     }
 
-    public static fromCLI(options: any, directory?: string): any {
+    public static fromCLI(options: CloudFrontizeOptions, directory?: string): MultiOriginConfig {
         const origins: OriginConfig[] = [];
         const behaviors: CacheBehavior[] = [];
 

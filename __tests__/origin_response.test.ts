@@ -62,7 +62,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
         runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
 runner.load();
         runner.load();
-        server = startServer({ port, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
+        server = startServer({ port, directory: dir, edgeRunner: runner, noBanner: true, strict: true, debug: true });
 
         const res = await fetch(`http://localhost:${port}/`);
         expect(res.status).toBe(200);
@@ -83,7 +83,7 @@ runner.load();
         runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
 runner.load();
         runner.load();
-        server = startServer({ port: port + 1, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
+        server = startServer({ port: port + 1, directory: dir, edgeRunner: runner, noBanner: true, strict: true, debug: true });
 
         const res = await fetch(`http://localhost:${port + 1}/`);
         const body = await res.text();
@@ -105,7 +105,7 @@ runner.load();
         runner = new EdgeRunner(dir, { watch: false });
 runner.load();
         runner.load();
-        server = startServer({ port: port + 2, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: false });
+        server = startServer({ port: port + 2, directory: dir, edgeRunner: runner, noBanner: true, strict: false });
 
         const res = await fetch(`http://localhost:${port + 2}/`);
         expect(res.status).toBe(200);
@@ -125,9 +125,10 @@ runner.load();
         runner = new EdgeRunner(dir, { watch: false, strict: true, debug: true });
 runner.load();
         runner.load();
-        server = startServer({ port: port + 3, directory: dir, edgeRunner: runner, noRequestLogging: true, strict: true, debug: true });
+        server = startServer({ port: port + 3, directory: dir, edgeRunner: runner, noBanner: true, strict: true, debug: true });
 
         const res = await fetch(`http://localhost:${port + 3}/`);
         expect(res.status).toBe(200);
     });
 });
+
