@@ -40,7 +40,87 @@ export class S3Provider implements OriginProvider {
         this.client = new S3Client(s3Options);
     }
 
+    private async fetchWebsite(req: any, res: any): Promise<void> {
+        let websiteUrl = `http://${this.config.bucket}.s3-website-${this.config.region || 'us-east-1'}.amazonaws.com`;
+        
+        if (this.config.endpoint) {
+            if (this.config.endpoint.includes('localstack') || this.config.endpoint.includes('4566')) {
+                const urlObj = new URL(this.config.endpoint);
+                const port = urlObj.port ? `:${urlObj.port}` : '';
+                websiteUrl = `${urlObj.protocol}//${this.config.bucket}.s3-website.localhost.localstack.cloud${port}`;
+            } else {
+                const urlObj = new URL(this.config.endpoint);
+                const isPathStyle = this.config.forcePathStyle !== false;
+                if (isPathStyle) {
+                    websiteUrl = `${this.config.endpoint.replace(/\/$/, '')}/${this.config.bucket}`;
+                } else {
+                    websiteUrl = `${urlObj.protocol}//${this.config.bucket}.${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+                }
+            }
+        }
+
+        let targetUrl = `${websiteUrl}${req.url}`;
+
+        // Emulate Website Index Document functionality for local MinIO endpoints
+        // since MinIO doesn't natively support S3 Website Hosting.
+        if (this.config.endpoint && targetUrl.endsWith('/')) {
+            targetUrl = `${targetUrl}index.html`;
+        }
+
+        res.resolvedUri = targetUrl;
+
+        try {
+            // Header Scrubbing (Custom Origin Behavior)
+            const safeHeaders: Record<string, string> = {};
+            const allowedHeaders = ['accept', 'accept-language', 'user-agent', 'x-forwarded-for'];
+            for (const [key, value] of Object.entries(req.headers || {})) {
+                if (allowedHeaders.includes(key.toLowerCase())) {
+                    safeHeaders[key.toLowerCase()] = String(value);
+                }
+            }
+            safeHeaders['host'] = new URL(websiteUrl).host;
+
+            let fetchUrl = targetUrl;
+            const urlObj = new URL(targetUrl);
+            if (urlObj.hostname.endsWith('.localhost') || urlObj.hostname.includes('.localhost.')) {
+                urlObj.hostname = '127.0.0.1';
+                fetchUrl = urlObj.toString();
+            }
+
+            const response = await new Promise<any>((resolve, reject) => {
+                const httpModule = require(fetchUrl.startsWith('https') ? 'https' : 'http');
+                const clientReq = httpModule.request(fetchUrl, {
+                    method: req.method,
+                    headers: safeHeaders,
+                }, (clientRes: any) => {
+                    resolve(clientRes);
+                });
+                clientReq.on('error', reject);
+                clientReq.end();
+            });
+
+            res.statusCode = response.statusCode;
+            for (const [key, value] of Object.entries(response.headers)) {
+                res.setHeader(key, String(value));
+            }
+
+            response.pipe(res);
+            await new Promise<void>((resolve, reject) => {
+                res.on('finish', resolve);
+                res.on('error', reject);
+            });
+        } catch (err: any) {
+            res.statusCode = 502;
+            res.setHeader('Content-Type', 'text/plain');
+            res.end(`Bad Gateway: Could not connect to S3 Website Endpoint (${err.message})`);
+        }
+    }
+
     public async fetch(req: any, res: any, _options: any, _body?: Buffer): Promise<void> {
+        if (this.config.mode === 'website') {
+            return this.fetchWebsite(req, res);
+        }
+
         // Fidelity: S3 Keys represent the path. Query parameters must be stripped before key calculation.
         const [pathOnly, qs] = req.url.split('?');
         const key = pathOnly.startsWith('/') ? pathOnly.slice(1) : pathOnly;

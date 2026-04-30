@@ -1,11 +1,9 @@
 {
   "bucket": "www",
-  "region": "us-east-1",
   "endpoint": "http://localhost:9000",
   "credentials": {
     "accessKeyId": "minioadmin",
     "secretAccessKey": "minioadmin123"
   },
-  "forcePathStyle": true,
-  "mode": "rest"
+  "forcePathStyle": true
 }

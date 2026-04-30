@@ -1,182 +1,44 @@
-# S3 Sample Setup with MinIO and Lambda@Edge
+# S3 Sample Setup with Local S3 Alternatives and Lambda@Edge
 
-This guide provides step-by-step instructions for setting up MinIO, uploading the `/www` folder to a bucket, creating a Lambda@Edge (L@E) function to add a custom header, and using `cloudfrontize` to test the setup.
-
----
-
-## 1. Setting Up MinIO
-
-MinIO is an S3-compatible object storage service. Follow these steps to set it up locally:
-
-### Using Docker
-
-Run the following command to start a MinIO instance:
-
-```powershell
-# Pull and run MinIO Docker container
-docker run -p 9000:9000 -p 9001:9001 \
-  -e "MINIO_ROOT_USER=minioadmin" \
-  -e "MINIO_ROOT_PASSWORD=minioadmin123" \
-  quay.io/minio/minio server /data --console-address ":9001"
-```
-
-### Using Docker Compose
-
-Alternatively, you can use Docker Compose to set up MinIO. Refer to `docker-compose.yml` in the `/samples/s3/minio` directory:
-
-```yaml
-version: '3.8'
-
-services:
-  minio:
-    image: quay.io/minio/minio
-    container_name: minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio-data:/data
-
-volumes:
-  minio-data:
-```
-
-Run the following command to start MinIO:
-
-```powershell
-# Start MinIO using Docker Compose
-docker-compose up -d
-```
-
-### Accessing MinIO Web Interface
-
-1. Open your browser and navigate to `http://localhost:9001`.
-2. Log in using the credentials:
-   - **Username**: `minioadmin`
-   - **Password**: `minioadmin123`
+## Table of Contents
+- [1. Overview & Architecture](#1-overview--architecture)
+- [2. Option A: Using LocalStack (Recommended)](#2-option-a-using-localstack-recommended)
+  - [Setting Up LocalStack](#setting-up-localstack)
+  - [Uploading the `/www` Folder](#uploading-the-www-folder)
+- [3. Option B: Using MinIO](#3-option-b-using-minio)
+  - [Setting Up MinIO & NGINX](#setting-up-minio--nginx)
+  - [Accessing MinIO Web Interface](#accessing-minio-web-interface)
+  - [Uploading the `/www` Folder](#uploading-the-www-folder-1)
+- [4. Creating a Lambda@Edge Function](#4-creating-a-lambdaedge-function)
+  - [Example Function](#example-function)
+- [5. Running the Sample with `cloudfrontize`](#5-running-the-sample-with-cloudfrontize)
+  - [Command for LocalStack](#command-for-localstack)
+  - [Command for MinIO](#command-for-minio)
+  - [Alternative: Using `--origins` Configuration File](#alternative-using---origins-configuration-file)
+- [6. Troubleshooting](#6-troubleshooting)
+  - [Common Issues](#common-issues)
 
 ---
 
-## 2. Uploading the `/www` Folder
+## 1. Overview & Architecture
 
-The `/www` folder contains the sample files to be uploaded to the `www` bucket in MinIO.
+This guide provides step-by-step instructions for setting up a local S3 alternative, uploading the `/www` sample folder to a bucket, creating a Lambda@Edge (L@E) function to add a custom header, and using `cloudfrontize` to test the setup.
 
-### Using MinIO Client (mc)
+We offer two popular alternatives for local S3 testing:
 
-1. Install the MinIO client (`mc`) from [MinIO Downloads](https://min.io/download).
-2. Configure the client:
-
-   ```powershell
-   mc alias set local http://localhost:9000 minioadmin minioadmin123
-   ```
-
-3. Create the `www` bucket:
-
-   ```powershell
-   mc mb local/www
-   ```
-
-4. Upload the `/www` folder:
-
-   ```powershell
-   mc cp -r D:/antigravity/cloudfrontize/www local/www
-   ```
-
-### Using the Web Interface
-
-1. Navigate to the MinIO web interface.
-2. Create a bucket named `www`.
-3. Upload the contents of the `/www` folder into the `www` bucket.
+1. **LocalStack (Recommended):** A comprehensive local AWS cloud stack. It natively supports both the standard S3 REST API and S3 Website endpoints, making it the most seamless emulation experience.
+2. **MinIO:** A lightweight, high-performance object storage server. Because MinIO strictly implements the REST API and lacks native S3 Website functionality, we provide a bundled NGINX reverse proxy in the Docker setup to intercept requests and emulate the website endpoint behavior.
 
 ---
 
-## 3. Creating a Lambda@Edge Function
+## 2. Option A: Using LocalStack (Recommended)
 
-The Lambda@Edge function will add a custom header (`X-Custom-Header: Cloudfrontize-Test`) to the response.
-
-### Example Function
-
-Save the following code as `origin-response-addCustomHeader.js` in the `/samples/s3/` directory:
-
-```javascript
-'use strict';
-
-exports.handler = async (event) => {
-    const response = event.Records[0].cf.response;
-    response.headers['x-custom-header'] = [{
-        key: 'X-Custom-Header',
-        value: 'Cloudfrontize-Test',
-    }];
-    return response;
-};
-```
-> **Hint** The prefix `origin-response` tells `cloudfrontize` to execute this function on the origin response event. You can also use `viewer-request`, `viewer-response`, or `origin-request` as prefixes to specify different events.
----
-
-## 4. Running the Sample with `cloudfrontize`
-
-Use `cloudfrontize` to test the setup with MinIO and the Lambda@Edge function.
-
-### Command
-
-Run the following command:
-
-```powershell
-$env:AWS_ACCESS_KEY_ID="minioadmin"
-$env:AWS_SECRET_ACCESS_KEY="minioadmin123"
-cloudfrontize --s3-origin www --s3-endpoint http://localhost:9000 --edge ./origin-response-addCustomHeader.js --webui 3001
-```
-
-### Expected Behavior
-
-1. The files from the `www` bucket will be served.
-2. The `X-Custom-Header: Cloudfrontize-Test` header will be added to the response.
-
----
-
-### Alternative: Using `--origins` for S3 Configuration
-
-Instead of specifying the S3 origin directly in the command, you can use a JSON configuration file with the `--origins` option. This allows for more advanced setups, such as multi-origin configurations.
-
-#### Example Configuration File
-
-Save the following content as a JSON file (e.g., `my-origins.json`) in the `/samples/s3/` directory:
-
-```json
-{
-  "bucket": "www",
-  "endpoint": "http://localhost:9000",
-  "credentials": {
-    "accessKeyId": "minioadmin",
-    "secretAccessKey": "minioadmin123"
-  }
-}
-```
-
-#### Command
-
-Run the following command to use your configuration file:
-
-```powershell
-cloudfrontize --origins ./my-origins-s3.json --edge ./origin-response-addCustomHeader.js --webui 3001
-```
-
-This approach is useful for more complex setups or when you want to manage credentials and endpoints in a separate file.
-
----
-
-## 5. Using LocalStack Instead of MinIO
-
-LocalStack is a fully functional local AWS cloud stack. It can be used as an alternative to MinIO for testing S3 setups.
+LocalStack provides a fully functional local AWS cloud stack out of the box.
 
 ### Setting Up LocalStack
 
 1. Install Docker if not already installed.
-2. Refer to `docker-compose.yml` in the `/samples/s3/localstack` directory:
+2. Navigate to the `/samples/s3/localstack` directory, which contains the following `docker-compose.yml`:
 
 > **NOTE:** This setup uses **LocalStack 1.4** to avoid the mandatory API key requirement in newer versions. To use a more recent version, obtain a license key from LocalStack and add it as the `LOCALSTACK_API_KEY` environment variable in your `docker-compose-localstack.yml` file.
 
@@ -197,82 +59,174 @@ services:
       - LAMBDA_EXECUTOR=docker
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "localstack-data:/tmp/localstack/data"
+      - "localstack-data-s3:/tmp/localstack/data"
 
 volumes:
-  localstack-data:
+  localstack-data-s3:
 ```
 
-3. Start LocalStack:
+3. Start LocalStack using Docker Compose:
 
 ```powershell
-# Start LocalStack using Docker Compose
-docker-compose -f docker-compose-localstack.yml up -d
+docker-compose up -d
 ```
 
-### Configuring LocalStack S3
+### Uploading the `/www` Folder
 
-1. Install the AWS CLI if not already installed.
-    - Ensure the AWS CLI is installed on your system. You can download it from [AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
-   
-2. Configure the AWS CLI to use LocalStack:
+The `/www` folder contains the sample files to be uploaded to the `www` bucket.
+
+#### 1. Using 's3-upload-site' Utility (Preferred Method)
+
+To upload your site assets easily, we highly recommend using the `s3-upload-site` utility.
+
+1. Install the utility globally:
+   ```bash
+   npm install -g s3-upload-site
+   ```
+2. Upload your site assets:
+   ```bash
+   s3-upload-site --source ../../www --bucket www --create
+   ```
+
+#### 2. Alternative: Using AWS CLI
+> **Note**: LocalStack 1.4 is incompatible with modern versions of the AWS CLI (v2+) due to changes in S3 request signing. If your upload command fails with a "trailer header" error, please use the `s3-upload-site` utility described above.
+
+1. Ensure the AWS CLI is installed.
+2. Configure dummy credentials:
+   ```powershell
+   aws configure set aws_access_key_id test
+   aws configure set aws_secret_access_key test
+   aws configure set default.region us-east-1
+   ```
+3. Create the bucket and upload the folder:
+   ```powershell
+   aws --endpoint-url=http://localhost:4566 s3 mb s3://www
+   aws --endpoint-url=http://localhost:4566 s3 cp ../../www/ s3://www/ --recursive
+   ```
+
+---
+
+## 3. Option B: Using MinIO
+
+MinIO is a great lightweight alternative, but requires our NGINX proxy to correctly emulate website routing.
+
+### Setting Up MinIO & NGINX
+
+Navigate to the `/samples/s3/minio` directory, which contains the configured `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  nginx:
+    image: nginx:alpine
+    container_name: minio_nginx
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - minio
+
+volumes:
+  minio-data:
+```
+
+Start the stack using Docker Compose:
 
 ```powershell
-aws configure set aws_access_key_id test
-aws configure set aws_secret_access_key test
-aws configure set default.region us-east-1
+docker-compose up -d
 ```
 
-### Uploading the `www` Folder to LocalStack
+### Accessing MinIO Web Interface
 
-To upload the `www` folder to LocalStack's S3, follow these simple steps:
+1. Open your browser and navigate to `http://localhost:9001`.
+2. Log in using the credentials:
+   - **Username**: `minioadmin`
+   - **Password**: `minioadmin123`
 
-1. **Install AWS CLI**:
-   - Ensure the AWS CLI is installed on your system. You can download it from [AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+### Uploading the `/www` Folder
 
-2. **Set Up AWS CLI for LocalStack**:
-   - Run the following command to configure AWS CLI with LocalStack's dummy credentials:
-     ```bash
-     aws configure
-     ```
-     - Enter `test` for both `AWS Access Key ID` and `AWS Secret Access Key`.
-     - Set the region to `us-east-1` (or any region you prefer).
-     - Leave the default output format blank.
+#### 1. Using 's3-upload-site' Utility (Preferred Method)
 
-3. **Create an S3 Bucket**:
-   - Use the following command to create a bucket in LocalStack:
-     ```bash
-     aws --endpoint-url=http://localhost:4566 s3 mb s3://www
-     ```
-     - If you prefer, replace  `www` with your desired bucket name, but notice many of the sample assume it is called www.
+1. Install the utility globally:
+   ```bash
+   npm install -g s3-upload-site
+   ```
+2. Upload your site assets:
+   ```bash
+   s3-upload-site --source ../../www --bucket www --create --endpoint http://localhost:9000 --key minioadmin --secret minioadmin123
+   ```
 
-4. **Upload the `www` Folder Using aws cli**:
-   - Use the following command to upload the entire `www` folder to the bucket:
-     ```bash
-     aws --endpoint-url=http://localhost:4566 s3 cp ../../www/ s3://www/ --recursive
-     ```
-   > **Note**: LocalStack 1.4 is incompatible with modern versions of the AWS CLI (v2+) due to changes in S3 request signing. If your upload command fails with a "trailer header" error, use the Node.js script provided below to sync your files.
+#### 2. Alternative: Using MinIO Client (mc)
 
-5. **Upload the `www` Folder Using a nodejs script**:
-    - To upload your site assets, first you need to install the script dependencies. Navigate to the `scripts` folder, run `npm install`.
-    - Now go back to this folder and execute this command
-> ```bash
-> node scripts/upload.js --source ../../www --bucket www
-> ```
-> **Note**  `--source` path if your directory where your files are located, and `--bucket` is the name of the bucket you created in LocalStack.
+1. Install the MinIO client (`mc`) from [MinIO Downloads](https://min.io/download).
+2. Configure the client and upload:
+   ```powershell
+   mc alias set local http://localhost:9000 minioadmin minioadmin123
+   mc mb local/www
+   mc cp -r ../../www local/www
+   ```
 
-6. **Verify the Upload**:
-   - List the contents of the bucket to ensure the files were uploaded:
-     ```bash
-     aws --endpoint-url=http://localhost:4566 s3 ls s3://my-bucket/ --recursive
-     ```
+#### 3. Alternative: Using the Web Interface
 
-### Running the Sample with `cloudfrontize`
+1. Navigate to `http://localhost:9001`.
+2. Create a bucket named `www`.
+3. Upload the contents of the `/www` folder into the `www` bucket via the UI.
 
-Run the following command:
+---
+
+## 4. Creating a Lambda@Edge Function
+
+The Lambda@Edge function will add a custom header (`X-Custom-Header: Cloudfrontize-Test`) to the response.
+
+### Example Function
+
+Save the following code as `origin-response-addCustomHeader.js` in the `/samples/s3/` directory:
+
+```javascript
+'use strict';
+
+exports.handler = async (event) => {
+    const response = event.Records[0].cf.response;
+    response.headers['x-custom-header'] = [{
+        key: 'X-Custom-Header',
+        value: 'Cloudfrontize-Test',
+    }];
+    return response;
+};
+```
+> **Hint** The prefix `origin-response` tells `cloudfrontize` to execute this function on the origin response event. You can also use `viewer-request`, `viewer-response`, or `origin-request` as prefixes to specify different events.
+
+---
+
+## 5. Running the Sample with `cloudfrontize`
+
+Once your S3 environment is populated and your edge function is ready, use `cloudfrontize` to test the setup.
+
+### Command for LocalStack
 
 ```powershell
 cloudfrontize --s3-origin www --s3-endpoint http://localhost:4566 --edge ./origin-response-addCustomHeader.js --webui 3001
+```
+
+### Command for MinIO
+
+```powershell
+$env:AWS_ACCESS_KEY_ID="minioadmin"
+$env:AWS_SECRET_ACCESS_KEY="minioadmin123"
+cloudfrontize --s3-origin www --s3-endpoint http://localhost:9000 --edge ./origin-response-addCustomHeader.js --webui 3001
 ```
 
 ### Expected Behavior
@@ -280,17 +234,42 @@ cloudfrontize --s3-origin www --s3-endpoint http://localhost:4566 --edge ./origi
 1. The files from the `www` bucket will be served.
 2. The `X-Custom-Header: Cloudfrontize-Test` header will be added to the response.
 
+### Alternative: Using `--origins` Configuration File
+
+Instead of specifying the S3 origin directly in the command, you can use a JSON configuration file. This is particularly useful for Multi-Origin setups.
+
+Save this as `my-origins-s3.json` in the `/samples/s3/` directory:
+```json
+{
+  "bucket": "www",
+  "region": "us-east-1",
+  "endpoint": "http://localhost:9000",
+  "credentials": {
+    "accessKeyId": "minioadmin",
+    "secretAccessKey": "minioadmin123"
+  },
+  "forcePathStyle": false,
+  "mode": "website"
+}
+```
+*(Note: Use `forcePathStyle: false` if testing Website Mode with the MinIO NGINX proxy).*
+
+Then run:
+```powershell
+cloudfrontize --origins ./my-origins-s3.json --edge ./origin-response-addCustomHeader.js --webui 3001
+```
+
 ---
 
-## Troubleshooting
+## 6. Troubleshooting
 
 ### Common Issues
 
 1. **502 Bad Gateway**:
-   - Ensure MinIO is running.
-   - Verify the endpoint URL.
+   - Ensure the respective LocalStack or MinIO container is running.
+   - Verify the endpoint URL explicitly maps to your running service's port (`4566` vs `9000`).
 
 2. **Missing Files**:
-   - Ensure the `/www` folder is uploaded to the `www` bucket.
+   - Ensure the `/www` folder is completely uploaded to the `www` bucket.
 
 For more details, refer to the [S3 Origin Documentation](../docs/s3-origin.md).

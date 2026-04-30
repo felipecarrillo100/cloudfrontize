@@ -32,6 +32,18 @@ export class ConfigLoader {
         return { ...parsed, edge: (parsed as any).edge, cff: (parsed as any).cff, configFile: fullPath } as any;
     }
 
+    public static applyCliOverrides(config: MultiOriginConfig, options: CloudFrontizeOptions): MultiOriginConfig {
+        if (options.mode) {
+            config.origins.forEach(o => {
+                if (o.type === 's3' && !o.mode) {
+                    o.mode = options.mode;
+                }
+            });
+            (config as any).mode = options.mode;
+        }
+        return config;
+    }
+
     public static fromCLI(options: CloudFrontizeOptions, directory?: string): MultiOriginConfig {
         const origins: OriginConfig[] = [];
         const behaviors: CacheBehavior[] = [];
@@ -44,7 +56,8 @@ export class ConfigLoader {
                 type: 's3',
                 bucket: options.s3Origin,
                 endpoint: options.s3Endpoint,
-                region: options.s3Region
+                region: options.s3Region,
+                mode: options.mode
             });
             behaviors.push({ pathPattern: '*', targetOriginId: 's3-origin' });
         } else if (directory) {

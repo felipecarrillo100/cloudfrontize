@@ -75,9 +75,11 @@ export function startServer(options: CloudFrontizeOptions) {
     }
     
     // Multi-Origin Configuration
-    const config = options.origins 
+    let config = options.origins 
         ? ConfigLoader.load(options.origins) 
         : ConfigLoader.fromCLI(options, options.directory);
+
+    config = ConfigLoader.applyCliOverrides(config, options);
 
     const commonOptions = { ...options, logStream };
 
