@@ -71,6 +71,8 @@ In a production **Lambda@Edge** environment, subfolders do not automatically app
 ```bash
    cloudfrontize www --edge ./tutorial/module-2-origin/exercise-2/index.js --headers ./header.json --debug --mode website
 ```
+
+>**NOTE**: Keep the `-mode website` in mind, as we will use it frequently throughout this tutorial. It is an excellent tool for simplifying your code, allowing you to focus on the core logic of your Lambda@Edge functions without the distraction of path resolution issues.
 ---
 ## 🎓 Learning More
 - **AWS Reference**: [Localized Content (AWS Docs)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-examples.html#lambda-examples-localized-content)

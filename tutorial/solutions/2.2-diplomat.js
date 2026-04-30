@@ -24,10 +24,11 @@ exports.handler = async (event) => {
     request.uri = `/countries/${country}${request.uri}`;
 
     // 🛠️ URI Normalization (Step 2): Handle trailing slashes
-    // If the path ends in '/', MinIO needs 'index.html' to avoid a 404.
-    // if (request.uri.endsWith('/')) {
-    //     request.uri += 'index.html';
-    // }
+    // If your S3 in REST mode a subfolder/ does not produce 'subfolder/index.html', to avoid a 404 you have two options
+    // Use the --mode website, where index.html is added automatically, or normalize the urls that end with /
+    if (request.uri.endsWith('/')) {
+        request.uri += 'index.html';
+    }
 
     // Return the modified request to tell CloudFront where to fetch the file.
     return request;
