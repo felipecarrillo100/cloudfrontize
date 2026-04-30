@@ -1,11 +1,11 @@
-d:# Exercise 3.1: The Bouncer
+# Exercise 3.1: The Bouncer
 
 ## 🎭 The Scenario
 Your `/admin/` dashboard is currently public. You need to add a quick layer of security using Basic Auth, but you don't want to modify your backend code.
 
 ## 📖 The Lesson: Security and Short-Circuiting
 
-When you need to protect a specific path (like `/admin/`), you don't always need to change your application code. You can use a `viewer-request` hook to act as a **Bouncer**.
+When you need to protect a specific path (like `/`  or `/admin/` or other), you don't always need to change your application code. You can use a `viewer-request` hook to act as a **Bouncer**.
 
 ### The Magic of Short-Circuiting
 If your Lambda@Edge function returns a `response` object instead of the `request` object, CloudFront immediately sends that response back to the user. The request **never** reaches your origin server. This "short-circuit" is extremely efficient because:
@@ -19,8 +19,9 @@ Basic Auth is a simple challenge-response protocol. If the user doesn't provide 
 > **Technical Reference**: For a detailed breakdown of the Lambda@Edge event JSON and how to generate a custom response, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
 
 ## 🎯 Your Goal
-Return a `401 Unauthorized` response directly from the Edge if the `Authorization` header is missing or incorrect.
+Verify the user's authentication by checking the Authorization header. If the header is missing or contains invalid credentials, return a 401 Unauthorized response directly from the Edge.
 
+Consequently, the browser will trigger a login prompt when a user visits /, granting access only once valid credentials are provided.
 ## 📝 Starter Code Template
 ```javascript
 'use strict';
@@ -58,7 +59,7 @@ When you use Basic Auth, the browser doesn't send your password in "plain text,"
 2. **Encoding**: It turns that string into Base64: `YWRtaW46cGFzc3dvcmQ=`.
 3. **Header**: It sends it as `Authorization: Basic YWRtaW46cGFzc3dvcmQ=`.
 
-> **⚠️ Security Warning**: Because Base64 can be easily decoded by anyone, **Basic Auth must only be used over HTTPS**. Without SSL/TLS, your "Bouncer" is handing out the keys to anyone with a packet sniffer.
+> **⚠️ Security Warning**: This code snippet is only for educational purposes. A more realistic use case would check the username:password against a DB such as Dynamo. Because Base64 can be easily decoded by anyone, **Basic Auth must only be used over HTTPS**. Without SSL/TLS, your "Bouncer" is handing out the keys to anyone with a packet sniffer.
 
 ---
 ## 💡 Fidelity Tip: Node.js Buffers

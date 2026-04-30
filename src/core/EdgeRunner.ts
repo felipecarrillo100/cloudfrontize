@@ -243,8 +243,11 @@ export class EdgeRunner extends HotRunner {
         return logLine;
     }
 
-    public async runRequestHook(req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', disabledIds: string[] = [], bodyTruncated = false): Promise<{ result: any; logs: string[] }> {
+    public async runRequestHook(req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', disabledIds: string[] = [], bodyTruncated = false): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
         const request = this._buildRequestRecord(req, bodyBuffer, bodyTruncated);
+        // Capture the Exposure Boundary: the exact headers handed to the Lambda at invocation time.
+        // This is used by the caller (Orchestrator) to determine which deletions were intentional.
+        const exposedHeaders = this._deepClone(request.headers);
         let totalDurationMs = 0;
         const allLogs: string[] = [];
         let finalResult: any = null;
@@ -332,7 +335,7 @@ export class EdgeRunner extends HotRunner {
             };
         }
 
-        return { result: finalResult, logs: allLogs };
+        return { result: finalResult, logs: allLogs, exposedHeaders };
     }
 
     public async runResponseHook(req: any, resData: any, requestID = 'UNKNOWN', stage?: HookType, disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {

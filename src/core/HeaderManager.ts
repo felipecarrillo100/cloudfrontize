@@ -140,38 +140,77 @@ export class HeaderManager {
     }
 
     /**
-     * Syncs a sticky header configuration into a live Node.js request/response object.
-     * Correctly handles multi-value headers and rebuilds rawHeaders for proxy fidelity.
+     * syncToRequest: Syncs Lambda@Edge-returned headers back to the live Node.js request.
+     *
+     * Implements the AWS **Exposure Boundary** contract:
+     * > A Lambda function operates on a visibility window — the headers CloudFront exposed to it.
+     * > It may add, modify, or delete headers within that window.
+     * > Headers OUTSIDE the window were invisible to Lambda and must pass through untouched.
+     *
+     * Deletion semantics:
+     *   - A header is deleted ONLY if it was within `exposedHeaders` AND is absent from `returnedHeaders`.
+     *   - Headers outside the exposure window (e.g. internal Node.js headers the Lambda never saw)
+     *     are preserved regardless of what the Lambda returned.
+     *
+     * @param req            - The live Node.js IncomingMessage object.
+     * @param returnedHeaders - Headers returned by the Lambda function (IFF or plain map).
+     * @param exposedHeaders  - Headers that were handed to the Lambda at invocation time (IFF).
      */
-    public syncToRequest(req: any, mutations: Record<string, any>, force = true): void {
-        const currentHeaders = this.normalizeHeaders(req.headers);
-        const mutationHeaders = this.normalizeHeaders(mutations);
+    public syncToRequest(req: any, returnedHeaders: Record<string, any>, exposedHeaders: Record<string, any>): void {
+        const returned = this.normalizeHeaders(returnedHeaders);
+        const exposed  = this.normalizeHeaders(exposedHeaders);
 
-        // 1a. Surgical State Sync: Purge headers deleted by the Edge function
-        // We only do this if force is true, meaning the edge function is the definitive source of truth
-        if (force) {
-            for (const lowerKey of Object.keys(currentHeaders)) {
-                if (!mutationHeaders[lowerKey]) {
-                    delete currentHeaders[lowerKey];
-                    delete req.headers[lowerKey];
-                }
+        // 1. Exposure Boundary Deletions:
+        //    Only delete headers that were visible to Lambda AND are now absent from its return value.
+        for (const lowerKey of Object.keys(exposed)) {
+            if (!returned[lowerKey]) {
+                delete req.headers[lowerKey];
             }
         }
 
-        // 1b. Merge mutations into our Fidelity Format
-        for (const [lowerKey, values] of Object.entries(mutationHeaders)) {
-            if (force || !currentHeaders[lowerKey]) {
-                currentHeaders[lowerKey] = values;
-                // Update Node's internal headers map too (stringified/joined for standard usage)
-                const nodeVal = values.length === 1 ? values[0].value : values.map(v => v.value);
+        // 2. Upsert: add or overwrite any header the Lambda returned.
+        for (const [lowerKey, values] of Object.entries(returned)) {
+            const nodeVal = values.length === 1 ? values[0].value : values.map((v: HeaderValue) => v.value);
+            req.headers[lowerKey] = nodeVal;
+        }
+
+        // 3. Rebuild rawHeaders for downstream proxy / logging fidelity.
+        this._rebuildRawHeaders(req);
+    }
+
+    /**
+     * injectHeaders: Additively merges headers into a live Node.js request.
+     *
+     * Used for call sites that are NOT Lambda return-value syncs — specifically:
+     *   - Sticky header injection at request entry (debugging overrides)
+     *   - CloudFront Function (CFF) intermediate request syncing
+     *
+     * This method NEVER deletes existing headers. It only adds or overwrites.
+     *
+     * @param req      - The live Node.js IncomingMessage object.
+     * @param headers  - Headers to inject (IFF or plain map).
+     * @param override - If false, existing headers are not overwritten (default: true).
+     */
+    public injectHeaders(req: any, headers: Record<string, any>, override = true): void {
+        if (!headers) return;
+        const toInject = this.normalizeHeaders(headers);
+
+        for (const [lowerKey, values] of Object.entries(toInject)) {
+            if (override || req.headers[lowerKey] === undefined) {
+                const nodeVal = values.length === 1 ? values[0].value : values.map((v: HeaderValue) => v.value);
                 req.headers[lowerKey] = nodeVal;
             }
         }
 
-        // 2. Reconstruct rawHeaders with 100% casing fidelity
+        this._rebuildRawHeaders(req);
+    }
+
+    /** Rebuilds the Node.js rawHeaders array from the current req.headers map. */
+    private _rebuildRawHeaders(req: any): void {
         const raw: string[] = [];
-        for (const values of Object.values(currentHeaders)) {
-            values.forEach(v => raw.push(v.key, String(v.value)));
+        const current = this.normalizeHeaders(req.headers);
+        for (const values of Object.values(current)) {
+            (values as HeaderValue[]).forEach(v => raw.push(v.key, String(v.value)));
         }
         (req as any).rawHeaders = raw;
     }

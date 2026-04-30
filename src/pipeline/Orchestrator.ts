@@ -195,8 +195,10 @@ export class Orchestrator {
         return this.stickyHeaders;
     }
 
-    private _syncHeadersToRequest(req: any, mutations: any, force = true) {
-        this.headerManager.syncToRequest(req, mutations, force);
+    private _syncHeadersToRequest(req: any, headers: any) {
+        // Additive-only inject: used for CFF and sticky header propagation.
+        // These are NOT Lambda return-value syncs — they must never delete headers.
+        this.headerManager.injectHeaders(req, headers);
     }
 
     /**
@@ -257,7 +259,7 @@ export class Orchestrator {
         this._logToFile('INFO', 'Orchestrator', requestId, `${req.method} ${req.url} (Host: ${req.headers.host || 'unknown'})`);
 
         // Initialize header sync (Sticky) and broadcast initial state
-        this._syncHeadersToRequest(req, this.stickyHeaders.request, !this.isDefaultSticky);
+        this.headerManager.injectHeaders(req, this.stickyHeaders.request, !this.isDefaultSticky);
 
         if (this.edgeRunner && options.strict) this.edgeRunner.options.strict = true;
 
@@ -345,7 +347,7 @@ export class Orchestrator {
                 const reqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
                 const reqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
 
-                const { result: viewerResult, logs: viewerLogs } = await this.edgeRunner.runRequestHook(req, reqBodySlice, requestId, [...disabledIds, ...viewerOnlyDisabled], reqBodyTruncated);
+                const { result: viewerResult, logs: viewerLogs, exposedHeaders: viewerExposedHeaders } = await this.edgeRunner.runRequestHook(req, reqBodySlice, requestId, [...disabledIds, ...viewerOnlyDisabled], reqBodyTruncated);
 
 
                 if (options.verbose && viewerLogs.length > 0) req._logBuffer.push(...viewerLogs);
@@ -371,8 +373,8 @@ export class Orchestrator {
                     return this._sendResponse(res, viewerResult, requestId, startTime, req, options);
                 }
 
-                // Header Roll-Forward
-                this.headerManager.syncToRequest(req, viewerResult?.headers, true);
+                // Header Roll-Forward: Exposure Boundary sync (L@E viewer-request)
+                this.headerManager.syncToRequest(req, viewerResult?.headers ?? {}, viewerExposedHeaders);
                 this._syncUrlToRequest(req, viewerResult);
 
                 // 2b. L@E Origin Request (Atomic Phase)
@@ -382,7 +384,7 @@ export class Orchestrator {
                 const originReqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
                 const originReqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
 
-                const { result: originResult, logs: originLogs } = await this.edgeRunner.runRequestHook(req, originReqBodySlice, requestId, [...disabledIds, ...originOnlyDisabled], originReqBodyTruncated);
+                const { result: originResult, logs: originLogs, exposedHeaders: originExposedHeaders } = await this.edgeRunner.runRequestHook(req, originReqBodySlice, requestId, [...disabledIds, ...originOnlyDisabled], originReqBodyTruncated);
 
                 if (options.verbose && originLogs.length > 0) req._logBuffer.push(...originLogs);
 
@@ -414,8 +416,8 @@ export class Orchestrator {
                         req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E]\x1b[0m Origin Request  \x1b[33m⟹\x1b[0m Rewrote to ${req.url}`);
                     }
                 }
-                // Header Roll-Forward
-                this._syncHeadersToRequest(req, originResult?.headers);
+                // Header Roll-Forward: Exposure Boundary sync (L@E origin-request)
+                this.headerManager.syncToRequest(req, originResult?.headers ?? {}, originExposedHeaders);
             }
 
             // 3. Provider Selection
