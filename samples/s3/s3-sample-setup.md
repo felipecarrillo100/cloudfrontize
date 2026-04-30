@@ -24,6 +24,8 @@
 
 This guide provides step-by-step instructions for setting up a local S3 alternative, uploading the `/www` sample folder to a bucket, creating a Lambda@Edge (L@E) function to add a custom header, and using `cloudfrontize` to test the setup.
 
+> 💡 **Looking for technical specifications?** For a deep dive into the configuration schema, routing rules, and advanced S3 emulator features, refer to the [Origins & Provider Specification](../../docs/s3-origin.md).
+
 We offer two popular alternatives for local S3 testing:
 
 1. **LocalStack (Recommended):** A comprehensive local AWS cloud stack. It natively supports both the standard S3 REST API and S3 Website endpoints, making it the most seamless emulation experience.

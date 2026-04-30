@@ -2,6 +2,8 @@
 
 CloudFrontize uses a modular **Provider Architecture** to resolve content. This document defines how to configure and manage different data sources (Origins) and how the emulator routes traffic between them.
 
+> 💡 **Looking for a tutorial?** For a complete, step-by-step guide on spinning up local S3 emulators (MinIO & LocalStack) and testing them with CloudFrontize, see the [S3 Sample Setup Guide](../samples/s3/s3-sample-setup.md).
+
 ---
 
 ## 1. Origin Provider Types
