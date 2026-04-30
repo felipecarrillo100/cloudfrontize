@@ -212,6 +212,10 @@ Once your S3 environment is populated and your edge function is ready, use `clou
 ```powershell
 cloudfrontize --s3-origin www --s3-endpoint http://localhost:4566 --edge ./origin-response-addCustomHeader.js --webui 3001
 ```
+Or using the `--origins` configuration file:
+```powershell
+cloudfrontize --origins ./localstack-s3-origin.json --edge ./origin-response-addCustomHeader.js --webui 3001
+``` 
 
 ### Command for MinIO
 
@@ -230,7 +234,7 @@ cloudfrontize --s3-origin www --s3-endpoint http://localhost:9000 --edge ./origi
 
 Instead of specifying the S3 origin directly in the command, you can use a JSON configuration file. This is particularly useful for Multi-Origin setups.
 
-Save this as `my-origins-s3.json` in the `/samples/s3/` directory:
+Save this as `minio-s3-origin.json` in the `/samples/s3/` directory:
 ```json
 {
   "bucket": "www",
@@ -240,14 +244,13 @@ Save this as `my-origins-s3.json` in the `/samples/s3/` directory:
     "accessKeyId": "minioadmin",
     "secretAccessKey": "minioadmin123"
   },
-  "forcePathStyle": true,
-  "mode": "website"
+  "forcePathStyle": true
 }
 ```
 
 Then run:
 ```powershell
-cloudfrontize --origins ./my-origins-s3.json --edge ./origin-response-addCustomHeader.js --webui 3001
+cloudfrontize --origins ./minio-s3-origin.json --edge ./origin-response-addCustomHeader.js --webui 3001
 ```
 
 ---
