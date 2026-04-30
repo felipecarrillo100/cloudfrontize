@@ -150,7 +150,7 @@ Use these patterns as a template. An AI agent can read these examples to generat
 }
 ```
 
-### Level 3: The "Split-Horizon" Routing
+### Level 5: The "Split-Horizon" Routing
 **Goal**: Serve images from S3, but keep your API stubs and CSS on your local machine for rapid editing.
 ```json
 {
@@ -166,7 +166,7 @@ Use these patterns as a template. An AI agent can read these examples to generat
 }
 ```
 
-### Level 4: Multi-Bucket Aggregator
+### Level 6: Multi-Bucket Aggregator
 **Goal**: Consolidate data from two different buckets (e.g., User Data and System Assets) behind one CloudFrontize endpoint.
 ```json
 {
