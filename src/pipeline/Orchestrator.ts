@@ -480,8 +480,7 @@ export class Orchestrator {
                 // State Roll-Forward (Origin Response -> Viewer Response)
                 if (originResResult.status) statusCode = parseInt(String(originResResult.status));
                 if (originResResult.headers) {
-                    const normalizedHeaders = HeaderManager.telemetryFlatten(originResResult.headers);
-                    Object.entries(normalizedHeaders).forEach(([k, v]) => { headers[k] = v; });
+                    headers = HeaderManager.telemetryFlatten(originResResult.headers);
                 }
                 if (originResResult.body !== undefined && originResResult.body !== null) {
                     let rb = originResResult.body;
@@ -522,8 +521,7 @@ export class Orchestrator {
                 // Final State Roll-Forward
                 if (viewerResResult.status) statusCode = parseInt(String(viewerResResult.status));
                 if (viewerResResult.headers) {
-                    const normalizedHeaders = HeaderManager.telemetryFlatten(viewerResResult.headers);
-                    Object.entries(normalizedHeaders).forEach(([k, v]) => { headers[k] = v; });
+                    headers = HeaderManager.telemetryFlatten(viewerResResult.headers);
                 }
                 if (viewerResResult.body !== undefined && viewerResResult.body !== null) {
                     let rb = viewerResResult.body;
@@ -567,7 +565,7 @@ export class Orchestrator {
                         finalRes = {
                             ...finalRes,
                             ...cffFinal,
-                            headers: { ...(finalRes.headers || {}), ...(cffFinal.headers || {}) }
+                            headers: cffFinal.headers || finalRes.headers
                         };
                     }
                     const stageName = `[CFF: viewer-response] ${path.basename(mod.filePath)}`;

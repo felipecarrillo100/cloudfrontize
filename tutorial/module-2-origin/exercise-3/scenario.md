@@ -1,7 +1,7 @@
 # Exercise 2.3: The Cloaker
 
 ## 🎭 The Scenario
-Your origin is leaking version data. Since we are serving a static `www` folder, it doesn't naturally produce PHP or Apache headers. To simulate a real-world vulnerable server, we must tell the emulator to "inject" these headers using a configuration file.
+Your origin is leaking version data. Since we are serving a static `www` folder, it doesn't naturally produce PHP or Apache headers. To simulate a real-world vulnerable server, we must tell the emulator to "inject" these headers using a headers file or using the WebUI `Header Intelligence`.
 
 ## 📖 The Lesson: Security Hardening at the Edge
 
@@ -54,21 +54,26 @@ exports.handler = async (event) => {
 ```
 >**HINT**: This is a particular case compared to the previous exercises. While previously we focused on injecting `Request Headers`, here we must define `Response Headers`. To simulate an origin server's behavior, use the key `ResponseHeaders` in your JSON file (passing a list of key:value pairs as you see in the sample above). This allows you to simulate headers coming from the origin server, which your Lambda@Edge function can then intercept and manipulate before they ever reach the browser!!
 
+>**HINT**: If you prefer, you can inject these same headers using the **Header Intelligence** feature in the **WebUI**. Just ensure you set them in the **Origin** tab rather than the **Viewer** tab..
+
 
 3. Run the emulator:
    ```bash
-   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-3/index.js --headers origin-headers.json --debug 
+   cloudfrontize www --edge ./tutorial/module-2-origin/exercise-3/index.js --headers origin-headers.json --debug --webui 3001 
    ```
 4. You will see `origin-response`, with the headers injected.
 5. Inspect the response in your browser/curl and ensure the headers are gone.
 ```bash
 curl -I http://localhost:3000/index.html
 ```
+6. Since the headers are injected directly at the origin, the only way you will be able to withness the changes is with the WebUI. For this, select one request, for instance `GET /`  and in the `Execution Journey` you will see the `Origin Returned` headers, you will see the injected headers in there, and if you look at the `Final Response` section, the headers are gone. If you inspect the journey step-by-step, you will see the headers are deleted at the L@E function.
+
 **The Test:**
 
 * **Test A (The Leak):** Comment out your `delete` lines and run the `curl` command. You should see the Apache/PHP versions from your JSON file.
 * **Test B (The Cloak):** Uncomment the code. Run `curl` again. Those headers should be gone.
 
+>**HINT**: Notice Cloudfrontize support hot reload, so you don't need to restart the application as you comment or uncomment sections of the code, just save the file and the changes are applied automatically.
 
 ## 💡 Fidelity Tip
 `origin-response` is the best place for this because it cleans the headers **before** they enter the CloudFront cache. If you used `viewer-response`, CloudFront would still be caching the "dirty" headers!

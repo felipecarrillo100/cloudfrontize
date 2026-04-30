@@ -147,7 +147,18 @@ export class HeaderManager {
         const currentHeaders = this.normalizeHeaders(req.headers);
         const mutationHeaders = this.normalizeHeaders(mutations);
 
-        // 1. Merge mutations into our Fidelity Format
+        // 1a. Surgical State Sync: Purge headers deleted by the Edge function
+        // We only do this if force is true, meaning the edge function is the definitive source of truth
+        if (force) {
+            for (const lowerKey of Object.keys(currentHeaders)) {
+                if (!mutationHeaders[lowerKey]) {
+                    delete currentHeaders[lowerKey];
+                    delete req.headers[lowerKey];
+                }
+            }
+        }
+
+        // 1b. Merge mutations into our Fidelity Format
         for (const [lowerKey, values] of Object.entries(mutationHeaders)) {
             if (force || !currentHeaders[lowerKey]) {
                 currentHeaders[lowerKey] = values;
