@@ -29,6 +29,7 @@ The most powerful way to configure CloudFrontize is via a JSON file. This file c
 | **`endpoint`** | `string` | (S3 Only) Custom URL (e.g., `http://localhost:9000`). |
 | **`region`** | `string` | (S3 Only) AWS Region (default: `us-east-1`). |
 | **`mode`** | `string` | (S3 Only) `rest` (OAC/OAI) or `website` (Static Hosting). |
+| **`forcePathStyle`** | `boolean` | (S3 Only) Forces the AWS SDK to use path-style addressing (`http://endpoint/bucket`). Critical for MinIO and local endpoints without wildcard DNS. Defaults to `true` if `endpoint` is provided. |
 | **`directory`** | `string` | (Local Only) Path to the local content folder. |
 | **`credentials`**| `object` | `{ accessKeyId, secretAccessKey }` for protected buckets. |
 
@@ -61,30 +62,58 @@ Simulates an S3 bucket configured for **Static Website Hosting**.
 
 Use these patterns as a template. An AI agent can read these examples to generate a custom `--origins` JSON based on your specific infrastructure.
 
-### Level 1: Basic S3 Proxy
-**Goal**: Point CloudFrontize to a single AWS S3 bucket using default credentials.
-```json
-{
-  "origins": [
-    { "id": "main", "type": "s3", "bucket": "my-prod-bucket" }
-  ],
-  "behaviors": [
-    { "pathPattern": "*", "targetOriginId": "main" }
-  ]
-}
-```
-
-### Level 2: MinIO with Explicit Auth
-**Goal**: Use a local MinIO server with specific credentials and website-mode enabled.
+### Level 1: LocalStack (REST Mode)
+**Goal**: Point CloudFrontize to a LocalStack bucket using standard REST API calls. 
+*Note: LocalStack automatically handles virtual-host DNS (`*.localhost.localstack.cloud`), so `forcePathStyle` can be safely disabled if using their default configurations.*
 ```json
 {
   "origins": [
     { 
-      "id": "minio", 
+      "id": "localstack-rest", 
+      "type": "s3", 
+      "bucket": "www",
+      "endpoint": "http://localhost:4566",
+      "mode": "rest"
+    }
+  ],
+  "behaviors": [
+    { "pathPattern": "*", "targetOriginId": "localstack-rest" }
+  ]
+}
+```
+
+### Level 2: LocalStack (Website Mode)
+**Goal**: Emulate S3 Static Website Hosting against LocalStack. Directory requests will automatically resolve to `index.html`, and S3 error pages are supported.
+```json
+{
+  "origins": [
+    { 
+      "id": "localstack-web", 
+      "type": "s3", 
+      "bucket": "www",
+      "endpoint": "http://localhost:4566",
+      "mode": "website"
+    }
+  ],
+  "behaviors": [
+    { "pathPattern": "*", "targetOriginId": "localstack-web" }
+  ]
+}
+```
+
+### Level 3: MinIO (REST Mode)
+**Goal**: Connect to a local MinIO server.
+**Critical Rule**: When running MinIO on `localhost`, you **MUST** use `"forcePathStyle": true`. Windows and other OS environments cannot resolve subdomains like `www.localhost` to `127.0.0.1`. Setting this to `true` forces the AWS SDK to request `http://localhost:9000/www/`, bypassing the DNS limitation.
+```json
+{
+  "origins": [
+    { 
+      "id": "minio-rest", 
       "type": "s3", 
       "bucket": "www",
       "endpoint": "http://localhost:9000",
-      "mode": "website",
+      "mode": "rest",
+      "forcePathStyle": true,
       "credentials": {
         "accessKeyId": "minioadmin",
         "secretAccessKey": "minioadmin123"
@@ -92,7 +121,31 @@ Use these patterns as a template. An AI agent can read these examples to generat
     }
   ],
   "behaviors": [
-    { "pathPattern": "*", "targetOriginId": "minio" }
+    { "pathPattern": "*", "targetOriginId": "minio-rest" }
+  ]
+}
+```
+
+### Level 4: MinIO (Website Mode)
+**Goal**: Serve a static website from MinIO. Because MinIO does not natively support S3 Website Hosting, CloudFrontize will automatically append `index.html` to directory requests for you.
+```json
+{
+  "origins": [
+    { 
+      "id": "minio-web", 
+      "type": "s3", 
+      "bucket": "www",
+      "endpoint": "http://localhost:9000",
+      "mode": "website",
+      "forcePathStyle": true,
+      "credentials": {
+        "accessKeyId": "minioadmin",
+        "secretAccessKey": "minioadmin123"
+      }
+    }
+  ],
+  "behaviors": [
+    { "pathPattern": "*", "targetOriginId": "minio-web" }
   ]
 }
 ```
@@ -159,4 +212,4 @@ CloudFrontize uses the standard AWS SDK v3 credential provider chain, supplement
 
 *   **Header Passthrough**: All S3 metadata headers (e.g., `x-amz-meta-*`, `ETag`, `Content-Type`) are passed through the pipeline.
 *   **Case Sensitivity**: S3 is case-sensitive. CloudFrontize maintains this even when the underlying local filesystem (Windows/macOS) is not.
-*   **ForcePathStyle**: Automatically enabled when a custom `endpoint` is provided, ensuring compatibility with MinIO and LocalStack.
+*   **ForcePathStyle Defaults**: Automatically defaults to `true` when a custom `endpoint` is provided to protect against `ENOTFOUND` localhost DNS errors.

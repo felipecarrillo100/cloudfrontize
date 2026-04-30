@@ -27,7 +27,7 @@ This guide provides step-by-step instructions for setting up a local S3 alternat
 We offer two popular alternatives for local S3 testing:
 
 1. **LocalStack (Recommended):** A comprehensive local AWS cloud stack. It natively supports both the standard S3 REST API and S3 Website endpoints, making it the most seamless emulation experience.
-2. **MinIO:** A lightweight, high-performance object storage server. Because MinIO strictly implements the REST API and lacks native S3 Website functionality, we provide a bundled NGINX reverse proxy in the Docker setup to intercept requests and emulate the website endpoint behavior.
+2. **MinIO:** A lightweight, high-performance object storage server. MinIO strictly implements the REST API and lacks native S3 Website functionality, but `cloudfrontize` automatically emulates Website mode directory indexing (`index.html`) when connecting to it.
 
 ---
 
@@ -108,9 +108,9 @@ To upload your site assets easily, we highly recommend using the `s3-upload-site
 
 ## 3. Option B: Using MinIO
 
-MinIO is a great lightweight alternative, but requires our NGINX proxy to correctly emulate website routing.
+MinIO is a great lightweight alternative that pairs perfectly with `cloudfrontize`.
 
-### Setting Up MinIO & NGINX
+### Setting Up MinIO
 
 Navigate to the `/samples/s3/minio` directory, which contains the configured `docker-compose.yml`:
 
@@ -125,19 +125,11 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
     command: server /data --console-address ":9001"
-    volumes:
-      - minio-data:/data
-
-  nginx:
-    image: nginx:alpine
-    container_name: minio_nginx
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - minio
+      - minio-data:/data
 
 volumes:
   minio-data:
@@ -248,11 +240,10 @@ Save this as `my-origins-s3.json` in the `/samples/s3/` directory:
     "accessKeyId": "minioadmin",
     "secretAccessKey": "minioadmin123"
   },
-  "forcePathStyle": false,
+  "forcePathStyle": true,
   "mode": "website"
 }
 ```
-*(Note: Use `forcePathStyle: false` if testing Website Mode with the MinIO NGINX proxy).*
 
 Then run:
 ```powershell
