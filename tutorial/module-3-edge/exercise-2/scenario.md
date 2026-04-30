@@ -20,8 +20,7 @@ Keep in mind that responses generated at the edge have size limits (usually 1MB 
 > **Technical Reference**: For a detailed breakdown of the Lambda@Edge event JSON and the specific fields required to generate a response, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
 
 ## 🎯 Your Goal
-Intercept every single request and return a 503 status code with a custom HTML body.
-
+Intercept every request to return a 503 Service Unavailable status code, accompanied by a custom HTML body and the appropriate Content-Type header.
 ## 📝 Starter Code Template
 ```javascript
 'use strict';

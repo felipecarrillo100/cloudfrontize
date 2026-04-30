@@ -23,7 +23,7 @@ This pattern is perfect for building a lightweight Web Application Firewall (WAF
 > **Technical Reference**: For a detailed breakdown of the `request.body` object and its properties, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
 
 ## 🎯 Your Goal
-Inspect the request body and return a `403 Forbidden` if malicious content is detected.
+Inspect the request body and return a `403 Forbidden` if malicious content (such as SQL) is detected.
 
 ## 📝 Starter Code Template
 ```javascript
