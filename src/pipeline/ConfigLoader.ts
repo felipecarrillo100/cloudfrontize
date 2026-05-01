@@ -13,7 +13,7 @@ export class ConfigLoader {
         if (!fs.existsSync(fullPath)) {
             throw new Error(`S3 Configuration file not found: ${fullPath}`);
         }
-        
+
         const content = fs.readFileSync(fullPath, 'utf8');
         const parsed = JSON.parse(content);
 
@@ -69,6 +69,6 @@ export class ConfigLoader {
             behaviors.push({ pathPattern: '*', targetOriginId: 'local-origin' });
         }
 
-        return { origins, behaviors, edge: options.edge, cff: options.cff };
+        return { origins, behaviors };
     }
 }

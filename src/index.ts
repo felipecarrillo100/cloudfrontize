@@ -13,7 +13,12 @@ import { CloudFrontizeOptions } from './core/types';
 import { HeaderParser } from './headerParser';
 import { ConfigLoader } from './pipeline/ConfigLoader';
 
-export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser, CloudFrontizeOptions };
+interface CloudFrontizeServer extends http.Server {
+    closeGracefully: () => Promise<null>;
+    closeAllConnections?: () => void;
+}
+
+export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser, CloudFrontizeOptions, CloudFrontizeServer };
 
 export function printTopBanner(options: CloudFrontizeOptions) {
     console.log(`\n☁️  \x1b[1mCloudfrontize v1.10.2\x1b[0m\n`);
@@ -23,10 +28,10 @@ export function printTopBanner(options: CloudFrontizeOptions) {
     }
     console.log(`  ➜ Mode:    ${options.mode || 'rest'}`);
     const activeFlags = [
-        options.debug   && '--debug',
-        options.strict  && '--strict',
-        options.single  && '--single',
-        options.cors    && '--cors',
+        options.debug && '--debug',
+        options.strict && '--strict',
+        options.single && '--single',
+        options.cors && '--cors',
     ].filter(Boolean);
     if (activeFlags.length) {
         console.log(`  ➜ Flags:   \x1b[33m${activeFlags.join(' ')}\x1b[0m`);
@@ -53,7 +58,7 @@ export function printBottomBanner(options: CloudFrontizeOptions) {
     console.log('');
 }
 
-export function startServer(options: CloudFrontizeOptions) {
+export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer {
     // Normalize: --debug (CLI flag) is the canonical name; verbose is the internal alias.
     // This ensures request logging works regardless of which property name is used.
     options.verbose = options.debug || options.verbose;
@@ -73,10 +78,10 @@ export function startServer(options: CloudFrontizeOptions) {
             console.warn(`\x1b[33m⚠️  [Forensic] Failed to initialize log stream: ${err.message}\x1b[0m`);
         }
     }
-    
+
     // Multi-Origin Configuration
-    let config = options.origins 
-        ? ConfigLoader.load(options.origins) 
+    let config = options.origins
+        ? ConfigLoader.load(options.origins)
         : ConfigLoader.fromCLI(options, options.directory);
 
     config = ConfigLoader.applyCliOverrides(config, options);
@@ -85,7 +90,7 @@ export function startServer(options: CloudFrontizeOptions) {
 
     const edgeRunner = options.edgeRunner || (options.edge ? new EdgeRunner(options.edge, commonOptions) : null);
     const cffRunner = options.cffRunner || (options.cff ? new CFFRunner(options.cff, commonOptions) : null);
-    
+
     options.edgeRunner = edgeRunner;
     options.cffRunner = cffRunner;
     options.logStream = logStream;
@@ -99,15 +104,17 @@ export function startServer(options: CloudFrontizeOptions) {
         }
     }
 
-    const orchestrator = new Orchestrator(
-        options.edgeRunner,
-        options.cffRunner,
+    const orchestrator = new Orchestrator({
+        edgeRunner: options.edgeRunner,
+        cffRunner: options.cffRunner,
         providers,
-        config.behaviors,
+        behaviors: config.behaviors,
         telemetry,
-        config,
+        origins: config,
+        port: Number(options.port),
+        mode: options.mode || 'rest',
         logStream
-    );
+    });
 
     // Header parsing is deferred to after listen() so the readiness signal
     // ('Loading headers from: ...') only fires once the server is ready to accept connections.
@@ -184,7 +191,7 @@ export function startServer(options: CloudFrontizeOptions) {
         };
 
         drainAndHandle();
-    }) as any;
+    }) as CloudFrontizeServer;
 
     // Track open connections so we can forcefully close them during graceful shutdown
     const openSockets = new Set<any>();
@@ -222,7 +229,7 @@ export function startServer(options: CloudFrontizeOptions) {
         uiServer = http.createServer((req, res) => {
             webui.handleRequest(req, res);
         });
-        
+
         uiServer.on('error', (err: any) => {
             if (err.code === 'EADDRINUSE') {
                 console.error(`\n\x1b[31m🛑 [Error] WebUI Port ${options.webui} is already in use.\x1b[0m`);
@@ -243,8 +250,8 @@ export function startServer(options: CloudFrontizeOptions) {
         if (uiServer) uiServer.close();
         if (options.logStream) options.logStream.end();
         // Destroy all open sockets so the server closes immediately
-        (mainServer as any).closeAllConnections?.();
-        for (const socket of openSockets) { try { socket.destroy(); } catch {} }
+        mainServer.closeAllConnections?.();
+        for (const socket of openSockets) { try { socket.destroy(); } catch { } }
         openSockets.clear();
         return new Promise((resolve) => mainServer.close(() => resolve(null)));
     };

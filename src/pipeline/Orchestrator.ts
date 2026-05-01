@@ -5,7 +5,7 @@ import { EdgeRunner } from '../core/EdgeRunner';
 import { CFFRunner } from '../core/CFFRunner';
 import { OriginProvider } from './Providers';
 import { Telemetry } from './Telemetry';
-import { HookType, CacheBehavior, CloudFrontizeOptions } from '../core/types';
+import { CacheBehavior, CloudFrontizeOptions } from '../core/types';
 import { OriginSelector } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
@@ -14,51 +14,66 @@ import { HookRegistry } from './HookRegistry';
 import { MultiOriginConfig } from './ConfigLoader';
 
 /**
+ * Options for configuring the Orchestrator.
+ */
+export interface OrchestratorOptions {
+    edgeRunner: EdgeRunner | null;
+    cffRunner: CFFRunner | null;
+    providers: Record<string, OriginProvider>;
+    behaviors: CacheBehavior[];
+    telemetry: Telemetry;
+    origins: MultiOriginConfig;
+    port: number;
+    mode: string;
+    logStream?: fs.WriteStream | null;
+}
+
+/**
  * The core orchestration engine for the CloudFrontize pipeline.
- * 
+ *
  * @namespace Backend
- * The Orchestrator is the "Brain" of the emulator. It manages the sequential execution of 
- * CloudFront Functions (CFF) and Lambda@Edge (L@E) hooks, maintains header state via the 
+ * The Orchestrator is the "Brain" of the emulator. It manages the sequential execution of
+ * CloudFront Functions (CFF) and Lambda@Edge (L@E) hooks, maintains header state via the
  * HeaderManager, and coordinates origin fetching through various providers.
- * 
+ *
  * It follows a strict "Hook Highway" pattern mimicking the AWS CloudFront request life-cycle.
- * 
+ *
  * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-the-edge.html | AWS Lambda@Edge}
  * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html | AWS CloudFront Functions}
  */
 export class Orchestrator {
-    private headerManager = new HeaderManager();
+    private headerManager: HeaderManager;
     private hookRegistry: HookRegistry;
     private selector: OriginSelector;
+    private edgeRunner: EdgeRunner | null;
+    private cffRunner: CFFRunner | null;
+    private providers: Record<string, OriginProvider>;
+    private behaviors: CacheBehavior[];
+    private telemetry: Telemetry;
+    private origins: MultiOriginConfig;
+    private logStream: fs.WriteStream | null;
 
     /**
-     * Initializes a new instance of the Orchestrator.
-     * 
-     * @param edgeRunner - The Lambda@Edge runtime engine.
-     * @param cffRunner - The CloudFront Functions runtime engine.
-     * @param providers - A map of origin providers (S3, Local, etc.) indexed by Origin ID.
-     * @param behaviors - The cache behaviors defined in the distribution config.
-     * @param telemetry - The telemetry system for broadcasting live forensics.
-     * @param config - Global configuration object for the emulator.
-     * @param logStream - Optional stream for writing high-fidelity audit logs.
+     * Initializes the CloudFrontize Orchestrator.
+     * @param options - Configuration options for the orchestrator, including runners, providers, and runtime state.
      */
-    constructor(
-        private edgeRunner: EdgeRunner | null,
-        private cffRunner: CFFRunner | null,
-        private providers: Record<string, OriginProvider>,
-        private behaviors: CacheBehavior[],
-        private telemetry: Telemetry,
-        private config: MultiOriginConfig,
-        private logStream: fs.WriteStream | null = null
-    ) {
-        this.selector = new OriginSelector(behaviors);
-        this.hookRegistry = new HookRegistry(edgeRunner, cffRunner, telemetry);
-        
+    constructor(private options: OrchestratorOptions) {
+        this.selector = new OriginSelector(options.behaviors);
+        this.hookRegistry = new HookRegistry(options.edgeRunner, options.cffRunner, options.telemetry);
+        this.telemetry = options.telemetry;
+        this.edgeRunner = options.edgeRunner;
+        this.cffRunner = options.cffRunner;
+        this.providers = options.providers;
+        this.behaviors = options.behaviors;
+        this.origins = options.origins;
+        this.logStream = options.logStream || null;
+        this.headerManager = new HeaderManager();
+
         // Final Forensic Audit: Trigger initial build check ONLY after listeners are active.
         // This ensures synth errors present at startup are captured in the health registry.
         this.edgeRunner?.load();
         this.cffRunner?.load();
-        
+
         this._startSafetyWatchdog();
     }
 
@@ -100,9 +115,9 @@ export class Orchestrator {
                 error: this.hookRegistry.getBuildError(h.path), // Metadata Hydration: Include health in core distribution
                 code: fs.existsSync(h.path) ? fs.readFileSync(h.path, 'utf8') : '// Source not found'
             })),
-            origins: this.config.origins || [],
-            mode: this.config.mode,
-            port: this.config.port
+            origins: this.origins.origins || [],
+            port: this.options.port,
+            mode: this.options.mode
         };
     }
 
@@ -112,7 +127,7 @@ export class Orchestrator {
 
     public toggleHook(id: string, disabled: boolean): void {
         this.hookRegistry.toggleHook(id, disabled);
-        
+
         // Broadcast change to keep all Forensic UI tabs in sync
         this.telemetry.broadcast({
             type: 'distribution',
@@ -164,7 +179,7 @@ export class Orchestrator {
     }
 
     public getConfig() {
-        return this.config;
+        return this.options;
     }
 
     private isDefaultSticky = false;
@@ -175,7 +190,7 @@ export class Orchestrator {
      * Configures the sticky headers for the pipeline session.
      * Sticky headers are injected into every request/response in the pipeline,
      * allowing for persistent debugging overrides (e.g. forced authorization).
-     * 
+     *
      * @param config - The header configuration object.
      * @param isDefault - Whether these are the system default headers.
      */
@@ -203,7 +218,7 @@ export class Orchestrator {
 
     /**
      * The primary entry point for processing an HTTP request through the CloudFront pipeline.
-     * 
+     *
      * This method executes the full "Hook Highway":
      * 1. CFF Viewer Request
      * 2. L@E Viewer Request
@@ -212,15 +227,15 @@ export class Orchestrator {
      * 5. L@E Origin Response
      * 6. L@E Viewer Response
      * 7. CFF Viewer Response
-     * 
+     *
      * It handles body truncation, short-circuits, and forensic broadcasting.
-     * 
+     *
      * @param req - The incoming Node.js request object.
      * @param res - The outgoing Node.js response object.
      * @param options - Execution options (e.g. strict mode, verbose logging).
      * @param reqBody - The pre-drained request body Buffer, if any.
      * @returns A promise that resolves when the response has been fully served.
-     * 
+     *
      * @throws {Error} If no provider is found for the matching origin.
      */
     public async handleRequest(req: any, res: any, options: CloudFrontizeOptions, reqBody?: Buffer): Promise<void> {
@@ -236,7 +251,7 @@ export class Orchestrator {
             if (!this.hookRegistry.hasDisabledHook(hook.id) && this.hookRegistry.hasBuildError(hook.path)) {
                 const error = this.hookRegistry.getBuildError(hook.path);
                 const awsErrorCode = hook.type.toLowerCase().includes('function') ? 'CloudFrontFunctionExecutionError' : 'LambdaExecutionError';
-                
+
                 res.statusCode = 502;
                 res.setHeader('Content-Type', 'application/xml');
                 res.end(`<?xml version="1.0" encoding="UTF-8"?>
@@ -245,7 +260,7 @@ export class Orchestrator {
     <Message>The hook ${path.basename(hook.path)} has a syntax error and cannot be executed.</Message>
     <RequestId>${requestId}</RequestId>
 </Error>`);
-                
+
                 this.telemetry.broadcast({
                     id: requestId,
                     type: 'error',
@@ -301,7 +316,7 @@ export class Orchestrator {
             }
         });
 
-        // Clinical Alignment: No JIT printing here. 
+        // Clinical Alignment: No JIT printing here.
         // We buffer everything and flush atomically in _sendResponse.
 
         try {
@@ -338,11 +353,11 @@ export class Orchestrator {
             }
 
             // 2. L@E Request Hooks
-            liveReqBodyState = reqBodyMeta; 
+            liveReqBodyState = reqBodyMeta;
             if (this.edgeRunner) {
                 const disabledIds = this.hookRegistry.getDisabledHookIds();
                 const viewerOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-request').map(h => h.id);
-                
+
                 // Fidelity & Performance: Slicing the input body for the Lambda snapshot
                 const reqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
                 const reqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
@@ -379,7 +394,7 @@ export class Orchestrator {
 
                 // 2b. L@E Origin Request (Atomic Phase)
                 const originOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'viewer-request').map(h => h.id);
-                
+
                 // Fidelity & Performance: Slicing the input body for the Origin Request Lambda snapshot
                 const originReqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
                 const originReqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
@@ -468,7 +483,7 @@ export class Orchestrator {
             // 4. Trace Response Hooks
             if (this.edgeRunner) {
                 const disabledIds = this.hookRegistry.getDisabledHookIds();
-                
+
                 // 4a. L@E Origin Response (Atomic Phase)
                 const originResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'viewer-response').map(h => h.id);
                 const { result: originResResult, logs: originResLogs } = await this.edgeRunner.runResponseHook(req, {
@@ -697,7 +712,7 @@ export class Orchestrator {
      */
     private _syncUrlToRequest(req: any, result: any): void {
         if (!result) return;
-        
+
         // Prefer explicit 'url' if provided, otherwise use 'uri' (pathname) + 'querystring'
         const newUri = result.url || result.uri;
         const newQs = result.querystring;
