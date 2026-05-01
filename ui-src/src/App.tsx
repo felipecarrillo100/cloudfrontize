@@ -13,6 +13,7 @@ import { DistributionProvider, useDistribution } from './contexts/DistributionCo
 import { HeaderProvider } from './contexts/HeaderContext';
 import ErrorBanner from './components/ErrorBanner';
 import StatusModal from './components/StatusModal';
+import { Toaster } from 'sonner';
 import { useEffect } from 'react';
 
 /**
@@ -68,7 +69,7 @@ function DashboardContent() {
 
       {/* Unified Forensic Modal System */}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
-      {ui.activeHook && <CodeViewer hook={ui.activeHook} onClose={ui.closeCode} />}
+      {ui.activeCode && <CodeViewer {...ui.activeCode} onClose={ui.closeCode} />}
       {showAudit && <FidelityAuditModal hooks={dist?.hooks || []} onClose={() => setShowAudit(false)} />}
       {ui.activeStatusHook && (
         <StatusModal 
@@ -116,6 +117,8 @@ export default function App() {
       <DistributionProvider>
         <HeaderProvider>
           <DashboardContent />
+
+          <Toaster theme="dark" position="bottom-right" richColors />
 
           <style>{`
             @keyframes pulse {

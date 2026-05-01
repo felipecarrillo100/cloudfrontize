@@ -4,7 +4,7 @@ import DetailPanel from './DetailPanel';
 import CodeViewer from './CodeViewer';
 
 export default function UIContainer() {
-  const { detailPanel, closeDetail, activeHook, closeCode } = useUI();
+  const { detailPanel, closeDetail, activeCode, closeCode } = useUI();
 
   return (
     <>
@@ -47,8 +47,8 @@ export default function UIContainer() {
       {/* 
           Legacy CodeViewer Bridge (Will be refactored to Radix in Phase 3)
       */}
-      {activeHook && (
-          <CodeViewer hook={activeHook} onClose={closeCode} />
+      {activeCode && (
+          <CodeViewer {...activeCode} onClose={closeCode} />
       )}
 
       <style>{`

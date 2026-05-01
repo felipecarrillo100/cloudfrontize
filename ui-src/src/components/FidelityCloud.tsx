@@ -4,6 +4,7 @@ import { Eye, Files, Power, Target, Activity, ExternalLink, FileEdit, HeartPulse
 import type { DistributionHook } from '../types';
 import { useDistribution } from '../contexts/DistributionContext';
 import { useUI } from '../contexts/UIContext';
+import ProductionCodeSubMenu from './ProductionCodeSubMenu';
 
 import lambdaIcon from '../assets/lambda-edge.png';
 import cffIcon from '../assets/cloudfront-function.png';
@@ -151,6 +152,7 @@ export default function FidelityCloud() {
                     }}
                 >
                     <ContextItem label="View Source" icon={<Eye size={14}/>} onClick={() => ui.openCode(hook)} />
+                    <ProductionCodeSubMenu hook={hook} onOpen={ui.openProductionCode} />
                     <ContextItem label="Status" icon={<HeartPulse size={14} color={hasError ? "#ef4444" : "#22c55e"}/>} onClick={() => ui.openStatus(hook)} />
                     <ContextItem label="Edit File" icon={<FileEdit size={14}/>} onClick={() => fetch(`/api/open-editor?path=${encodeURIComponent(hook.path)}`)} />
                     <ContextItem label="Copy Path" icon={<Files size={14}/>} onClick={() => navigator.clipboard.writeText(hook.path || '')} />
