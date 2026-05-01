@@ -20,7 +20,7 @@ function handler(event) {
     var newUri = '/countries/' + country + uri;
 
     // 🛠️ URI Normalization (Step 2): Handle trailing slashes
-    // CFF does not support .endsWith(), so we check the last character.
+    // CFF does not support .endsWith(), so we check the last character with .charAt().
     // Why to do this? We manually append 'index.html' to paths ending in '/'
     // because S3 buckets in REST API mode do not automatically resolve directory indexes.
     // If your S3 bucket is configured for 'Static Website Hosting',
