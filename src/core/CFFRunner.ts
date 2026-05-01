@@ -26,7 +26,6 @@ import { HookUtility } from './HookUtility';
 export class CFFRunner extends HotRunner {
     private validator: CFFValidator;
     private compileError: string | null = null;
-    private scripts: Record<string, vm.Script> = {};
     private static CFF_OVERHEAD_MS: number = -1;
 
     /**
@@ -176,7 +175,8 @@ export class CFFRunner extends HotRunner {
             const mod = { 
                 id: `${type}-cff-${registry[type].length}`, 
                 handler: fileCode, 
-                filePath: filePath 
+                filePath: filePath,
+                script: new vm.Script(`${fileCode}\nhandler(event);`, { filename: path.basename(filePath) })
             };
             
             // Professional Fidelity: Pre-heat the JIT compiler to ensure "Hot" execution for the first request
@@ -361,15 +361,7 @@ export class CFFRunner extends HotRunner {
         };
 
         const context = vm.createContext(sandbox);
-        const scriptCode = `${mod.handler}\nhandler(event);`;
-
-        if (!this.scripts[mod.filePath]) {
-            this.scripts[mod.filePath] = new vm.Script(scriptCode, {
-                filename: path.basename(mod.filePath)
-            });
-        }
-        const script = this.scripts[mod.filePath];
-
+        const script = (mod as any).script;
         const start = process.hrtime.bigint();
         try {
             // Zero-Overhead Execution: Removing per-request watchdogs to eliminate Wall-Clock Jitter.

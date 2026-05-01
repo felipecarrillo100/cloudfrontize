@@ -36,9 +36,24 @@ export class CFFValidator {
             hint: "unsupported by CloudFront Strings. Use '.slice(-len) === x' instead."
         },
         {
-            regex: /\bObject\.assign\s*\(/,
-            label: 'Object.assign()',
-            hint: "unsupported. Use a 'for...in' loop or manual assignment."
+            regex: /\.find(Index)?\s*\(/,
+            label: 'Array.find/findIndex()',
+            hint: "unsupported in ES5. Use a 'for' loop or '.filter()[0]' instead."
+        },
+        {
+            regex: /\.fill\s*\(/,
+            label: 'Array.fill()',
+            hint: "unsupported in ES5. Use a 'for' loop instead."
+        },
+        {
+            regex: /\bObject\.(assign|values|entries|fromEntries)\s*\(/,
+            label: 'Modern Object Helpers',
+            hint: "unsupported in ES5. Use a 'for...in' loop or manual assignment."
+        },
+        {
+            regex: /\bnew\s+(Map|Set|Promise)\b/,
+            label: 'Global Objects (Map/Set/Promise)',
+            hint: "unsupported in CFF. Use standard Objects {} or Arrays [] instead."
         }
     ];
 
@@ -90,14 +105,18 @@ export class CFFValidator {
         }
 
         for (const trap of this.policyTraps) {
-            const match = trap.regex.exec(cleanCode);
-            if (match) {
+            // Use global match to find all occurrences
+            let match;
+            const globalRegex = new RegExp(trap.regex.source, 'g');
+            while ((match = globalRegex.exec(cleanCode)) !== null) {
                 const lineNum = code.substring(0, match.index).split('\n').length;
                 violations.push({
-                    level: 'warn',
-                    message: `${trap.label} is ES6 and ${trap.hint}`,
-                    lineNum
+                    level: 'error', // Promote to Error
+                    message: `${trap.label} is ES6+ and ${trap.hint}`,
+                    lineNum,
+                    hint: trap.hint
                 });
+                isStrictlyValid = false; // Block the build
             }
         }
 
