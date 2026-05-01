@@ -22,6 +22,7 @@ exports.handler = async (event) => {
     // If the user requests '/index.html' from France (FR),
     // the backend will actually see a request for '/countries/FR/index.html'.
     request.uri = `/countries/${country}${request.uri}`;
+    console.log("[L@E: Diplomat] PIVOT: " + request.uri);
 
     // 🛠️ URI Normalization (Step 2): Handle trailing slashes
     // If your S3 in REST mode a subfolder/ does not produce 'subfolder/index.html', to avoid a 404 you have two options
@@ -31,5 +32,6 @@ exports.handler = async (event) => {
     }
 
     // Return the modified request to tell CloudFront where to fetch the file.
+    console.log("[L@E: Diplomat] PIVOT: " + request.uri);
     return request;
 };

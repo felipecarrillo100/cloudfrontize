@@ -28,7 +28,7 @@ exports.handler = async (event) => {
         : 'http://localhost:8080'; // Local development fallback
 
     // Logs appear in the emulator terminal or CloudWatch Logs in production.
-    console.log(`[Production] Connecting to: ${api}`);
+    console.log("[L@E: Baker] Using Baked API: " + api);
 
     // 🏷️ Header Injection:
     // We pass the "baked" value to the origin so the backend knows which API it's tied to.

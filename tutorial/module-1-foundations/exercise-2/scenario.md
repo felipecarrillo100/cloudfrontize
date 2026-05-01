@@ -56,15 +56,12 @@ exports.handler = async (event) => {
    ```
 >*NOTE*: The `--debug` flag tracks URI rewrites in real-time for logic verification. For a more detailed visual breakdown, use the `--webui` option in your web browser.
 
-4. Test with `http://localhost:3000/?z=last&a=first`.
-5. Check the emulator console to see the normalized URL.
-You shall see something like this, confirming that the query string has been normalized to `?a=first.&z=last`:
-```aiignore
-[a4e1cab2] GET /?z=last&a=first. (Host: localhost:3000)
-[a4e1cab2] ├─ ○ [L@E: viewer-request] 1.2-librarian.js
-[a4e1cab2] ├─ 🌐 [Origin] Fetch (local-origin) ⟹ file://D:\antigravity\cloudfrontize\www/index.html?a=first.&z=last
-[a4e1cab2] ╰─ [Response] Status: 200 [29ms]
-```
+4. Open `http://localhost:3000/index.html?z=9&a=1` in your browser.
+
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: You should see: `[L@E: Librarian] Normalized Query: a=1&z=9`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001` (if running with `--webui`). Select the request in the **Timeline**.
+   - **Journey Analysis**: Look at the `[L@E: viewer-request]` stage. Notice how the `uri` or `querystring` was mutated before reaching the cache layer.
 
 ## 💡 Fidelity Tip
 Lambda@Edge `viewer-request` functions run **before** the CloudFront cache check. By normalizing here, you ensure that different permutations of the same query string hit the same cache entry!

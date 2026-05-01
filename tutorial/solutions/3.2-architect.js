@@ -10,7 +10,10 @@ exports.hookType = 'viewer-request';
 
 exports.handler = async (event) => {
     // Instead of returning the 'request' object, we return a custom 'response'.
-    // This is called "Short-Circuiting."
+    // NOTE: In viewer-request, you don't have access to the filesystem (fs).
+    // You must inline your content or fetch it from a remote source.
+    console.log("[L@E: Architect] Serving Maintenance Page");
+
     return {
         // 503 is the standard status for maintenance (tells SEO bots to come back later)
         status: '503',

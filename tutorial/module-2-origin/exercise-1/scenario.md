@@ -76,15 +76,11 @@ In the console, you should see the uri not contains  '/experimental/index.html' 
 [35d7e9e9] ├─ 🌐 [Origin] Fetch (local-origin) ⟹ file://cloudfrontize\www\experimental\index.html
 [35d7e9e9] ╰─ [Response] Status: 200 [40ms]
 ```
-And in the WebUI the request shows the redirect:
-```aiignore
-GET /   40ms
-▼
-┗━[Origin] Fetch (s3) ⮕ file://D:\antigravity\cloudfrontize\www\experimental\index.html(200)
-```
-
-7. **Testing with the WebUI:** We can use the `--webui` option to verify this behavior directly in the browser. Within the WebUI, navigate to the **Header Intelligence** `Viewer` tab and add the header `Cookie` with the value `experiment=true`. Then, visit `http://localhost:3000/index.html`. You will see the content update in your browser while the **Cloudfrontize Console** and **WebUI** display the internal URI rewrite happening in real-time in the background.
->**Troubleshooting Tip:** If you don't see requests reaching the console, your browser is likely serving a cached response. Clear your browser cache or use an **Incognito/Private window** to ensure every request is sent to the server.
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: You should see: `[L@E: Scientist] Forensic: Rewrite initiated for / to /experimental/index.html`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the request in the **Timeline**.
+   - **Journey Analysis**: Notice the `[L@E: origin-request]` stage. Look at the **Stage URI Snapshot**—it should show the `/experimental` path, while the "Viewer Provided" stage shows the original path.
+   - **Origin Fetch**: Verify the 🌐 `[Origin] Fetch` line points to the corrected local file system path in the `/experimental/` directory.
 
 8. **Testing with the --headers option:** 
 

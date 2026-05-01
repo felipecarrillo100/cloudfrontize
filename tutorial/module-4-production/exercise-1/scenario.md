@@ -56,9 +56,16 @@ exports.handler = async (event) => {
    ```bash
    cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/.env.baked.variables --output ./prod_ready --webui 3001
    ```
-5. Open the generated file at `prod_ready/4.1-baker.js` file.
-6. Observe how `__API_ENDPOINT__` has been replaced with the real value!
-7. **Verify Baked Values via the WebUI:**  Enable the `--webui` option flag and locate your **L@E** function block in the diagram. Right-click the function to open the context menu, then select **View Production Code** > **Readable** to inspect the code with the baked values.
+4. Run the emulator with the `--bake` flag:
+   ```bash
+   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/4.1-baked.variables --webui 3001
+   ```
+
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: You should see: `[L@E: Baker] Using Baked API: https://api.production.com`.
+   - **Diagnostic Identity**: Open the Web UI (`http://localhost:3001`). Locate your L@E function in the **Cloud Center** (main diagram) and click it.
+   - **Source Trace**: In the Diagnostic Identity modal, click **Edit in Editor** or view the source. Notice that the live running code now has the real API URL instead of the placeholder.
+   - **Header Analysis**: Select a request in the **Timeline** and click the `[L@E: viewer-request]` stage. Verify that the `x-baked-end-point` header has the production URL.
 
 ## 💡 Fidelity Tip
 During local development, your placeholder won't be baked yet — the token will still read `"__API_ENDPOINT__"`. The solution shows a robust pattern: check whether the string still matches the `__...__` format and fall back to a local URL. This means the same source file works correctly both locally and in production.

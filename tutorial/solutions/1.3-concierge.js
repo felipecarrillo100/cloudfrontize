@@ -24,6 +24,9 @@ exports.handler = async (event) => {
         // Build the mobile-specific URL while preserving the path (URI).
         const destination = `https://m.example.com${request.uri}${qs}`;
 
+        // 4. Return the redirect response
+        console.log("[L@E: Concierge] Mobile Redirect: " + destination);
+
         // 🚀 Redirect: Return a 302 to the browser immediately.
         // This prevents the request from reaching the desktop origin entirely.
         return {

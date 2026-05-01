@@ -46,9 +46,13 @@ exports.handler = async (event) => {
    ```bash
    cloudfrontize www --edge ./tutorial/module-3-edge/exercise-1/index.js
    ```
-4. Visit `http://localhost:3000/admin/`.
-5. Your browser should show a login prompt. Use `admin` / `password`.
-6. Verify you only see the "Unauthorized" message if you cancel the login.
+4. Visit `http://localhost:3000/`.
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: 
+     - On first load (no credentials): `[L@E: Bouncer] Auth Failed`.
+     - After entering `admin` / `password`: `[L@E: Bouncer] Auth Passed`.
+   - **Timeline Intelligence**: In the Web UI (`http://localhost:3001`), notice the first request is a `401`. Click it to see the `WWW-Authenticate` header in the **Final Response**.
+   - **Short-Circuit Proof**: In the `401` request journey, notice that the **Origin Response** stage is never reached. Your "Bouncer" stopped the request at the front door.
 
 ---
 ## 🧠 Pro-Knowledge: How Basic Auth Works

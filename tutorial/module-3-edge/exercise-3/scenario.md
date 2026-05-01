@@ -50,11 +50,13 @@ exports.handler = async (event) => {
    ```bash
    cloudfrontize www --edge ./tutorial/module-3-edge/exercise-3/index.js
    ```
-5. Send a POST request with the malicious string:
-   ```bash
-   curl -s -i -X POST -d "param=SQL-INJECTION" http://localhost:3000/api
-   ```
->***HINT**: Use `curl` -s -i to silence the progress bar and display the HTTP headers. This allows you to verify the 403 Forbidden status and confirm that your Edge logic successfully intercepted the request before it reached the origin. 
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: 
+     - On safe request: `[L@E: Inspector] Body Validation: Safe`.
+     - On malicious request: `[L@E: Inspector] Body Validation: Threat Detected`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the POST request.
+   - **Body Intelligence**: Select the `[L@E: viewer-request]` stage and go to the **Body** tab. Click **DECODE** to see the payload that triggered your security logic.
+   - **Status Check**: Verify the final response is a `403 Forbidden`.
 
 ## 💡 Fidelity Tip
 In AWS, to access the request body, you must check the **Include Body** option in the Lambda association. In the emulator, bodies are included automatically if they are small enough (< 40KB)!

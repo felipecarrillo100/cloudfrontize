@@ -23,6 +23,7 @@ exports.handler = async (event) => {
     // 2. Remove 'x-powered-by' (e.g., "Express" or "PHP/8.0")
     // Prevents attackers from knowing which language/framework you are using.
     delete headers['x-powered-by'];
+    console.log("[L@E: Cloaker] Stripping sensitive origin headers: server, x-powered-by");
 
     // Return the modified response to CloudFront
     return response;

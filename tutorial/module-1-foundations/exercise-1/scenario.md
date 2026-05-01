@@ -52,13 +52,12 @@ exports.handler = async (event) => {
    ```
    *Note: `www` is the argument telling the emulator which folder to serve as your website.*
 
-
 4. Open `http://localhost:3000` in your browser.
-5. Inspect the Network Tab (F12) and verify the headers are present in the response.
-6. You should see the following headers in the response:
-   - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
-   - `X-Content-Type-Options: nosniff`
->*HINT*: You can also verify the headers with the `--webui <port>` option to view the final response headers.
+
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: Check your terminal. You should see: `[L@E: Guard] Security headers injected`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the request in the **Timeline** and click the `[L@E: viewer-response]` stage. Verify your headers in the **Headers Post-Execution** snapshot.
+   - **Stage Comparison**: Contrast the "Origin Returned" headers with the "Final Response" to see your security hardening in action.
 
 ## 💡 Fidelity Tip
 In AWS, `viewer-response` cannot modify certain headers like `Content-Length` or `Server`. Our emulator will warn you if you try to touch "forbidden" headers!

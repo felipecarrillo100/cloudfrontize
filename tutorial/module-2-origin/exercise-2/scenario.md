@@ -32,11 +32,11 @@ For this demo, you can use the `www` folder, which already contains subfolders l
    cloudfrontize www --edge ./tutorial/module-2-origin/exercise-2/index.js --debug --webui 3001
    ```
    **HINT** use the --debu option to display the redirects in the console
-5. **Testing with curl**: add the custom header: `curl -H "CloudFront-Viewer-Country: MX" http://localhost:3000/index.html`.
-6. Verify in the console the requested path becomes `countries/MX/index.html`.
-
-7. **Testing with WebUI**: Open the webui `localhost:3001`. Then from the "Headers Intelligence" panel wick the `Viewer` tab, add the header `CloudFront-Viewer-Country` header with a value (e.g., `FR` for France). Click on `Apply Changes`. Load page and verify that you are redirected to the correct country folder.
-    > **HINT** You can click on the preset-buttons to pick a country and set the corresponding headers automatically.
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: You should see: `[L@E: Diplomat] PIVOT: /countries/MX/index.html`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the request in the **Timeline**.
+   - **Diagnostic Identity**: Click on the `[L@E: origin-request]` stage. Verify that the **Stage URI Snapshot** has been correctly updated to include your country prefix.
+   - **Country Simulation**: In the **Header Intelligence** panel, use the **Geography** presets (e.g., France, Mexico) to verify that your logic reacts dynamically to different country headers.
 
 ## 💡 Fidelity Tip
 When using Geo-headers, remember to include them in the **CloudFront Cache Key** (via Cache Policy), otherwise, the first user's country-specific content might be served to everyone!

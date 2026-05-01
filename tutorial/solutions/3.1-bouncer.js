@@ -19,7 +19,6 @@ exports.handler = async (event) => {
     /**
      * 🛠️ The Encoding Pipeline:
      * Basic Auth expects the header: "Authorization: Basic <base64-string>"
-     * We use Buffer because btoa() is a Browser API and is not available in Node.js/Lambda@Edge.
      */
     const credentials = Buffer.from(`${user}:${pass}`).toString('base64');
     const expectedAuth = `Basic ${credentials}`;
@@ -29,6 +28,7 @@ exports.handler = async (event) => {
 
     // 🛡️ Challenge Logic
     if (authHeader !== expectedAuth) {
+        console.log("[L@E: Bouncer] Auth Failed");
         /**
          * If the password is wrong or missing, we "Short-Circuit" the request.
          * Returning a 401 status triggers the browser's native login popup.
@@ -45,6 +45,7 @@ exports.handler = async (event) => {
     }
 
     // ✅ Access granted!
+    console.log("[L@E: Bouncer] Auth Passed");
     // Returning the request object tells CloudFront to proceed to the cache or origin.
     return request;
 };

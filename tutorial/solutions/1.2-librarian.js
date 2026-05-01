@@ -23,7 +23,9 @@ exports.handler = async (event) => {
     params.sort();
 
     // 3. Reconstruct the string and update the request.
-    request.querystring = params.toString();
+    const normalized = params.toString();
+    request.querystring = normalized;
+    console.log("[L@E: Librarian] Normalized Query: " + normalized);
 
     // The request now continues to the Cache Layer with a predictable, sorted key order.
     return request;

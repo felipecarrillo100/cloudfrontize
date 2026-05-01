@@ -35,8 +35,7 @@ exports.handler = async (event) => {
              */
             const targetPath = (oldUri === '/') ? '/index.html' : oldUri;
             request.uri = `/experimental${targetPath}`;
-
-            console.log(`⚡ Rewrite: ${oldUri} -> ${request.uri}`);
+            console.log(`[L@E: Scientist] Forensic: Rewrite initiated for ${oldUri} to ${request.uri}`);
         }
     }
 

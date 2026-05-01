@@ -46,8 +46,12 @@ exports.handler = async (event) => {
    ```bash
    cloudfrontize www --edge ./tutorial/module-3-edge/exercise-2/index.js
    ```
-4. Visit any URL on `http://localhost:3000`.
-5. You should see your custom HTML page.
+4. Visit `http://localhost:3000/`.
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: You should see: `[L@E: Architect] Serving Maintenance Page`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the request.
+   - **Body Forensic**: Click on the `[L@E: viewer-request]` stage and select the **Body** tab. You should see the HTML source of your maintenance page.
+   - **Short-Circuit Proof**: Verify that the execution journey shows a ◈ `[L@E: viewer-request] Generated Response` and that the Origin stage is skipped.
 
 ## 💡 Fidelity Tip
 When you return a response from `viewer-request`, the request **never** reaches your origin. This is perfect for maintenance modes or custom error pages that need to be globally consistent.

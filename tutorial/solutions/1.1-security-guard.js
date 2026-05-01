@@ -29,6 +29,8 @@ exports.handler = async (event) => {
         value: 'nosniff'
     }];
 
+    console.log("[L@E: Guard] Security headers injected");
+
     // Return the hardened response to the viewer
     return response;
 };

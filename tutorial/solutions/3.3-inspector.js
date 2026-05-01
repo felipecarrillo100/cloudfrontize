@@ -21,7 +21,10 @@ exports.handler = async (event) => {
         const bodyContent = Buffer.from(request.body.data, 'base64').toString();
 
         // Simple pattern matching for malicious content
-        if (bodyContent.includes('SQL-INJECTION')) {
+        const isValid = !bodyContent.includes('DROP TABLE') && !bodyContent.includes('OR 1=1');
+        console.log("[L@E: Inspector] Body Validation: " + (isValid ? "Safe" : "Threat Detected"));
+
+        if (!isValid || bodyContent.includes('SQL-INJECTION')) {
             // Short-circuit: Return a response immediately.
             // This prevents the request from ever reaching your origin server.
             return {

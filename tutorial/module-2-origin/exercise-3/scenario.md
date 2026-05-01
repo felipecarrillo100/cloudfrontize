@@ -61,17 +61,13 @@ exports.handler = async (event) => {
    ```bash
    cloudfrontize www --edge ./tutorial/module-2-origin/exercise-3/index.js --headers origin-headers.json --debug --webui 3001 
    ```
-4. You will see `origin-response`, with the headers injected.
-5. Inspect the response in your browser/curl and ensure the headers are gone.
-```bash
-curl -I http://localhost:3000/index.html
-```
-6. Since the headers are injected directly at the origin, the only way you will be able to withness the changes is with the WebUI. For this, select one request, for instance `GET /`  and in the `Execution Journey` you will see the `Origin Returned` headers, you will see the injected headers in there, and if you look at the `Final Response` section, the headers are gone. If you inspect the journey step-by-step, you will see the headers are deleted at the L@E function.
-
-**The Test:**
-
-* **Test A (The Leak):** Comment out your `delete` lines and run the `curl` command. You should see the Apache/PHP versions from your JSON file.
-* **Test B (The Cloak):** Uncomment the code. Run `curl` again. Those headers should be gone.
+5. **Forensic Verification**:
+   - **Terminal Log Trace**: You should see: `[L@E: Cloaker] Stripping sensitive origin headers: server, x-powered-by`.
+   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the request.
+   - **Fidelity Comparison**: 
+     - Click **Origin Returned**. You should see the "dirty" headers (Apache, PHP) you injected via `origin-headers.json`.
+     - Click **[L@E: origin-response]**. Verify in the **Headers Post-Execution** that the headers have been removed.
+     - Click **Final Response**. Confirm the browser receives a sanitized response.
 
 >**HINT**: Notice Cloudfrontize support hot reload, so you don't need to restart the application as you comment or uncomment sections of the code, just save the file and the changes are applied automatically.
 
