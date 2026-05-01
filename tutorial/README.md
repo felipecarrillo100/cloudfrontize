@@ -1,71 +1,72 @@
-# 🎓 CloudFrontize Academy: Lambda@Edge Masterclass
+# 🎓 CloudFrontize Academy
 
-Welcome to the CloudFrontize Academy! This structured, hands-on tutorial is designed to take you from a **Lambda@Edge Newbie** to a **Production Pro** using the CloudFrontize emulator.
+Welcome to the CloudFrontize Academy. This tutorial is designed to turn you into an **Edge Architect** by giving you hands-on experience with Lambda@Edge and CloudFront Functions in a high-fidelity forensic environment.
 
 ## 🗺️ The Path to Mastery
 
-The tutorial is organized into four thematic modules. Each module contains real-world scenarios, architectural explanations, and hands-on exercises.
+The tutorial is organized into five thematic modules. Each module contains real-world scenarios, architectural explanations, and hands-on exercises.
+
+---
+
+## 🛠️ The Forensic Toolset
+
+To get the most out of this tutorial, you need the right diagnostic lenses.
+
+### 1. The Browser (Port 3000)
+Best for: Verifying **Public Responses** (Redirects, 403s) and seeing how a human experiences the site.
+
+### 2. The Visual Control Plane (Port 3001)
+Best for: **The Truth**. This is the only place to see **Internal Mutations** (Rewrites, Header Injections) that are invisible to the outside world.
+
+### 3. The Professional Audit (Curl)
+Best for: Surgical precision, sending custom headers, and auditing POST bodies.
+
+> [!CAUTION]
+> **Windows Users**: Avoid using `curl` in PowerShell or CMD. In PowerShell, `curl` is often a "fake" alias that behaves differently (it's actually `Invoke-WebRequest`). For a fully compliant experience, we recommend using **Git Bash** (included with Git for Windows) or **WSL**.
+
+---
 
 ### [Intro: CloudFrontize Development Environment](./intro/README.md)
 *Learn how to run, test, and debug your Lambda@Edge and CloudFront Functions locally.*
 
 - **Intro – Run & Debug**: Use CloudFrontize to execute your logic and debug it using both the console and the Visual Control Plane (Web UI).
-  
-### [Module 1: Foundations (Newbie)](./module-1-foundations/README.md)
-*Mastering the basics of headers and redirects.*
-- **1.1 The Security Guard**: Injecting security headers.
-- **1.2 The Librarian**: Normalizing query strings for caching.
-- **1.3 The Concierge**: Simple device-based redirection.
 
-### [Module 2: Origin Intelligence (Intermediate)](./module-2-origin/README.md)
-*Dynamic routing and state management.*
-- **2.1 The Scientist**: Cookie-based A/B testing.
-- **2.2 The Diplomat**: Geo-routing (L10n).
-- **2.3 The Cloaker**: Cleaning up sensitive origin headers.
+---
+
+### [Module 1: Foundations](./module-1-foundations/README.md)
+*Master the fundamental patterns of edge computing.*
+
+- **1.1 The Security Guard**: Inject security headers into responses.
+- **1.2 The Librarian**: Normalize query strings to improve cache hit ratios.
+- **1.3 The Concierge**: Redirect mobile users to a specialized site.
+
+---
+
+### [Module 2: Origin Intelligence](./module-2-origin/README.md)
+*Make smart decisions based on origin behavior and country data.*
+
+- **2.1 The Scientist**: Perform A/B testing at the edge.
+- **2.2 The Diplomat**: Route traffic based on viewer country.
+- **2.3 The Cloaker**: Sanitize sensitive origin response headers.
+
+---
 
 ### [Module 3: Edge Computing (Advanced)](./module-3-edge/README.md)
-*Intercepting requests and generating responses.*
-- **3.1 The Bouncer**: Edge-side Basic Authentication.
-- **3.2 The Architect**: Dynamic maintenance page generation.
-- **3.3 The Inspector**: Request body validation.
+*Generate dynamic content and protect your infrastructure.*
 
-### [Module 4: Production Workflows (Pro)](./module-4-production/README.md)
-*Baking code for the real world.*
-- **4.1 The Baker**: Using `.env` variables and code baking.
-
-### [Module 5: Cloud Front Functions (CFF)](./module-5-cff/README.md)
-*A completely new tutorial focused only on Cloud Front Functions.*
+- **3.1 The Bouncer**: Implement Basic Auth at the edge.
+- **3.2 The Architect**: Generate entire HTML responses without a backend.
+- **3.3 The Inspector**: Inspect request bodies for security threats.
 
 ---
 
-### 📂 The `www` Directory
-Most examples use the `www` folder as the static directory. This is the **"Paws" Dog Adoption** sample project provided with the CloudFrontize repository. 
+### [Module 5: CloudFront Functions (CFF)](./module-5-cff/README.md)
+*High-performance, low-cost micro-logic at the edge.*
 
-> [!TIP]
-> If you are running these tutorials from a local installation, we highly recommend **cloning the [CloudFrontize GitHub Repository](https://github.com/felipecarrillo100/cloudfrontize)** to get access to all samples, includes the `www` folder used in these exercises.
+- **5.1 Traffic Director**: Ultra-fast redirects.
+- **5.2 Header Injector**: Tagging requests with custom metadata.
+- **5.3 Cache Master**: Controlling cache behavior via headers.
+- **5.4 Query Normalizer**: Cleaning up tracking parameters for better caching.
 
 ---
-
-## 🚀 How to Complete an Exercise
-
-1. Navigate to an exercise folder (e.g., `tutorial/module-1-foundations/exercise-1`).
-2. Read the `scenario.md` to understand the goal.
-3. Edit the `index.js` (look for `TODO` comments).
-4. Start the emulator pointing to the static folder and hook file:
-   ```bash
-   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js
-   ```
-5. Open `http://localhost:3000` and see your logic in action!
-
-### 🔭 Modern Debugging with the Visual Control Plane
-While you can always check your terminal logs, we highly recommend running your exercises with the Visual Control Plane enabled. This provides a live "Trace View" of your logic and full header visibility:
-
-```bash
-cloudfrontize www --edge ./your-code.js --webui 3003
-```
-![CloudFrontize Pro Dashboard](../assets/cloudfrontize-pro-ui.png)
-
-Using the **Header Intelligence** panel in the UI, you can simulate different countries, user-agents, or auth tokens without ever stopping the emulator.
-
-> [!TIP]
-> **Stuck?** Check the [solutions/](./solutions/) directory for reference implementations of every exercise. You can also paste the exercise into any major AI assistant to generate a detailed solution or hints.
+[⬅️ Back to Project Root](../README.md)

@@ -1,217 +1,72 @@
-# 🧪 Intro – Run & Debug
+# 🧪 Intro: Debugging the "Invisible" Edge
 
-Welcome to your first hands-on exercise! In this introduction, you’ll learn how to:
+Welcome! In this first exercise, you won't be writing any code. Instead, you are going to master the most critical skill in Edge Engineering: Observability. You will learn how to see exactly what is happening inside the **CloudFront pipeline** as requests are intercepted and transformed.
 
-* Run **CloudFrontize** locally
-* Understand the project structure
-* Debug using the **console (CLI)**
-* Visualize requests in the **Web UI (Visual Control Plane)**
-* Simulate **geo-based routing** using header overrides
 
-> 💡 In this exercise, everything is provided for you—no coding required. Just run, observe, and understand.
+
+The code snippet provided for this exercise is a L@E function that enables you to serve two different contents to users based on their country of origin. By using the Cloudfrontize emulator, you can simulate different geographic locations at will and watch the logic in action.
 
 ---
 
-## 🧩 The Ingredients
+## 📖 The Problem: The Black Box
 
-This exercise comes with everything you need:
+Debugging a CloudFront Function or Lambda@Edge is hard because it happens in the "Dark Space" between the user’s browser and your server. Usually, if something goes wrong, you're just left guessing.
 
-```
-intro/
-├── www/
-│   ├── index.html
-│   └── index-fr.html
-└── viewer-request-geo.js
-```
+CloudFrontize gives you **4 ways to see inside that black box**.
 
-### 📂 `www/` – Static Site
+### 1. The Browser: What the user sees
+This is your first check. Does the page look right? Does the redirect happen? Use the browser's **Network Tab (F12)** to see the final status codes and headers.
 
-* `index.html` → Default page (US users)
-* `index-fr.html` → French version
+### 2. Curl: The raw truth
+Sometimes browsers cache things or hide headers. `curl` is your surgical tool to see the raw, unedited HTTP response from the server without any "browser magic" getting in the way.
 
----
+### 3. The Terminal: The sequence
+Every request triggers a log in your terminal. This is where you see the sequence of events. If you put a `console.log()` in your code, it shows up here. 
 
-### ⚡ `viewer-request-geo.js` – Lambda@Edge Logic
-
-This function rewrites requests based on the viewer’s country:
-
-```javascript
-exports.hookType = 'viewer-request';
-
-exports.handler = (event, context, callback) => {
-    const request = event.Records[0].cf.request;
-    const headers = request.headers;
-
-    const country = headers['cloudfront-viewer-country']?.[0]?.value || 'US';
-
-    console.log("Viewer country:", country);
-
-    if (country === 'FR') {
-        console.log("Rewriting to French page");
-        request.uri = '/index-fr.html';
-    } else {
-        console.log("Serving default page");
-    }
-
-    callback(null, request);
-};
-```
+### 4. The WebUI (Visual Control Plane): The internal reality
+Running on port **3001**, this is your X-ray machine. You can click on any stage of the request to see exactly how your code changed the URI or the Headers before the request even reached your server.
 
 ---
 
-## ▶️ Step 1 – Run CloudFrontize
+## ▶️ Step 1 – Run the Demo
 
-Start the emulator with debug mode and Web UI enabled:
+Start the emulator:
 
 ```bash
-cloudfrontize www --edge ./viewer-request-geo.js -d --webui 3001
-```
-
-You should see:
-
-* 🛠️ Developer UI → [http://localhost:3001](http://localhost:3001)
-* ☁️ Server → [http://localhost:3000](http://localhost:3000)
-
----
-
-## 🌐 Step 2 – Open the "test-site" in the Browser
-
-Go to:
-
-👉 [http://localhost:3000](http://localhost:3000)
-
-You’ll see the **default page (`index.html`)**, because the country defaults to `US`.
-
----
-
-## 🖥️ Step 3 – Inspect the Console
-
-Check your terminal. You should see logs like:
-
-```text
-[viewer-request] Viewer country: US
-[viewer-request] Serving default page
-```
-
-👉 This is your **Lambda@Edge function running locally**.
-
----
-
-## 🔁 Step 4 – Trigger a Rewrite
-
-Now let’s simulate a user from France.
-
-### Open the Web UI:
-
-👉 [http://localhost:3001](http://localhost:3001)
-
----
-
-| Visual Control Plane (Web UI)                                                                                                            |
-|------------------------------------------------------------------------------------------------------------------------------------------|
-| ![CloudFrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui-intro.jpg?v=1) |
-
----
-
-### In the Web UI:
-
-1. Locate the **Header Intelligence panel**
-2. Add or modify the header:
-    ```
-    CloudFront-Viewer-Country: FR
-    ```
-    >💡 **Tip:** You can do this more easily by clicking the preset button: `France (FR)`
-    
-    **IMPORTANT:** Click the `Save Changes` button to apply your header.
-
-3. Trigger a new request by refreshing the **test-site** in your browser:
-
-   👉 [http://localhost:3000](http://localhost:3000)
----
-
-## 🇫🇷 Step 5 – Observe the Result
-
-Now the behavior changes:
-
-### 🌐 Browser
-
-* You’ll see the **French page (`index-fr.html`)** even when your requested `/`
-
-### 🖥️ Console
-
-```text
-[viewer-request] Viewer country: FR
-[viewer-request] Rewriting to French page
-```
-
-### 🔍 Web UI
-
-* You’ll see the **request flow**
-* The **URI rewrite** from `/` → `/index-fr.html`
-* Updated headers in real time
-
----
-
-## 🇫🇷 Step 6 – Experiment and Verify
-
-To test the routing logic, change the **CloudFront-Viewer-Country** header to a different country code (for example, Germany):
-
-```http
-CloudFront-Viewer-Country: DE
-```
-
-> **Note:** Ensure you click the **Save Changes** button to apply the new header value.
-
-Now, reload the **test-site**. You should be redirected to the root path (`/`), as the current logic is configured to route only French traffic to `/index-fr.html`.
-
-### 🚀 Taking it Further: Challenge Yourself
-
-Now that you’ve verified the redirect for France, try expanding the logic on your own. Your goal is to modify the **Lambda@Edge** function to handle German traffic specifically.
-
-**The Goal:**
-If the `CloudFront-Viewer-Country` header is `DE`, rewrite the URI to `/index-de.html`.
-
->**💡 The Hint:**
-Create an `/index-de.html` and add some distinct text so you know it's the German version. Then change the logic of the Lambda, your current `if` is currently checking for `'FR'`. To add a second specific condition, you’ll want to use an `else if` block before your final `else`.
-
-It should look something like this structure:
-```javascript
-if (country === 'FR') {
-    // ... logic for France ...
-} else if (country === 'DE') { 
-    // ... logic for Germany goes here ...
-} else {
-    // ... default logic ...
-}
+cloudfrontize www --edge ./viewer-request-geo.js --debug --webui 3001
 ```
 
 ---
 
-## 🧠 What You Just Learned
+## 🌐 Step 2 – Witness a Redirect
 
-* ✅ How to run CloudFrontize locally
-* ✅ How a **viewer-request hook** works
-* ✅ How to debug using the **console**
-* ✅ How to inspect and override headers in the **Web UI**
-* ✅ How **geo-routing** works at the Edge
+1. Open [http://localhost:3000](http://localhost:3000). You see the default page.
+2. Check your **Terminal**. You'll see a log entry showing a request from the "US".
+3. Now, let's "teleport" to France. Open the **WebUI** ([http://localhost:3001](http://localhost:3001)).
+
+### In the WebUI:
+1. In the **Header Intelligence** panel (left), click **FR** (France).
+2. Click **Simulation Active**.
+3. Refresh [http://localhost:3000](http://localhost:3000).
+
+> **Troubleshooting**: If you do not see updates reflected in your browser console or the WebUI, it is likely that your browser has cached previous requests and is no longer fetching fresh data from CloudFrontize. You have two main options to resolve this issue:
+>
+>* Use an Incognito/Private Window: Opening your site in a private window (the name varies by browser) ensures that no previous cache is used.
+>* Manual Cache Clear: You can manually clear your browser's cache or use a Hard Refresh (typically Ctrl + F5 or Cmd + Shift + R) before refreshing the page to force new requests.
+---
+
+## 🇫🇷 Step 3 – How to Verify the Change
+
+### 1. The Browser
+You are now seeing the French page. The URL didn't change, but the content did. This is an **Internal Rewrite**.
+
+### 2. The Terminal
+You'll see a new log entry in your CLI. Look for the `[log]` line confirming your code executed:
+`[log] Rewriting to French page`
+
+### 3. The WebUI
+Find the request in the **Real-Time Edge Traffic** list and expand it. In the **Execution Journey**, click the `viewer-request` stage. Look at the **Stage URI Snapshot**—you'll see it was changed to `/index-fr.html`.
 
 ---
 
-## 💡 Key Insight
-
-In AWS, testing this would require:
-
-* Deploying to CloudFront
-* Waiting ~15 minutes
-* Debugging via CloudWatch
-
-With CloudFrontize, you did it in **seconds**.
-
----
-
-## 🚀 Next Step
-
-Now that you understand the tools, you’re ready to start building real logic.
-
----
 [⬅️ Back to Syllabus](../README.md)

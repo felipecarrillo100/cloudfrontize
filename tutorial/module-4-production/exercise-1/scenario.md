@@ -1,75 +1,28 @@
-# Exercise 4.1: The Baker
-
-## 🎭 The Scenario
-Official Lambda@Edge functions do not support environment variables. However, you need to point your logic to different API endpoints depending on where it's deployed. 
-
-## 📖 The Lesson: Solving the "No Env Vars" Limit
-
-Unlike standard AWS Lambda, **Lambda@Edge does not support environment variables**. This is a common pain point when you need your code to behave differently in `staging` vs `production`.
-
-### Why this limit exists?
-Environment variables are managed by the Lambda service, but Lambda@Edge code is replicated to hundreds of CloudFront edge locations globally. Synchronizing environment variables across all those locations would introduce significant latency.
-
-### The "Baking" Pattern
-To solve this, we use a pattern called **Baking**. Instead of looking up variables at runtime, we inject them into the source code during the build process using **double-underscore delimited tokens** as placeholders.
-
-- **Source**: `const api = "__API_ENDPOINT__";`
-- **Baked**: `const api = "https://api.production.com";`
-
-The `--bake` flag tells CloudFrontize to scan your code for any `__TOKEN_NAME__` placeholders and replace them with the corresponding values from your `.variables` file before the hook runs.
-
-> [!TIP]
-> **Technical Reference**: For a detailed breakdown of how the Lambda@Edge event structure remains consistent regardless of how your code is built, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
-
-> **⚠️ Why not `process.env`?** You might expect to write `process.env.API_ENDPOINT` — that's how standard AWS Lambda works. In Lambda@Edge, however, `process.env` only contains a small fixed set of **AWS runtime variables** (like `AWS_REGION`). You cannot define your own custom variables through the function configuration — that feature is not supported. `process.env.API_ENDPOINT` will always be `undefined`. CloudFrontize faithfully emulates this behaviour. The `__TOKEN__` baking pattern is the correct AWS-aligned solution.
+# Exercise 4.1: The Baker (Production Workflow)
 
 ## 🎯 Your Goal
-Use CloudFrontize to "bake" a configuration variable into your code, creating a deployment-ready `.js` file.
 
-## 📝 Starter Code Template
-```javascript
-'use strict';
+Master the "Baking Pattern" to inject configuration variables into your edge code.
 
-exports.hookType = 'viewer-request';
+---
 
-// 🍞 BAKE PLACEHOLDER: This will be replaced with the real value during the build step.
-const API_ENDPOINT = "__API_ENDPOINT__";
+## 🛠 How to Verify Your Work
 
-exports.handler = async (event) => {
-    const request = event.Records[0].cf.request;
-
-    // TODO: Use the baked variable to tag the request with the correct API endpoint.
-    // Hint: how would you check if the placeholder was successfully replaced?
-
-    return request;
-};
+#### 1. The Terminal: The sequence
+Watch the logs for the baked value injection:
+```text
+[e3cc0e48] GET / (Host: localhost:3000)
+[e3cc0e48] ├─ ○ [L@E: viewer-request] index.js
+[e3cc0e48] │    [log] [L@E: Baker] Endpoint: https://api.production.com
+[e3cc0e48] ╰─ [Response] Status: 200 [14ms]
 ```
 
-## 🛠️ Instructions
-1. Open `tutorial/module-4-production/exercise-1/index.js`.
-2. Look at how it uses the `__API_ENDPOINT__` placeholder and handles the "not yet baked" fallback case.
-3. Create a file `4.1-baked.variables` in that directory:
-   ```env
-   API_ENDPOINT=https://api.production.com
-   ```
-4. Run the emulator pointing to the original hook:
-   ```bash
-   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/.env.baked.variables --output ./prod_ready --webui 3001
-   ```
-4. Run the emulator with the `--bake` flag:
-   ```bash
-   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/4.1-baked.variables --webui 3001
-   ```
+#### 2. The WebUI: The internal reality
+1. Open `http://localhost:3001`.
+2. Observe the **Distribution Pipeline**. Click your function icon.
+3. **Verification**: In the code viewer, confirm the placeholder has been replaced with the live value.
+4. Expand a request in **Real-Time Edge Traffic**. Click the **HEADERS** tab. Verify the `x-api-target` header.
 
-5. **Forensic Verification**:
-   - **Terminal Log Trace**: You should see: `[L@E: Baker] Using Baked API: https://api.production.com`.
-   - **Diagnostic Identity**: Open the Web UI (`http://localhost:3001`). Locate your L@E function in the **Cloud Center** (main diagram) and click it.
-   - **Source Trace**: In the Diagnostic Identity modal, click **Edit in Editor** or view the source. Notice that the live running code now has the real API URL instead of the placeholder.
-   - **Header Analysis**: Select a request in the **Timeline** and click the `[L@E: viewer-request]` stage. Verify that the `x-baked-end-point` header has the production URL.
+---
 
-## 💡 Fidelity Tip
-During local development, your placeholder won't be baked yet — the token will still read `"__API_ENDPOINT__"`. The solution shows a robust pattern: check whether the string still matches the `__...__` format and fall back to a local URL. This means the same source file works correctly both locally and in production.
-
-## 🎓 Learning More
-- **Concept Deep Dive**: [Why Environment Variables don't exist in Lambda@Edge](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-the-edge-env-vars.html)
-- **Keywords**: `Lambda@Edge variables`, `Code Pre-processing`, `Edge Deployment Workflows`.
+[⬅️ Back to Syllabus](../README.md)

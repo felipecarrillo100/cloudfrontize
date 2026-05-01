@@ -1,67 +1,35 @@
-# Exercise 1.1: The Security Guard
-
-## 🎭 The Scenario
-Your company’s security audit just failed. Your backend servers are managed by another team and they refuse to add HSTS headers. You need to enforce security at the Edge.
-
-## 📖 The Lesson: Security at the Edge
-
-Modern web security relies on specific HTTP headers that tell the browser how to behave safely. One of the most important is **HSTS (HTTP Strict Transport Security)**, which forces browsers to always use HTTPS instead of HTTP, preventing man-in-the-middle attacks.
-
-### Why Edge Injection?
-Sometimes, your backend (Origin) is old, managed by a different team, or simply lacks the configuration flexibility you need. Injecting headers at the **CloudFront Edge** allows you to:
-1.  **Centralize Policy**: Apply security headers consistently across all your assets regardless of the origin.
-2.  **Decouple Security from Logic**: Your application code doesn't need to be polluted with infrastructure-level security configurations.
-3.  **Fast Rollout**: You can update security policies globally in seconds without requiring a redeployment of your backend services.
-
-### The `viewer-response` Hook
-To modify a response before it reaches the user, we use the `viewer-response` hook. This hook runs **after** CloudFront has retrieved the content (either from its cache or from the origin) but **before** it is sent to the client. This makes it the perfect place to "decorate" the response with additional security metadata.
-
-> [!TIP]
-> **Technical Reference**: For a detailed breakdown of the Lambda@Edge event JSON and how headers are represented, see the [Lambda@Edge Event Structure Guide](../../commons/lambda-at-edge-event.md).
+# Exercise 1.1: The Security Guard (Viewer Response)
 
 ## 🎯 Your Goal
-Inject the following security headers into every response leaving CloudFront:
-1. `Strict-Transport-Security`: `max-age=63072000; includeSubDomains; preload`
-2. `X-Content-Type-Options`: `nosniff`
 
-You can setup the headers programmatically inside a `viewer-response` Lambda@Edge function.
+Inject security headers into every response leaving CloudFront.
 
-## 📝 Starter Code Template
-```javascript
-'use strict';
+---
 
-exports.hookType = 'viewer-response';
+## 🛠 How to Verify Your Work
 
-exports.handler = async (event) => {
-    const response = event.Records[0].cf.response;
-    const headers = response.headers;
+#### 1. The Terminal: The sequence
+Watch the logs as you refresh:
+```text
+[82f1a23c] GET / (Host: localhost:3000)
+[82f1a23c] ├─ 🌐 [Origin] Fetch (S3) -> index.html (200)
+[82f1a23c] ├─ ○ [L@E: viewer-response] index.js
+[82f1a23c] │    [log] [L@E: Guard] Security headers injected
+[82f1a23c] ╰─ [Response] Status: 200 [153ms]
+```
+**Verification**: Look for your custom `[log]` entry.
 
-    // TODO: Implement your magic here!
-    // headers['header-name'] = [{ key: 'Header-Name', value: 'value' }];
+#### 2. The WebUI: The internal reality
+1. Open `http://localhost:3001`.
+2. Select the request in **Real-Time Edge Traffic** and expand it.
+3. Look at the **HEADERS** tab at the bottom.
+4. **Verification**: Compare **ORIGIN RETURNED** (raw) with **FINAL RESPONSE** (secured). Confirm your headers are present.
 
-    return response;
-};
+#### 3. Curl: The raw truth
+```bash
+curl -I http://localhost:3000
 ```
 
-## 🛠️ Instructions
-1. Open `tutorial/module-1-foundations/exercise-1/index.js`.
-2. Implement the missing headers in the `TODO` sections.
-3. Run the emulator (serving the `www` sample folder and attaching your hook):
-   ```bash
-   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js --webui 3001
-   ```
-   *Note: `www` is the argument telling the emulator which folder to serve as your website.*
+---
 
-4. Open `http://localhost:3000` in your browser.
-
-5. **Forensic Verification**:
-   - **Terminal Log Trace**: Check your terminal. You should see: `[L@E: Guard] Security headers injected`.
-   - **Hook Highway (Web UI)**: Open `http://localhost:3001`. Select the request in the **Timeline** and click the `[L@E: viewer-response]` stage. Verify your headers in the **Headers Post-Execution** snapshot.
-   - **Stage Comparison**: Contrast the "Origin Returned" headers with the "Final Response" to see your security hardening in action.
-
-## 💡 Fidelity Tip
-In AWS, `viewer-response` cannot modify certain headers like `Content-Length` or `Server`. Our emulator will warn you if you try to touch "forbidden" headers!
-
-## 🎓 Learning More
-- **AWS Reference**: [Adding Response Headers (AWS Docs)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-examples.html#lambda-examples-adding-response-headers)
-- **Keywords**: `viewer-response`, `HSTS`, `Content-Security-Policy`, `Lambda@Edge Header Restrictions`.
+[⬅️ Back to Syllabus](../README.md)

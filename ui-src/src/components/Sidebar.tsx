@@ -6,18 +6,18 @@ interface SidebarProps {
 
 export default function Sidebar({ onShowAbout }: SidebarProps) {
   return (
-    <aside style={{ 
-      width: 320, 
-      minWidth: 320, 
-      maxWidth: 320, 
-      borderRight: '1px solid #30363d', 
-      background: '#0d1117', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      height: '100%' 
+    <aside style={{
+      width: 320,
+      minWidth: 320,
+      maxWidth: 320,
+      borderRight: '1px solid #30363d',
+      background: '#0d1117',
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%'
     }}>
       {/* Logo & Branding */}
-      <div 
+      <div
         onClick={onShowAbout}
         style={{ padding: '1.25rem 1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem' }}
       >
@@ -30,7 +30,7 @@ export default function Sidebar({ onShowAbout }: SidebarProps) {
           <h1 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#f97316', letterSpacing: '0.05em' }}>
             CLOUDFRONTIZE <span style={{ color: '#f8fafc' }}>PRO</span>
           </h1>
-          <p style={{ margin: 0, fontSize: '0.6rem', color: '#484f58', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>Edge Command Center</p>
+          <p style={{ margin: 0, fontSize: '0.6rem', color: '#484f58', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>Visual Control Plane</p>
         </div>
       </div>
 

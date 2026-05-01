@@ -1,129 +1,34 @@
-# Exercise 2.1: The Geo Router (URI Rewrite Edition)
-
-## 🎭 The Scenario
-
-Your marketing team wants to **serve localized content** without changing the URL in the user's browser. They've requested that visitors from **France (`FR`)** see the French version of the site, while everyone else sees the default version.
-
-Instead of a bulky 302 redirect—which forces the browser to make a second request—you will perform an **internal URI rewrite** at the edge.
-
-CloudFront Functions can intercept the request and "swap" the file path behind the scenes. The user stays on `example.com/`, but CloudFront fetches `/countries/FR/index.html`.
-
----
-
-## 📖 The Lesson: The Viewer Identity
-
-When a request hits an edge location, CloudFront automatically attaches a wealth of information about the user (the "Viewer") before passing the event to your function.
-
-### The `viewer` Object
-In CFF, you have access to `event.viewer.ip`, which is the client's public IP address. However, for geographic routing, CloudFront also provides **special geolocation headers**:
-- `CloudFront-Viewer-Country`: ISO country code (e.g., `US`, `FR`, `JP`).
-- `CloudFront-Viewer-City`: The city name.
-- `CloudFront-Viewer-Latitude` / `Longitude`: Coordinates.
-
-### Internal URI Rewriting
-A "Rewrite" is different from a "Redirect." A rewrite happens **internally** on the CloudFront servers. The user's browser never sees the change in the URL bar, but CloudFront fetches a different file from the origin. This is the ultimate "Invisible" localization technique.
-
----
+# Exercise 5.5: The Geo Router
 
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that performs a forensic **Internal Pivot**:
-
-1.  **Extract**: Read the `CloudFront-Viewer-Country` header (default to `US`).
-2.  **Idempotency**: Check if the URI is already localized to prevent "double-rewriting".
-3.  **Pivot**: Internally prefix the URI with `/countries/{{COUNTRY}}/`.
-
-> [!TIP]
-> **Forensic Hint**: Use the **Status Modal** in the dashboard. You can click on the function node to see the **Diagnostic Identity** and verify that it is correctly seeing the `FR` header you've injected via the emulator.
+Perform an Internal Rewrite to a region-specific folder (e.g., `/mx/`) based on the country header.
 
 ---
 
-## 📝 Starter Code Template
+## 🛠 How to Verify Your Work
 
-```javascript
-function handler(event) {
-    var request = event.request;
-    var headers = request.headers;
-    var uri = request.uri;
+#### 1. The WebUI: The internal reality
+1. Open `http://localhost:3001`.
+2. In the **Header Intelligence** panel, click **MX** (Mexico). Click **Simulation Active**.
+3. Refresh `http://localhost:3000/`.
+4. Expand the request in **Real-Time Edge Traffic**.
+5. In the **Execution Journey**, click the **Origin Fetch** stage.
+6. **Verification**: In the **Stage URI Snapshot**, confirm the path is updated to `/mx/`.
 
-    // TODO:
-    // 1. Get the country from headers (default to 'US')
-    // 2. IDEMPOTENCY: Don't rewrite if URI already starts with '/countries/'
-    // 3. THE PIVOT: Rewrite the URI to: '/countries/' + country + uri
-
-    return request;
-}
-
+#### 2. The Terminal: The sequence
+Watch the logs:
+```text
+[e3cc0e48] GET / (Host: localhost:3000)
+[e3cc0e48] ├─ ○ [CFF: viewer-request] viewer-request-geo-router.js
+[e3cc0e48] │    [log] [CFF: Router] Geo Pivot -> /mx/
+[e3cc0e48] ╰─ [Response] Status: 200 [18ms]
 ```
 
----
-
-## 🛠 Instructions
-
-1. Create the exercise file:
-
+#### 3. Curl: The raw truth
 ```bash
-tutorial/module-5-cff/intermediate/viewer-request-geo-router.js
-
+curl -H "CloudFront-Viewer-Country: MX" http://localhost:3000/
 ```
-
-2. Implement the **internal rewrite** logic. Be careful to only rewrite HTML/Root requests!
-3. Start the CloudFrontize emulator:
-
-```bash
-# Ensure your www folder has a /countries/FR/ directory!
-cloudfrontize www --cff ./tutorial/module-5-cff/intermediate/viewer-request-geo-router.js --debug
-
-```
-
----
-
-## 🧪 How to Test
-
-### 1. The Forensic Trace (Web UI)
-The browser's address bar always stays at `/`. You must use the dashboard to verify the internal swap:
-
-1.  Open the Web UI: `http://localhost:3001`
-2.  Trigger a request for the French audience:
-    `curl -H "cloudfront-viewer-country: FR" http://localhost:3000/index.html`
-3.  In the **Timeline**, click the request.
-4.  Compare the **Client Request** stage (`/index.html`) with the **Origin Fetch** stage (`/countries/FR/index.html`).
-5.  **Diagnostic Identity**: Click the function node to verify it correctly detected the `FR` header.
-
-### 2. Verification with `curl` (Content Check)
-Verify that the correct content is returned while the path remains unchanged:
-
-**Test the Rewrite (The Page):**
-`curl -v -H "cloudfront-viewer-country: FR" http://localhost:3000/index.html`
-*   **Result**: You should see the content of the French index page.
-*   **Terminal Logs**: Look for `REWRITE: /index.html -> /countries/FR/index.html`.
-
-**Test Asset Protection (The CSS):**
-`curl -v -H "cloudfront-viewer-country: FR" http://localhost:3000/style.css`
-*   **Result**: You should see your standard CSS. If the logic is wrong, the logs will show an incorrect rewrite to `/countries/FR/style.css`.
-
----
-
-## 💡 Fidelity Tip: Rewrite vs. Redirect
-
-| Feature | Redirect (302) | Rewrite (Internal) |
-| --- | --- | --- |
-| **Browser URL** | Changes to `/fr` | Stays at `/` |
-| **Performance** | Extra round-trip for browser | Instant internal swap |
-| **SEO** | Good for separate localized URLs | Good for "one URL, many regions" |
-| **Complexity** | Simple | Requires "Asset Protection" logic |
-
-> **Warning:** Always check the file extension before rewriting. If you rewrite your `.js` or `.png` files into a country subfolder, your site's layout will break!
-
----
-
-## 🎓 Learning More
-
-**AWS Documentation**
-[CloudFront Function Event Structure](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/functions-event-structure.html)
-
-**Keywords**
-`URI Rewriting`, `Edge Localization`, `CloudFront-Viewer-Country`, `Asset Protection`
 
 ---
 
