@@ -16,22 +16,30 @@ Typical security headers include:
 
 ---
 
+## 📖 The Lesson: Secure by Default
+
+Security headers like `HSTS`, `Content-Security-Policy` (CSP), and `X-Frame-Options` are critical for protecting your users. While you can set them at your origin server, setting them at the edge is more robust.
+
+### The Edge Advantage
+- **Origin Independence**: If you have multiple origins (S3, EC2, API Gateway), you don't have to configure security headers on each one. CFF applies them globally.
+- **Protocol Enforcement**: You can use CFF to ensure that `Strict-Transport-Security` is injected even if the origin accidentally omits it.
+- **Latency**: Headers are injected at the edge location nearest to the user, ensuring the browser receives them as quickly as possible.
+
+In this exercise, you will enforce a global security policy by injecting five mandatory headers into every request.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs forensic security enforcement:
 
-* Adds the following headers to **all requests/responses**:
+1.  **Target**: Loop through or explicitly set five security headers: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`, and `Referrer-Policy`.
+2.  **Standardize**: Use the correct CloudFront `{ value: "..." }` object format.
+3.  **Validate**: Ensure all header keys are **lowercase** to meet CFF engine requirements.
 
-```
-Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Content-Security-Policy: default-src 'self'
-Referrer-Policy: same-origin
-```
+> [!TIP]
+> **Forensic Hint**: Use the **Status Modal** in the dashboard. After your function runs, click on the **Viewer Request** node. You should see the "Mutated State" and verify that all five headers are now part of the request object.
 
-* Ensures the headers are injected **before the request reaches your origin**
-* Preserves any existing headers already present in the request
 ---
 
 ### ⚠️ Note: CloudFront Functions (CFF) Header Structure

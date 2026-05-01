@@ -10,14 +10,29 @@ This allows you to **stop unwanted bots before they reach your origin**, saving 
 
 ---
 
+## 📖 The Lesson: User-Agent Forensics
+
+The `User-Agent` header is a window into the identity of the client making the request. While it can be easily spoofed, it remains a primary signal for identifying well-behaved bots, crawlers, and scrapers.
+
+### High-Performance Inspection
+In CFF, you have ~1ms of CPU time to decide the fate of a request. This is why we use simple string searches or lightweight Regular Expressions instead of complex device databases.
+- **Lowercasing**: Always convert the `User-Agent` string to lowercase before searching for patterns like `bot`, `crawler`, or `spider`.
+- **String Searching**: Use `indexOf` (ES5) to check for these patterns.
+
+By blocking bots at the edge, you avoid "Polluting" your backend analytics and save CPU cycles on your origin servers.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs forensic bot detection:
 
-* inspects the `User-Agent` header
-* detects requests from known or suspicious bots (e.g., containing `"curl"`, `"bot"`, `"spider"`, `"crawler"`)
-* returns a **403 Forbidden** response for these requests
-* lets all other requests continue normally
+1.  **Extract**: Read the `user-agent` header from the `request.headers` object.
+2.  **Analyze**: Convert the string to lowercase and check for forbidden keywords (`bot`, `spider`, `crawler`).
+3.  **Verdict**: Return a **403 Forbidden** response immediately if a bot is detected.
+
+> [!TIP]
+> **Forensic Hint**: CloudFrontize will highlight any **Line Errors** if you use unsupported ES6 string methods like `.includes()`. Use the **CodeViewer** to ensure your code is strictly ES5.1 before running your `curl` tests.
 
 ---
 

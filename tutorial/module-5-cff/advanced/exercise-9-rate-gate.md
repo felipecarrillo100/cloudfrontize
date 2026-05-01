@@ -10,16 +10,31 @@ This reduces origin load and ensures **early request rejection**, improving both
 
 ---
 
+## 📖 The Lesson: The 1ms Wall
+
+CloudFront Functions are built on a highly optimized, but restricted, version of the V8 engine. Unlike standard Node.js or Lambda@Edge, you have a strict **~1ms CPU time limit**.
+
+### Why the limit?
+CFF runs on the "Hot Path" of the request. To handle millions of requests per second without introducing latency, AWS restricts the runtime:
+- **No Async/Await**: You cannot perform network calls or file system operations.
+- **No Promises**: Everything must be synchronous.
+- **Minimal Standard Library**: Only basic ES5.1 features are available.
+
+If your code takes more than 1ms to execute, CloudFront will terminate it and return a 502 error to the user. This is why CFF is best used for simple logic like header manipulation and URI rewrites.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs forensic rate-gating:
 
-* Tracks a simple request count per client using a **custom header** (for demo/testing purposes)
-* Blocks further requests if a **threshold is exceeded**
-* Returns a **429 Too Many Requests** response when the limit is hit
-* Allows normal traffic if under the threshold
+1.  **Extract**: Read a client-provided header (e.g., `x-request-count`).
+2.  **Validate**: Convert the value to a number.
+3.  **Threshold**: If the count exceeds 100, return a **429 Too Many Requests** response.
+4.  **Audit**: Ensure the response includes a body explaining the rejection.
 
-> ⚠️ Note: This is a **basic edge simulation**. Full production rate-limiting typically requires a **centralized store** like DynamoDB, Redis, or CloudFront + WAF.
+> [!TIP]
+> **Forensic Hint**: The CloudFrontize simulator actually **times your execution**. If your logic is too complex, you will see a warning in the console: `⚠️ [CFF] exceeded 1ms CPU limit`. Use the **Performance** metrics in the dashboard to optimize your code.
 
 ---
 

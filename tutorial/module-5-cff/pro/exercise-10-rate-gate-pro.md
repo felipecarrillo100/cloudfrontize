@@ -14,6 +14,34 @@ To implement a rate-limit counter using cookies, we must bypass this limitation 
 
 ---
 
+## 📖 The Lesson: Chained Sandbox Architecture
+
+AWS enforces a strict isolation policy for CloudFront Functions:
+1.  **Context Isolation**: A function running in the **Viewer Request** stage cannot access the `response` object.
+2.  **State Isolation**: Functions are stateless. They cannot share memory or variables between requests.
+
+### The "Sandwich" Strategy
+To implement logic that both **reads** and **writes** state (like a rate-limit counter), we must use two separate functions:
+- **The Guard (Request)**: Runs first. It reads the incoming "State" (the cookie) and decides whether to block or allow.
+- **The Counter (Response)**: Runs last. It intercepts the response from the origin and "Writes" the updated state back to the user via a `Set-Cookie` header.
+
+By chaining these two sandboxes together, we create a complete feedback loop at the edge.
+
+---
+
+## 🎯 Your Goal
+
+Implement a **Chained CloudFront Function** loop to forensicly gate traffic:
+
+1.  **The Guard**: Create a `viewer-request` function that reads the `client-request-count` cookie. If the count is 5 or more, return a **429** response.
+2.  **The Counter**: Create a `viewer-response` function that increments the `client-request-count` and sets it as a cookie on the outgoing response.
+3.  **The Loop**: Use the CloudFrontize simulator to run both functions in sequence and verify the "Sandwich" behavior.
+
+> [!TIP]
+> **Forensic Hint**: Open the **Status Modal** in the dashboard. You will see both the **Viewer Request** and **Viewer Response** nodes in the diagram. You can click each one to inspect their individual "Diagnostic Identity" and see how the state is passed through the system.
+
+---
+
 ## 🛠️ The Implementation
 
 ### 1. The Guard (`viewer-request-guard.js`)

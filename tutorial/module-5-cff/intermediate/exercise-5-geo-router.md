@@ -10,14 +10,32 @@ CloudFront Functions can intercept the request and "swap" the file path behind t
 
 ---
 
+## 📖 The Lesson: The Viewer Identity
+
+When a request hits an edge location, CloudFront automatically attaches a wealth of information about the user (the "Viewer") before passing the event to your function.
+
+### The `viewer` Object
+In CFF, you have access to `event.viewer.ip`, which is the client's public IP address. However, for geographic routing, CloudFront also provides **special geolocation headers**:
+- `CloudFront-Viewer-Country`: ISO country code (e.g., `US`, `FR`, `JP`).
+- `CloudFront-Viewer-City`: The city name.
+- `CloudFront-Viewer-Latitude` / `Longitude`: Coordinates.
+
+### Internal URI Rewriting
+A "Rewrite" is different from a "Redirect." A rewrite happens **internally** on the CloudFront servers. The user's browser never sees the change in the URL bar, but CloudFront fetches a different file from the origin. This is the ultimate "Invisible" localization technique.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs a forensic URI rewrite:
 
-* Reads the `CloudFront-Viewer-Country` header.
-* If the country is **`FR`**, rewrites the URI to include the country path (e.g., `/index.html` becomes `/countries/FR/index.html`).
-* **Protects Assets:** Ensures that CSS, JS, and images are **not** rewritten so they don't 404.
-* Otherwise, allows the request to continue to the default origin path.
+1.  **Extract**: Read the `CloudFront-Viewer-Country` header.
+2.  **Filter**: Only act if the country is `FR`.
+3.  **Sanitize**: Ensure you only rewrite **page requests** (HTML or root `/`).
+4.  **Route**: Internally prefix the URI with `/countries/FR/`.
+
+> [!TIP]
+> **Forensic Hint**: Use the **Status Modal** in the dashboard. You can click on the function node to see the **Diagnostic Identity** and verify that it is correctly seeing the `FR` header you've injected via the emulator.
 
 ---
 

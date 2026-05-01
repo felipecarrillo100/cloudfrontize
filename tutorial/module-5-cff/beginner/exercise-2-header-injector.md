@@ -10,25 +10,38 @@ This header will allow developers and operations teams to quickly confirm that *
 
 ---
 
+## 📖 The Lesson: The Header Object Pattern
+
+In CloudFront Functions, headers are not just simple string pairs. They follow a specific object pattern that reflects the internal CloudFront infrastructure.
+
+### The Structure
+Each header in the `request.headers` object is a key where the value is an object containing a `value` property:
+
+```javascript
+headers: {
+    "x-custom-header": { value: "my-value" },
+    "content-type": { value: "text/html" }
+}
+```
+
+### Key Rules
+- **Lowercase Keys**: CloudFront automatically converts all header names to lowercase. You should always access and set them using lowercase keys.
+- **Single Value**: Unlike Lambda@Edge (which supports multi-value headers), CloudFront Functions only support a single value per header. If you set it multiple times, only the last one wins.
+
+In this exercise, you will practice injecting a new forensic marker into this object.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs a forensic header injection:
 
-* adds a custom header named:
+1.  **Target**: Locate the `request.headers` object.
+2.  **Inject**: Add a new key `x-edge-powered-by`.
+3.  **Validate**: Set its value to `cloudfrontize` using the proper `{ value: "..." }` pattern.
 
-```
-x-edge-powered-by
-```
-
-* sets its value to:
-
-```
-cloudfrontize
-```
-
-The header should be injected into the request **before it continues through the CloudFront pipeline**.
-
-All other request properties should remain unchanged.
+> [!TIP]
+> **Forensic Hint**: Monitor the **KB Counter** in the `CodeViewer` footer. CFF has a hard limit of 10KB. While this script is small, complex logic can quickly approach the limit in production environments.
 
 ---
 

@@ -14,15 +14,30 @@ This prevents accidental exposure and saves backend resources by stopping unwant
 
 ---
 
+## 📖 The Lesson: Short-Circuiting the Edge
+
+In a standard CDN flow, a request travels through several layers before hitting the origin. However, CloudFront Functions allow you to **short-circuit** this journey.
+
+### Generating Responses at the Edge
+If your function returns an object with `statusCode` (and optionally `statusDescription`, `headers`, and `body`), CloudFront immediately generates that response and sends it back to the viewer.
+- **Bypass Cache**: The request never checks the CloudFront cache.
+- **Bypass Lambda@Edge**: Downstream L@E functions are never executed.
+- **Bypass Origin**: Your backend remains isolated and protected.
+
+This is the most secure and performance-efficient way to implement **Access Control Lists (ACLs)** or simple IP/path blocking.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs a forensic block:
 
-* detects requests to `/admin`
-* returns a **403 Forbidden** response
-* stops the request from reaching the origin
+1.  **Identify**: Detect incoming requests to any path starting with `/admin`.
+2.  **Short-Circuit**: Return a custom response object with `statusCode: 403`.
+3.  **Sanitize**: Ensure no headers from the original request are leaked in the blocked response.
 
-All other requests should continue normally.
+> [!TIP]
+> **Forensic Hint**: When a request is blocked, use the **Dashboard Timeline** to verify that no "Origin Request" or "Origin Response" stages occurred. A successful short-circuit should show the request stopping at the "Viewer Request" stage.
 
 ---
 

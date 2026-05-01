@@ -22,15 +22,30 @@ This ensures the redirect happens **instantly at the nearest CloudFront edge loc
 
 ---
 
+## 📖 The Lesson: The CFF Request Pipeline
+
+CloudFront Functions (CFF) are designed for ultra-low-latency operations. They run at the **edge locations** (Points of Presence) before the request even checks the CloudFront cache or hits your origin server.
+
+### Why use CFF for Redirects?
+Redirecting at the edge is significantly more efficient than doing it at your origin:
+- **Zero Origin Load**: Your servers never see the request.
+- **Minimum Latency**: The user gets a response from the nearest edge location (often < 10ms away).
+- **Cost Effective**: CFF is 1/6th the price of Lambda@Edge.
+
+In this exercise, you'll use the `request.uri` property to detect the old path and return a custom response object to trigger a **301 Moved Permanently** redirect.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs a forensic redirect:
 
-* detects requests to `/promo`
-* returns a **301 redirect**
-* sends the user to `/summer-sale`
+1.  **Identify**: Detect incoming requests where the URI is exactly `/promo`.
+2.  **Short-Circuit**: Instead of passing the request forward, return a **301 Status Response**.
+3.  **Route**: Set the `Location` header to `/summer-sale`.
 
-All other requests should continue normally.
+> [!TIP]
+> **Forensic Hint**: Open the **CodeViewer** in the CloudFrontize dashboard. You can use it to verify your syntax is ES5.1 compliant. CFF will reject modern features like `const` or `let`.
 
 ---
 

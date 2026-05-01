@@ -14,28 +14,38 @@ This allows you to:
 
 ---
 
+## 📖 The Lesson: The Cookie Context
+
+In CloudFront Functions, cookies are parsed into a dedicated `request.cookies` object. This saves you from having to manually parse the `Cookie` header string using complex regex.
+
+### Structure of `request.cookies`
+Similar to headers, cookies are structured as objects:
+```javascript
+cookies: {
+    "ab_test_group": { value: "A" }
+}
+```
+
+### Sticky Routing
+A common pattern for A/B testing is **"Sticky Routing."** 
+1.  **Check**: If the user already has a bucket cookie, use it.
+2.  **Assign**: If not, use `Math.random()` to assign them to a bucket.
+3.  **Persistence**: CloudFront Functions can modify the response to set the cookie for future requests, but in this exercise, we focus on **Request-side Routing**.
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs forensic A/B routing:
 
-* Checks for a cookie named:
+1.  **Bucket Check**: Read the `ab_test_group` cookie from `request.cookies`.
+2.  **Logic**:
+    - If "A": Internally rewrite the URI to `/original-page`.
+    - If "B": Internally rewrite the URI to `/test-page`.
+3.  **Randomize**: If the cookie is missing, assign the user to a bucket and return the request.
 
-```
-ab_test_group
-```
-
-* Routes requests to:
-
-```
-/original-page   → if cookie = "A"
-```
-
-```
-/test-page       → if cookie = "B"
-```
-
-* If the cookie is **missing**, assign the user randomly to **A** or **B** and set the cookie for future requests
-* All other requests should continue normally
+> [!TIP]
+> **Forensic Hint**: Use the **KB Counter** to ensure your randomization logic doesn't bloat the script. CFF has a strict **10KB limit**—every line of logic counts when you start adding complex bucket weights.
 
 ---
 

@@ -12,13 +12,35 @@ These parameters **pollute cache keys** and **increase cache misses**. To improv
 
 ---
 
+## 📖 The Lesson: Query String Fidelity
+
+A major cause of low **Cache Hit Ratios** in production is "Query Parameter Pollution." Marketing trackers (like `utm_source`) create unique URLs for every visitor, even if the content is exactly the same.
+
+### CFF Query Handling
+In CloudFront Functions, the `request.querystring` is a structured object where each key represents a parameter. This makes normalization extremely fast and easy:
+
+```javascript
+// Input: ?id=123&utm_source=google
+request.querystring = {
+    "id": { value: "123" },
+    "utm_source": { value: "google" }
+};
+```
+
+By deleting the "tracking" keys from this object at the edge, you ensure that CloudFront's cache key is generated using only the **functional** parameters (like `id`).
+
+---
+
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that:
+Implement a **CloudFront Function** that performs forensic query normalization:
 
-* removes tracking query parameters (`utm_source`, `utm_medium`, `utm_campaign`, etc.)
-* leaves all other query parameters intact
-* passes the cleaned request to the origin or downstream processing
+1.  **Identify**: Scan the `request.querystring` object for tracking parameters (`utm_source`, `utm_medium`, `utm_campaign`).
+2.  **Strip**: Remove these parameters while preserving all others.
+3.  **Optimize**: Pass the cleaned request forward to ensure high cache hit fidelity.
+
+> [!TIP]
+> **Forensic Hint**: CloudFrontize detects **Policy Violations**. Ensure you don't use modern ES6 methods like `Object.keys()` or `.includes()` to iterate through the query string. Use a standard `for...in` loop instead to avoid a **Build Error**.
 
 ---
 
