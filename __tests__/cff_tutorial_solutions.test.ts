@@ -260,5 +260,20 @@ describe('CFF Tutorial Solutions Verification', () => {
             .set('Cookie', 'client-request-count=5');
         expect(res.status).toBe(429);
     });
+
+    test('Pro Ex 1.11: Variable Baker (Baking)', async () => {
+        const solPath = path.join(solutionsDir, 'pro', 'viewer-request-11-baker.js');
+        const bakePath = path.join(solutionsDir, 'pro', '11-baker.variables');
+        server = startServer({
+            port: 0,
+            directory: wwwDir,
+            cffRunner: new CFFRunner(solPath, { bakePath }),
+            edgeRunner // Use diagnostic reflection to see the injected CSP header
+        });
+
+        const res = await request(server).get('/');
+        // The CFF should have baked "strict" into MODE, thus adding the CSP header
+        expect(res.headers['content-security-policy']).toBe("default-src 'self'");
+    });
 });
 
