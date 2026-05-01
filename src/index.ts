@@ -12,10 +12,10 @@ import { AWS_HEADERS, AWS_LIMITS } from './constants';
 import { CloudFrontizeOptions } from './core/types';
 import { HeaderParser } from './headerParser';
 import { ConfigLoader } from './pipeline/ConfigLoader';
+import {IncomingMessage, ServerResponse} from "node:http";
 
 interface CloudFrontizeServer extends http.Server {
     closeGracefully: () => Promise<null>;
-    closeAllConnections?: () => void;
 }
 
 export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser, CloudFrontizeOptions, CloudFrontizeServer };
@@ -142,24 +142,31 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
         }
     });
 
-    const mainServer = http.createServer((req: any, res: any) => {
+    const mainServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
         // Drain body FIRST (before compression middleware touches the stream)
         const drainAndHandle = async () => {
+            const url = req.url || '/';
+            const method = req.method || 'GET';
+
             // URL Normalization: Strip protocol/host if browser sends an absolute URL (common in Chrome for localhost)
-            if (req.url.startsWith('http://') || req.url.startsWith('https://')) {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
                 try {
-                    const urlObj = new URL(req.url);
+                    const urlObj = new URL(url);
                     req.url = urlObj.pathname + (urlObj.search || '');
                 } catch (e) {
                     // Fallback: manual strip if URL is mangled
-                    req.url = '/' + req.url.split('://')[1].split('/').slice(1).join('/');
+                    req.url = '/' + url.split('://')[1].split('/').slice(1).join('/');
                 }
             }
+            
+            // Re-fetch the potentially normalized URL for subsequent checks
+            const finalUrl = req.url || '/';
+
             // Ensure path starts with /
-            if (!req.url.startsWith('/')) req.url = '/' + req.url;
+            if (!finalUrl.startsWith('/')) req.url = '/' + finalUrl;
 
             let reqBody: Buffer | undefined;
-            const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+            const hasBody = method !== 'GET' && method !== 'HEAD';
 
             if (hasBody) {
                 try {
