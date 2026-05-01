@@ -54,10 +54,11 @@ exports.handler = async (event) => {
    ```
 4. Run the emulator pointing to the original hook:
    ```bash
-   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/.env.baked.variables --output ./prod_ready
+   cloudfrontize www --edge ./tutorial/module-4-production/exercise-1/index.js --bake ./tutorial/module-4-production/exercise-1/.env.baked.variables --output ./prod_ready --webui 3001
    ```
 5. Open the generated file at `prod_ready/4.1-baker.js` file.
 6. Observe how `__API_ENDPOINT__` has been replaced with the real value!
+7. **Verify Baked Values via the WebUI:**  Enable the `--webui` option flag and locate your **L@E** function block in the diagram. Right-click the function to open the context menu, then select **View Production Code** > **Readable** to inspect the code with the baked values.
 
 ## 💡 Fidelity Tip
 During local development, your placeholder won't be baked yet — the token will still read `"__API_ENDPOINT__"`. The solution shows a robust pattern: check whether the string still matches the `__...__` format and fall back to a local URL. This means the same source file works correctly both locally and in production.
