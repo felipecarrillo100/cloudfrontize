@@ -90,21 +90,21 @@ describe('CFFValidator: The "No-Mercy" Fidelity Suite', () => {
 
     // --- GROUP 4: POLICY TRAPS (Ambiguous Methods) ---
 
-    test('❌ Should warn on .includes() usage', () => {
+    test('❌ Should fail on .includes() usage', () => {
         const code = "if (accept.includes('br')) {}";
         const { valid, violations } = validator.validate('policy.js', code);
-        expect(valid).toBe(true); // warnings don't fail the build
-        const warn = violations.find(v => v.level === 'warn' && v.message.includes('.includes()'));
-        expect(warn).toBeDefined();
-        expect(warn.lineNum).toBe(1);
+        expect(valid).toBe(false); // Should be a hard error for CFF
+        const error = violations.find(v => v.level === 'error' && v.message.includes('.includes()'));
+        expect(error).toBeDefined();
+        expect(error.lineNum).toBe(1);
     });
 
-    test('❌ Should warn on Object.assign()', () => {
+    test('❌ Should fail on Object.assign()', () => {
         const code = "Object.assign({}, {a:1});";
         const { valid, violations } = validator.validate('assign.js', code);
-        expect(valid).toBe(true);
-        const warn = violations.find(v => v.message.includes('Object.assign()'));
-        expect(warn).toBeDefined();
+        expect(valid).toBe(false);
+        const error = violations.find(v => v.message.includes('Modern Object Helpers'));
+        expect(error).toBeDefined();
     });
 
     // --- GROUP 5: DYNAMIC EXECUTION ---
