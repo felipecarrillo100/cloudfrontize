@@ -2,6 +2,7 @@ import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DistributionHook } from '../types';
 import { notify } from '../utils/notifications';
+import type { SizeLimit } from '../components/CodeViewer';
 
 /**
  * State for the generic code panel.
@@ -13,6 +14,8 @@ export interface CodePanelState {
     code: string;
     footerLeft?: string;
     footerRight?: string;
+    highlightLine?: number;             // 1-indexed line to scroll to and highlight
+    sizeLimit?: SizeLimit;              // if provided, CodeViewer shows size vs. limit indicator
 }
 
 interface ContextMenuItem {
@@ -49,7 +52,7 @@ interface UIContextType {
     closeDetail: () => void;
 
     /** Opens the code panel with the raw source of a hook (synchronous). */
-    openCode: (hook: DistributionHook) => void;
+    openCode: (hook: DistributionHook, highlightLine?: number) => void;
 
     /** 
      * Opens the code panel with production-processed code (async fetch).
@@ -97,19 +100,21 @@ export function UIProvider({ children }: { children: ReactNode }) {
     const closeDetail = () => setDetailPanel(null);
 
     /** Synchronous — maps hook fields directly to CodePanelState. */
-    const openCode = (hook: DistributionHook) => {
+    const openCode = (hook: DistributionHook, highlightLine?: number) => {
         setActiveCode({
             title: hook.path.split(/[\\\/]/).pop() || hook.path,
             subtitle: `${hook.type} • Read Only`,
             code: hook.code,
             footerLeft: hook.path,
             footerRight: 'Hot reload active (IDE mirrored)',
+            highlightLine,
         });
     };
 
     /** Async — fetches production code, opens panel only on success. */
     const openProductionCode = async (hook: DistributionHook, level: 'baked' | 'minified', label: string) => {
         const toastId = notify.loading('Building production output...');
+        const isCff = hook.type.toLowerCase().includes('function');
         try {
             const res = await fetch(`/api/production-code?id=${hook.id}&level=${level}`);
             if (!res.ok) throw new Error(`Server responded with ${res.status}`);
@@ -121,6 +126,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
                 code,
                 footerLeft: hook.path,
                 footerRight: `${label} output`,
+                sizeLimit: isCff ? { bytes: 10240, label: 'CFF Limit' } : undefined,
             });
         } catch (e: any) {
             notify.dismiss(toastId);

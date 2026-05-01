@@ -28,17 +28,36 @@ export class SnippetExtractor {
     }
   }
 
-  public static parseError(err: any): { line: number | null; col: number | null } {
-    // Standard Node.js SyntaxError stack: /path/to/file:L:C
-    // Or vm.Script error message: Unexpected token 'x' at (file.js:L:C)
+  public static parseError(err: any, filePath?: string): { line: number | null; col: number | null } {
     const stack = err.stack || err.message || '';
-    const match = stack.match(/[:(](\d+):(\d+)\)?/);
     
-    if (match) {
-      return {
-        line: parseInt(match[1], 10),
-        col: parseInt(match[2], 10)
-      };
+    // Priority 1: Match the specific file path in the stack/message (High Fidelity)
+    if (filePath) {
+      // Escape path for regex (critical for Windows paths)
+      const escapedPath = filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pathRegex = new RegExp(`${escapedPath}:(\\d+)(?::(\\d+))?`);
+      const pathMatch = stack.match(pathRegex);
+      if (pathMatch) {
+        return {
+          line: parseInt(pathMatch[1], 10),
+          col: pathMatch[2] ? parseInt(pathMatch[2], 10) : null
+        };
+      }
+    }
+
+    // Priority 2: Fallback to generic coordinate matching (ignores common Node internals)
+    const lines = stack.split('\n');
+    for (const lineText of lines) {
+       // Ignore internal Node.js frames to prevent "Line 117" hallucinations
+       if (lineText.includes('node:vm') || lineText.includes('node:internal')) continue;
+       
+       const match = lineText.match(/[:(](\d+):(\d+)\)?/);
+       if (match) {
+         return {
+           line: parseInt(match[1], 10),
+           col: parseInt(match[2], 10)
+         };
+       }
     }
     
     return { line: null, col: null };

@@ -1,19 +1,21 @@
-import { X, CheckCircle, AlertCircle, FileCode, FileEdit } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, FileCode, FileEdit, Code } from 'lucide-react';
 import type { DistributionHook } from '../types';
 
 interface StatusModalProps {
   hook: DistributionHook;
   error?: {
     file: string;
+    path: string;
     type: string;
     error: string;
     line: number | null;
     snippet: string;
   };
   onClose: () => void;
+  onViewSource?: (line: number | null) => void;
 }
 
-export default function StatusModal({ hook, error, onClose }: StatusModalProps) {
+export default function StatusModal({ hook, error, onClose, onViewSource }: StatusModalProps) {
   const isHealthy = !error;
   const filename = hook.path.split(/[\\\/]/).pop() || '';
 
@@ -124,7 +126,21 @@ export default function StatusModal({ hook, error, onClose }: StatusModalProps) 
 
         {/* Footer */}
         <div style={{ padding: '1.25rem 1.5rem', background: '#161b22', borderTop: '1px solid #30363d', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-           <button 
+           {error?.line != null && onViewSource && (
+             <button
+               onClick={() => { onViewSource(error.line); onClose(); }}
+               style={{
+                 display: 'flex', alignItems: 'center', gap: 8, padding: '0.6rem 1.25rem',
+                 background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)',
+                 borderRadius: '6px', color: '#f97316', fontSize: '0.8rem', fontWeight: 600,
+                 cursor: 'pointer'
+               }}
+             >
+               <Code size={16} />
+               View at Line {error.line}
+             </button>
+           )}
+           <button
              onClick={handleEdit}
              style={{
                display: 'flex', alignItems: 'center', gap: 8, padding: '0.6rem 1.25rem',
@@ -136,7 +152,7 @@ export default function StatusModal({ hook, error, onClose }: StatusModalProps) 
              <FileEdit size={16} />
              Edit in Editor
            </button>
-           <button 
+           <button
              onClick={onClose}
              style={{
                padding: '0.6rem 1.25rem',

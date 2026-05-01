@@ -135,6 +135,8 @@ export function DistributionProvider({ children }: { children: ReactNode }) {
         } else if (data.id === 'SYSTEM_BUILD') {
            if (data.type === 'error') {
                setBuildErrors(prev => ({ ...prev, [data.details.path]: data.details }));
+               // Forensic Sync: Refresh code even on failure so CodeViewer shows the latest offending source
+               refreshDistribution();
            } else if (data.type === 'success') {
                setBuildErrors(prev => {
                    const next = { ...prev };

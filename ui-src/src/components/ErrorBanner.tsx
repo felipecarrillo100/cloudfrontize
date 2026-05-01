@@ -1,17 +1,19 @@
-import { AlertCircle, X, Terminal, FileCode } from 'lucide-react';
+import { AlertCircle, X, Terminal, FileCode, Code } from 'lucide-react';
 
 interface ErrorBannerProps {
   error: {
     file: string;
+    path: string;
     type: string;
     error: string;
     line: number | null;
     snippet: string;
   };
   onDismiss: () => void;
+  onViewSource?: () => void;
 }
 
-export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
+export default function ErrorBanner({ error, onDismiss, onViewSource }: ErrorBannerProps) {
   return (
     <div style={{
       margin: '0 1.5rem 1.5rem 1.5rem',
@@ -40,6 +42,28 @@ export default function ErrorBanner({ error, onDismiss }: ErrorBannerProps) {
             {error.type}: {error.file} {error.line ? `(Line ${error.line})` : ''}
           </div>
         </div>
+        {error.line && onViewSource && (
+          <button
+            onClick={onViewSource}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              color: '#fff',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              transition: 'all 0.2s'
+            }}
+          >
+            <Code size={14} />
+            View at Line {error.line}
+          </button>
+        )}
         <button 
           onClick={onDismiss}
           style={{ 

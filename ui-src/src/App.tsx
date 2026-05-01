@@ -40,6 +40,11 @@ function DashboardContent() {
     }
   }, [activeError]);
 
+  const handleViewErrorSource = (error: any) => {
+    const hook = dist?.hooks.find(h => h.path === error.path);
+    if (hook) ui.openCode(hook, error.line ?? undefined);
+  };
+
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100%', background: '#0e1117', color: '#f8fafc', fontFamily: "'Inter', -apple-system, sans-serif", overflow: 'hidden', position: 'relative' }}>
       
@@ -76,6 +81,10 @@ function DashboardContent() {
           hook={ui.activeStatusHook} 
           error={buildErrors[ui.activeStatusHook.path]} 
           onClose={ui.closeStatus} 
+          onViewSource={(line) => {
+            ui.closeStatus();
+            ui.openCode(ui.activeStatusHook!, line ?? undefined);
+          }}
         />
       )}
 
@@ -103,7 +112,11 @@ function DashboardContent() {
           pointerEvents: 'none' // Allow clicking through the container except banner
         }}>
            <div style={{ pointerEvents: 'auto' }}>
-              <ErrorBanner error={activeError} onDismiss={() => setDismissedPath(activeError.path)} />
+              <ErrorBanner 
+                error={activeError} 
+                onDismiss={() => setDismissedPath(activeError.path)} 
+                onViewSource={() => handleViewErrorSource(activeError)}
+              />
            </div>
         </div>
       )}

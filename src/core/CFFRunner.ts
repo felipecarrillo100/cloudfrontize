@@ -149,8 +149,7 @@ export class CFFRunner extends HotRunner {
             try {
                 new vm.Script(fileCode, { filename: filePath });
             } catch (err: any) {
-                this.compileError = err.message;
-                const { line } = SnippetExtractor.parseError(err);
+                const { line } = SnippetExtractor.parseError(err, filePath);
                 const snippet = SnippetExtractor.extract(filePath, line);
 
                 this.emit('build_error', { 
@@ -184,9 +183,7 @@ export class CFFRunner extends HotRunner {
             this._warmup(mod);
             
             registry[type].push(mod);
-            if (this.options.verbose) {
-                console.log(`\x1b[32m✅ [CFF] Build Success: ${path.basename(filePath)}\x1b[0m`);
-            }
+            console.log(`\x1b[32m✅ [CFF] Build Success: ${path.basename(filePath)}\x1b[0m`);
             this.emit('build_success', { type: 'cff', file: filePath });
 
         } catch (err: any) {
