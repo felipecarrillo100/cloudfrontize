@@ -80,40 +80,24 @@ cloudfrontize www --cff ./tutorial/module-5-cff/beginner/viewer-request-blocker.
 
 ## 🧪 How to Test
 
-### 1. Using your browser
+### 1. The Forensic Trace (Web UI)
+A `403 Forbidden` response is a classic "Short-Circuit." Use the dashboard to confirm the request never touched the origin:
 
-1. Open:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Visit the forbidden path: `http://localhost:3000/admin`
+3.  In the **Timeline**, click the request.
+4.  Observe the **Stage Trace**: The request ends at the **Viewer Request** stage with a `403` status.
+5.  Check the **Origin Fetch** stage: It should be **skipped**.
 
-```
-http://localhost:3000/admin
-```
+### 2. Metric Monitoring
+1.  In the Dashboard, locate the **Viewer Request** node.
+2.  Check the **Performance Profile**:
+    - **CPU Time**: Should be extremely low (< 0.1ms) for a simple index check.
+    - **Code Size**: Notice how small this "Guard" function is.
 
-2. You should see a **403 Forbidden** page, confirming that the request was blocked at the edge.
-
-3. Test other URLs (e.g., `/index.html`) to confirm they continue normally.
-
----
-
-### 2. Using `curl` (terminal verification)
-
-```bash
-curl -v -I http://localhost:3000/admin
-```
-
-* Expected output includes:
-
-```
-HTTP/1.1 403 Forbidden
-```
-
-* Confirm that no content from the origin is returned.
-
----
-
-### 3. Optional: Check request logging
-
-* If running the emulator with `-d`, inspect the logs for the blocked request.
-* You should see a short-circuit response triggered for `/admin`.
+### 3. Using `curl`
+`curl -v http://localhost:3000/admin`
+Check for `HTTP/1.1 403 Forbidden`.
 
 ---
 

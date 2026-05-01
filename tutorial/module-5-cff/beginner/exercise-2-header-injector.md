@@ -83,40 +83,22 @@ cloudfrontize www --cff ./tutorial/module-5-cff/beginner/viewer-request-header.j
 
 ## 🧪 How to Test
 
-### 1. Using your browser
+### 1. The Forensic Trace (Web UI)
+Because this modification happens on the server side, your browser's "Request Headers" will **not** show the change. You must use the CloudFrontize dashboard:
 
-Open:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a request using `curl` or your browser: `http://localhost:3000`
+3.  In the **Timeline**, click on the request.
+4.  Go to the **Stages** tab and find the `viewer-request-header.js` stage.
+5.  Verify the **Mutated State** shows the `x-edge-powered-by` header.
 
-```
-http://localhost:3000
-```
+### 2. Diagnostic Identity
+1.  In the Dashboard diagram, click on the **Viewer Request** function node.
+2.  Inspect the **Diagnostic Identity** to see the live `request.headers` object mutation.
 
-* Open **Developer Tools → Network tab**
-* Reload the page
-* Click any request (e.g., `/index.html`)
-* Confirm the request **includes the header**:
-
-```
-x-edge-powered-by: cloudfrontize
-```
-
-### 2. Using `curl` (terminal verification)
-
-```bash
-curl -I http://localhost:3000
-```
-
-* Look for the header in the response 
-* Expected header:
-
-```
-x-edge-powered-by: cloudfrontize
-```
-
-### 3. Optional: Verify origin is untouched
-
-* Ensure the original request properties (URI, method) remain the same.
-* Only the **new header** is added at the edge.
+### 3. Terminal Audit
+If running with `--debug`, confirm the execution in your terminal logs:
+`[CFF: viewer-request] Header Injected: x-edge-powered-by`
 
 ---
 

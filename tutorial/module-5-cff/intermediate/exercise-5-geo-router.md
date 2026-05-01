@@ -27,12 +27,11 @@ A "Rewrite" is different from a "Redirect." A rewrite happens **internally** on 
 
 ## 🎯 Your Goal
 
-Implement a **CloudFront Function** that performs a forensic URI rewrite:
+Implement a **CloudFront Function** that performs a forensic **Internal Pivot**:
 
-1.  **Extract**: Read the `CloudFront-Viewer-Country` header.
-2.  **Filter**: Only act if the country is `FR`.
-3.  **Sanitize**: Ensure you only rewrite **page requests** (HTML or root `/`).
-4.  **Route**: Internally prefix the URI with `/countries/FR/`.
+1.  **Extract**: Read the `CloudFront-Viewer-Country` header (default to `US`).
+2.  **Idempotency**: Check if the URI is already localized to prevent "double-rewriting".
+3.  **Pivot**: Internally prefix the URI with `/countries/{{COUNTRY}}/`.
 
 > [!TIP]
 > **Forensic Hint**: Use the **Status Modal** in the dashboard. You can click on the function node to see the **Diagnostic Identity** and verify that it is correctly seeing the `FR` header you've injected via the emulator.
@@ -49,9 +48,8 @@ function handler(event) {
 
     // TODO:
     // 1. Get the country from headers (default to 'US')
-    // 2. Check if the request is for a "Page" (root or .html)
-    // 3. If country is 'FR' and it's a page, rewrite the URI
-    //    to: '/countries/FR' + uri
+    // 2. IDEMPOTENCY: Don't rewrite if URI already starts with '/countries/'
+    // 3. THE PIVOT: Rewrite the URI to: '/countries/' + country + uri
 
     return request;
 }
@@ -82,36 +80,27 @@ cloudfrontize www --cff ./tutorial/module-5-cff/intermediate/viewer-request-geo-
 
 ## 🧪 How to Test
 
-### 1. Simulating the French Viewer
+### 1. The Forensic Trace (Web UI)
+The browser's address bar always stays at `/`. You must use the dashboard to verify the internal swap:
 
-Use the `--headers` flag to inject the country code into the emulator:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a request for the French audience:
+    `curl -H "cloudfront-viewer-country: FR" http://localhost:3000/index.html`
+3.  In the **Timeline**, click the request.
+4.  Compare the **Client Request** stage (`/index.html`) with the **Origin Fetch** stage (`/countries/FR/index.html`).
+5.  **Diagnostic Identity**: Click the function node to verify it correctly detected the `FR` header.
 
-```bash
-cloudfrontize www --cff ./tutorial-cff/intermediate/viewer-request-geo-router.js --headers ./tutorial-cff/intermediate/exercise-5-geo-router.json --debug --mode website
-```
-
-### 2. Verification with `curl`
+### 2. Verification with `curl` (Content Check)
+Verify that the correct content is returned while the path remains unchanged:
 
 **Test the Rewrite (The Page):**
-
-```bash
-curl -v -H "cloudfront-viewer-country: FR" http://localhost:3000/index.html
-```
-
-* **Result:** You should see the content of `/countries/FR/index.html`.
-* **Terminal:** Check your logs; you should see the URI modification (REWRITE:).
-```text
-REWRITE: /index.html -> /countries/FR/index.html
-[Debug] Mode: website, isRestMode: false, URL: /countries/FR/index.html, FullPath: D:\antigravity\cloudfrontize\www\countries\FR\index.html
-```
+`curl -v -H "cloudfront-viewer-country: FR" http://localhost:3000/index.html`
+*   **Result**: You should see the content of the French index page.
+*   **Terminal Logs**: Look for `REWRITE: /index.html -> /countries/FR/index.html`.
 
 **Test Asset Protection (The CSS):**
-
-```bash
-curl -v -H "cloudfront-viewer-country: FR" http://localhost:3000/style.css
-```
-
-* **Result:** You should see your standard CSS without redirect. If the logic is wrong, this would incorrectly try to fetch `/countries/FR/style.css` and return a 404.
+`curl -v -H "cloudfront-viewer-country: FR" http://localhost:3000/style.css`
+*   **Result**: You should see your standard CSS. If the logic is wrong, the logs will show an incorrect rewrite to `/countries/FR/style.css`.
 
 ---
 

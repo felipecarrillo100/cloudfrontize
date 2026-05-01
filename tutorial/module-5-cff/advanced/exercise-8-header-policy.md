@@ -126,32 +126,18 @@ Because the modification happens **at the edge**, it ensures **low latency and h
 
 ## 🧪 How to Test
 
-### 1. Using a Browser
+### 1. The Forensic Trace (Web UI)
+As these are `viewer-request` injections, they are applied to the request **on the way to the origin**. You won't see them in your browser's Request Headers.
 
-1. Open:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a request: `curl http://localhost:3000`
+3.  In the **Timeline**, click on the request.
+4.  Go to the **Stages** tab and find the `viewer-request-header-policy.js` stage.
+5.  Verify that all 5 security headers are present in the **Mutated State**.
 
-```
-http://localhost:3000
-```
-
-2. Open developer tools → **Network tab**.
-3. Inspect the request headers (or response headers if you adapt for `viewer-response`) to confirm that all security headers are present.
-
-### 2. Using `curl`
-
-```bash
-curl -i http://localhost:3000
-```
-
-Check for headers:
-
-```
-Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Content-Security-Policy: default-src 'self'
-Referrer-Policy: same-origin
-```
+### 2. Diagnostic Identity
+1.  In the Dashboard diagram, click on the **Viewer Request** function node.
+2.  Check the **Diagnostic Identity** to see the final state of the request object before it left the edge.
 
 ---
 

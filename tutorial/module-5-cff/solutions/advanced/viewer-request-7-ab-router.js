@@ -22,10 +22,11 @@ function handler(event) {
 
         // 4. Internal Rewrite based on the bucket
         if (bucket === 'A') {
-            request.uri = '/chocolate-cookie.html';
+            request.uri = '/original-page';
         } else {
-            request.uri = '/vanilla-cookie.html';
+            request.uri = '/test-page';
         }
+        console.log("A/B ROUTE: " + uri + " -> " + request.uri);
     }
 
     return request;

@@ -77,26 +77,27 @@ tutorial/module-5-cff/advanced/viewer-request-rate-gate.js
 cloudfrontize www --cff ./tutorial/module-5-cff/advanced/viewer-request-rate-gate.js
 ```
 
-4. Simulate multiple requests and inspect the **response code** and **headers**.
+---
 
-    The limit is threshold is set to 100.  
+## 🧪 How to Test
 
-**Below limit**: When counter is 2 you are under the threshold (Should work):
+### 1. The Forensic Trace (Web UI)
+A `429 Too Many Requests` is a defensive "Short-Circuit." Verify the blockage visually:
 
-```bash
-curl -v -I -H "x-request-count: 2" http://localhost:3000/
-```
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a blocked request:
+    `curl -I -H "x-request-count: 101" http://localhost:3000/`
+3.  In the **Timeline**, click the request.
+4.  Verify the **Stage Trace** ends at the **Viewer Request** stage.
+5.  Check the **Logs** tab to see the `Rate Limit Blocked: 101` message.
 
-* **Result:** `200 OK`. The page content is returned.
+### 2. Performance Profiling
+1.  In the Dashboard, locate the **Viewer Request** node.
+2.  Check the **Execution Time**: Parsing headers and performing integer comparison is extremely fast. Confirm it is well below the 1ms budget.
 
-**Below limit**: When counter is 101 you are above the threshold (Should block):**
-
-```bash
-curl -v -I -H "x-request-count: 101" http://localhost:3000/
-```
-
-* **Result:** `429 Too Many Requests`.
-* **Body:** "Rate limit exceeded. Please slow down."
+### 3. Verification with `curl`
+`curl -v -H "x-request-count: 50" http://localhost:3000/` -> **200 OK**
+`curl -v -H "x-request-count: 150" http://localhost:3000/` -> **429 Too Many Requests**
 
 ---
 

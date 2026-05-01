@@ -83,38 +83,18 @@ cloudfrontize www --cff ./tutorial/module-5-cff/intermediate/viewer-request-quer
 
 ## 🧪 How to Test
 
-### 1. Using your browser
+### 1. The Forensic Trace (Web UI)
+Your browser will always show the full URL it sent. To see the "Normalized" URL that CloudFront actually used for the cache lookup, use the dashboard:
 
-1. Open a URL with tracking parameters:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a request with tracking params: `http://localhost:3000/products?utm_source=google&id=123`
+3.  In the **Timeline**, click on the request.
+4.  Compare the **Client Request** stage with the **Origin Fetch** stage.
+5.  Verify that `utm_source` has been stripped in the **Origin Fetch** stage.
 
-```
-http://localhost:3000/products?utm_source=google&utm_campaign=spring_sale&id=123
-```
-
-2. Inspect the request using **browser developer tools**.
-   You should see that the request sent to the origin has the **tracking parameters removed**, leaving only:
-
-```
-[Debug] Website mode directory rewrite: /products?id=123 -> /products/index.html
-[Debug] Mode: website, isRestMode: false, URL: /products/index.html?id=123, FullPath: D:\antigravity\cloudfrontize\www\products
-```
-
-3. Other query parameters not in the tracking list should remain untouched.
-
----
-
-### 2. Using `curl` (terminal verification)
-
-```bash
-curl -i "http://localhost:3000/products?utm_source=google&utm_campaign=spring_sale&id=123"
-```
-
-* Confirm that the request received by the origin (or logged in the emulator) shows only the non-tracking query parameters:
-
-```
-[Debug] Website mode directory rewrite: /products?id=123 -> /products/index.html
-[Debug] Mode: website, isRestMode: false, URL: /products/index.html?id=123, FullPath: D:\antigravity\cloudfrontize\www\products
-```
+### 2. Terminal Audit
+If running with `--debug`, the emulator will log the internal rewrite:
+`REWRITE: /products?utm_source=google&id=123 -> /products?id=123`
 
 ---
 

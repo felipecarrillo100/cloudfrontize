@@ -1,39 +1,29 @@
 function handler(event) {
     var request = event.request;
-    var headers = request.headers;
     var uri = request.uri;
 
-    // 1. PREVENT DOUBLE REWRITE (ES5 Way)
-    // Check if the URI already contains '/countries/' at the start.
-    // CFF does not support .startsWith(), so we use .indexOf() === 0
+    // 1. IDEMPOTENCY GUARD: Don't rewrite if already localized
+    // This allows relative assets and cross-country links to work.
     if (uri.indexOf('/countries/') === 0) {
         return request;
     }
 
-    // 2. Get the country
+    // 2. COUNTRY RESOLUTION: Use CloudFront headers (default to 'US')
     var country = 'US';
-    if (headers['cloudfront-viewer-country']) {
-        country = headers['cloudfront-viewer-country'].value;
+    if (request.headers['cloudfront-viewer-country']) {
+        country = request.headers['cloudfront-viewer-country'].value;
     }
 
-    // 3. Perform the Rewrite
+    // 3. THE INTERNAL PIVOT: Rewrite the URI to the localized folder
     var newUri = '/countries/' + country + uri;
 
-    // 🛠️ URI Normalization (Step 2): Handle trailing slashes
-    // CFF does not support .endsWith(), so we check the last character with .charAt().
-    // Why to do this? We manually append 'index.html' to paths ending in '/'
-    // because S3 buckets in REST API mode do not automatically resolve directory indexes.
-    // If your S3 bucket is configured for 'Static Website Hosting',
-    // you can skip this block. Website mode automatically appends the Index Document
-    // (e.g., index.html) to directory paths.
+    // 🛠️ S3 INDEX FIX: Ensure directory paths resolve to index.html
     if (newUri.charAt(newUri.length - 1) === '/') {
         newUri += 'index.html';
     }
 
     request.uri = newUri;
-
-    // Debugging log (Visible in your cloudfrontize terminal)
-    console.log("REWRITE 32: " + uri + " -> " + request.uri);
+    console.log("[Geo-Router] " + country + ": " + uri + " -> " + request.uri);
 
     return request;
 }

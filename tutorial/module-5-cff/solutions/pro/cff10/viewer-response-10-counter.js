@@ -15,7 +15,7 @@ function handler(event) {
 
     // Increment logic
     var newCount = count + 1;
-    console.log("Incrementing count to: " + newCount);
+    console.log("[CFF: Counter] Set-Cookie: count=" + newCount);
 
     // Set the cookie
     response.cookies['client-request-count'] = {
@@ -23,6 +23,5 @@ function handler(event) {
         attributes: "Path=/; Max-Age=300"
     };
 
-    console.log("Response cookie set. Sending back to client...");
     return response;
 }

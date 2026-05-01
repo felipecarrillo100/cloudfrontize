@@ -87,44 +87,29 @@ cloudfrontize www --cff ./tutorial/module-5-cff/beginner/viewer-request-redirect
 
 ---
 
+---
+
 ## 🧪 How to Test
 
-### 1. Using your browser
+### 1. The Forensic Trace (Web UI)
+While you can see a redirect in your browser, the dashboard provides a deeper look at the "Short-Circuit" execution:
 
-Open:
+1.  Open the Web UI: `http://localhost:3001`
+2.  In your browser, visit: `http://localhost:3000/promo`
+3.  In the **Timeline**, click on the request.
+4.  Observe the **Stage Trace**: You will see the request stop at the `[CFF: viewer-request]` stage.
+5.  **Origin Fetch**: Notice that the Origin Fetch stage is **empty/skipped**. This confirms the edge handled the response without ever hitting your origin.
 
-```
-http://localhost:3000/promo
-```
+### 2. Diagnostic Identity
+1.  Click the **Viewer Request** function node in the dashboard diagram.
+2.  Inspect the **Diagnostic Identity** to see the `301` response object your code generated.
 
-* You should be automatically redirected to:
+### 3. Using your browser
+Open `http://localhost:3000/promo`. You should be automatically redirected to `/summer-sale`.
 
-```
-http://localhost:3000/summer-sale
-```
-
-* If you visit any other URL (e.g., `/about`), it should **load normally** without redirection.
-
-### 2. Using `curl` (for terminal verification)
-
-```bash
-curl -v -I http://localhost:3000/promo
-```
-
-* You should see headers similar to:
-
-```
-HTTP/1.1 301 Moved Permanently
-location: /summer-sale
-```
-
-* Any other path should return `200 OK` without a `Location` header.
-
-### 3. Inspect headers
-
-* In your browser, open **Developer Tools → Network tab**
-* Click the `/promo` request
-* Confirm the **response status is 301** and the **Location header points to `/summer-sale`**
+### 4. Using `curl`
+`curl -v -I http://localhost:3000/promo`
+Check for `HTTP/1.1 301 Moved Permanently` and `location: /summer-sale`.
 
 ---
 

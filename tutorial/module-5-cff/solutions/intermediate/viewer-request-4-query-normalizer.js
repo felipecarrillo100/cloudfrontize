@@ -14,8 +14,7 @@ function handler(event) {
     }
 
     // 2. The "Receipt": Print the final state to the emulator terminal
-    // Use JSON.stringify so you can see the full object structure
-    // console.log("CFF_OUT: " + JSON.stringify(request.querystring));
+    console.log('Query Normalized: ' + request.uri);
 
     // Return the modified request with the cleaned query string
     return request;

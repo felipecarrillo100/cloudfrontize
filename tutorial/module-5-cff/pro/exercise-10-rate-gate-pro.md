@@ -117,44 +117,33 @@ cloudfrontize www --cff ./tutorial/module-5-cff/pro/cff10 --debug
 
 ---
 
-## 🧪 How to Test (The Validation Loop)
+---
 
-Testing a stateful cookie loop requires `curl` to behave like a browser by storing and sending back cookies.
+## 🧪 How to Test (The Forensic Validation)
 
-### 1. The Initial Request (Count = 0)
+### 1. The Visual Chain (Web UI)
+Open the **Web UI** (`http://localhost:3001`) to see the "Sandwich" architecture in action.
 
-Run this to start your session and save the first cookie:
+1.  **First Request (Count 0 -> 1)**:
+    - Run: `curl -c cookies.txt http://localhost:3000/`
+    - Look at the **Timeline**. You will see:
+        - `[CFF: viewer-request]` (Guard) -> **Passed**
+        - `[Origin Fetch]` -> **Success**
+        - `[CFF: viewer-response]` (Counter) -> **Injected Cookie**
+2.  **Subsequent Requests**:
+    - Run: `curl -b cookies.txt -c cookies.txt http://localhost:3000/`
+    - Watch the **Logs** tab in the UI. You'll see the Guard detecting the count and the Counter incrementing it.
+3.  **The Block (Count 5)**:
+    - On the 6th request, watch the **Stage Trace**.
+    - The request should stop at the **Guard** with a `429` status.
+    - The **Origin Fetch** and **Viewer Response** stages will be **skipped**.
 
-```bash
-curl -v -I -c cookies.txt http://localhost:3000/
-```
+### 2. Diagnostic Identity
+- Click the **Viewer Request** node: Verify the Guard sees the incoming cookie.
+- Click the **Viewer Response** node: Verify the Counter is generating the correct `Set-Cookie` header.
 
-* **What to look for:** In the output, you should see `Set-Cookie: client-request-count=1`. This was injected by your **Counter** function.
-
-### 2. The Increment Loop (Count 1 to 4)
-
-Run this command 4 more times. The `-b` flag sends the cookie back, and `-c` updates it with the new value:
-
-```bash
-curl -v -I -b cookies.txt -c cookies.txt http://localhost:3000/
-```
-
-* **What to look for:** Each time, the origin (the "Paws" app) should return `200 OK`. If you inspect the `cookies.txt` file, you’ll see the count rising.
-
-### 3. The Block (Count = 5)
-
-On your 6th attempt, run the command again:
-
-```bash
-curl -i -b cookies.txt http://localhost:3000/
-```
-
-* **Expected Result:**
-* **Status:** `429 Too Many Requests`
-* **Body:** `Rate limit reached! Your cookie count is 5`
-
-
-* **Why?** The **Guard** function saw the cookie value of `5` and short-circuited the request before it ever reached the origin.
+### 3. Performance Profiling
+Notice the combined CPU time of the chain. Even with two sandboxes, the total execution time should stay well within production limits.
 
 ---
 

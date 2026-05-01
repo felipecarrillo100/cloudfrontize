@@ -77,35 +77,23 @@ cloudfrontize www --cff ./tutorial/module-5-cff/advanced/viewer-request-bot-dete
 
 ## 🧪 How to Test
 
-### 1. Using a Browser
+### 1. The Forensic Trace (Web UI)
+Bot detection is a security "Short-Circuit." Use the dashboard to confirm the bot was neutralized at the edge:
 
-1. Open any URL:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a bot request using `curl`:
+    `curl -i -H "User-Agent: BadSpider/1.0" http://localhost:3000/`
+3.  In the **Timeline**, click the request.
+4.  Observe the **Stage Trace**: The request should stop at the **Viewer Request** stage with a `403` status.
+5.  **Logs**: Check the logs tab in the UI to see the `Bot Blocked: BadSpider/1.0` message.
 
-```
-http://localhost:3000
-```
+### 2. Diagnostic Identity
+1.  In the Dashboard diagram, click on the **Viewer Request** function node.
+2.  Inspect the **Diagnostic Identity** to verify the `User-Agent` header was correctly parsed by your code.
 
-2. You can overwrite this header with `--headers`  because the browser will overwrite the `User-Agent` header every time with the browser id.
-
-3. Run it to CloudFrontize:
-
-```bash
-cloudfrontize www --cff ./tutorial-cff/intermediate/viewer-request-bot-detector.js --debug --mode website
-```
-
-4. Visit the root URL: http://localhost:3000/
-* Normal browser request wil show User-Agent strings (e.g., `"Mozilla/5.0"`).
-
----
-
-### 2. Using `curl`
-
-```bash
-curl -i -H "User-Agent: GPTBot" http://localhost:3000/
-```
-
-* Since lower case User-Agent: `gptbot` contains `bot` in it, the response should be **403 Forbidden**.
-* Changing the User-Agent to `"Mozilla/5.0"` should return the normal page content.
+### 3. Verification with `curl`
+`curl -v -H "User-Agent: Chrome" http://localhost:3000/` -> **200 OK**
+`curl -v -H "User-Agent: GoogleBot" http://localhost:3000/` -> **403 Forbidden**
 
 ---
 

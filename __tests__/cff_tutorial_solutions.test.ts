@@ -27,18 +27,20 @@ describe('CFF Tutorial Solutions Verification', () => {
         fs.writeFileSync(path.join(wwwDir, 'products.html'), '<h1>Products</h1>');
         fs.writeFileSync(path.join(wwwDir, 'style.css'), 'body { color: blue; }');
         
-        // Geo router content
+        // Geo router content (Fully Localized)
         fs.mkdirSync(path.join(wwwDir, 'countries', 'FR'), { recursive: true });
         fs.writeFileSync(path.join(wwwDir, 'countries', 'FR', 'index.html'), '<h1>Bienvenue en France</h1>');
+        fs.writeFileSync(path.join(wwwDir, 'countries', 'FR', 'style.css'), 'body { color: blue; }');
+
         fs.mkdirSync(path.join(wwwDir, 'countries', 'US'), { recursive: true });
         fs.writeFileSync(path.join(wwwDir, 'countries', 'US', 'index.html'), '<h1>Welcome to USA</h1>');
+        fs.writeFileSync(path.join(wwwDir, 'countries', 'US', 'style.css'), 'body { color: blue; }');
         
         // A/B test pages
-        fs.writeFileSync(path.join(wwwDir, 'chocolate-cookie.html'), '<h1>Chocolate Page</h1>');
-        fs.writeFileSync(path.join(wwwDir, 'vanilla-cookie.html'), '<h1>Vanilla Page</h1>');
+        fs.writeFileSync(path.join(wwwDir, 'original-page'), '<h1>Original Page</h1>');
+        fs.writeFileSync(path.join(wwwDir, 'test-page'), '<h1>Test Page</h1>');
 
         // Setup a diagnostic Edge hook to reflect headers for verification.
-        // MUST specify exports.hookType for EdgeRunner to register it.
         const reflectHook = `
             exports.hookType = 'viewer-response';
             exports.handler = async (event) => {
@@ -47,7 +49,7 @@ describe('CFF Tutorial Solutions Verification', () => {
                 
                 // Whitelist of headers we want to reflect for automated verification
                 const whitelist = [
-                    'x-demo', 
+                    'x-edge-powered-by', 
                     'strict-transport-security', 
                     'x-frame-options', 
                     'content-security-policy', 
@@ -65,7 +67,7 @@ describe('CFF Tutorial Solutions Verification', () => {
         `;
         fs.writeFileSync(path.join(edgeDir, 'viewer-response-reflect.js'), reflectHook);
         edgeRunner = new EdgeRunner(edgeDir);
-edgeRunner.load();
+        edgeRunner.load();
     });
 
     afterEach(async () => {
@@ -78,7 +80,7 @@ edgeRunner.load();
     // === 🟢 BEGINNER ===
 
     test('Beginner Ex 1.1: Traffic Director (Redirect)', async () => {
-        const solPath = path.join(solutionsDir, 'beginner', 'viewer-request-redirect.js');
+        const solPath = path.join(solutionsDir, 'beginner', 'viewer-request-1-traffic-director.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -91,7 +93,7 @@ edgeRunner.load();
     });
 
     test('Beginner Ex 1.2: Header Injector', async () => {
-        const solPath = path.join(solutionsDir, 'beginner', 'viewer-request-header.js');
+        const solPath = path.join(solutionsDir, 'beginner', 'viewer-request-2-header-injector.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -100,11 +102,11 @@ edgeRunner.load();
         });
 
         const res = await request(server).get('/index.html');
-        expect(res.headers['x-demo']).toBe('cloudfrontize');
+        expect(res.headers['x-edge-powered-by']).toBe('cloudfrontize');
     });
 
     test('Beginner Ex 1.3: Simple Blocker', async () => {
-        const solPath = path.join(solutionsDir, 'beginner', 'viewer-request-blocker.js');
+        const solPath = path.join(solutionsDir, 'beginner', 'viewer-request-3-simple-blocker.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -121,7 +123,7 @@ edgeRunner.load();
     // === 🟡 INTERMEDIATE ===
 
     test('Intermediate Ex 1.4: Query Normalizer', async () => {
-        const solPath = path.join(solutionsDir, 'intermediate', 'viewer-request-query-normalizer.js');
+        const solPath = path.join(solutionsDir, 'intermediate', 'viewer-request-4-query-normalizer.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -133,8 +135,8 @@ edgeRunner.load();
         expect(res.text).toContain('Products');
     });
 
-    test('Intermediate Ex 2.1: Geo Router (Rewrite)', async () => {
-        const solPath = path.join(solutionsDir, 'intermediate', 'viewer-request-geo-router.js');
+    test('Intermediate Ex 1.5: Geo Router (Rewrite)', async () => {
+        const solPath = path.join(solutionsDir, 'intermediate', 'viewer-request-5-geo-router.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -158,8 +160,8 @@ edgeRunner.load();
         expect(resCSS.text).toContain('blue');
     });
 
-    test('Intermediate Ex 3.1: Bot Detector', async () => {
-        const solPath = path.join(solutionsDir, 'intermediate', 'viewer-request-bot-detector.js');
+    test('Intermediate Ex 1.6: Bot Detector', async () => {
+        const solPath = path.join(solutionsDir, 'intermediate', 'viewer-request-6-bot-detector.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -179,8 +181,8 @@ edgeRunner.load();
 
     // === 🔴 ADVANCED ===
 
-    test('Advanced Ex 3.2: A/B Testing Router', async () => {
-        const solPath = path.join(solutionsDir, 'advanced', 'viewer-request-ab-router.js');
+    test('Advanced Ex 1.7: A/B Testing Router', async () => {
+        const solPath = path.join(solutionsDir, 'advanced', 'viewer-request-7-ab-router.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -190,20 +192,20 @@ edgeRunner.load();
         const resA = await request(server)
             .get('/')
             .set('Cookie', 'ab_test_group=A');
-        expect(resA.text).toContain('Chocolate Page');
+        expect(resA.text).toContain('Original Page');
 
         const resB = await request(server)
             .get('/')
             .set('Cookie', 'ab_test_group=B');
-        expect(resB.text).toContain('Vanilla Page');
+        expect(resB.text).toContain('Test Page');
 
         const resNew = await request(server).get('/');
-        const isOneOfPages = resNew.text.includes('Chocolate') || resNew.text.includes('Vanilla');
+        const isOneOfPages = resNew.text.includes('Original') || resNew.text.includes('Test');
         expect(isOneOfPages).toBe(true);
     });
 
-    test('Advanced Ex 3.3: Header Policy', async () => {
-        const solPath = path.join(solutionsDir, 'advanced', 'viewer-request-header-policy.js');
+    test('Advanced Ex 1.8: Header Policy', async () => {
+        const solPath = path.join(solutionsDir, 'advanced', 'viewer-request-8-header-policy.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -216,8 +218,8 @@ edgeRunner.load();
         expect(res.headers['x-frame-options']).toBe('DENY');
     });
 
-    test('Advanced Ex 3.4: Rate Gate', async () => {
-        const solPath = path.join(solutionsDir, 'advanced', 'viewer-request-rate-gate.js');
+    test('Advanced Ex 1.9: Rate Gate', async () => {
+        const solPath = path.join(solutionsDir, 'advanced', 'viewer-request-9-rate-gate.js');
         server = startServer({
             port: 0,
             directory: wwwDir,
@@ -237,7 +239,7 @@ edgeRunner.load();
 
     // === 🏆 PRO ===
 
-    test('Pro: Combined Cookie Guard & Counter', async () => {
+    test('Pro Ex 1.10: Combined Cookie Guard & Counter', async () => {
         const solPath = path.join(solutionsDir, 'pro', 'cff10');
         server = startServer({
             port: 0,

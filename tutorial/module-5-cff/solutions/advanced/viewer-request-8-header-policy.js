@@ -21,6 +21,9 @@ function handler(event) {
         }
     }
 
-    // 3. Return the modified request to the origin
+    // 3. The "Receipt": Log the enforcement
+    console.log('Security Policy Enforced: ' + request.uri);
+
+    // 4. Return the modified request to the origin
     return request;
 }

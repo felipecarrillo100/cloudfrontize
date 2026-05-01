@@ -15,7 +15,7 @@ function handler(event) {
     }
 
     if (count >= limit) {
-        console.log("!!! LIMIT EXCEEDED (" + count + " >= " + limit + "). Blocking request with 429.");
+        console.log("[CFF: Guard] Blocked: count " + count);
         return {
             statusCode: 429,
             statusDescription: 'Too Many Requests',
@@ -23,6 +23,6 @@ function handler(event) {
         };
     }
 
-    console.log("Under limit. Passing request to origin...");
+    console.log("[CFF: Guard] Passed: count " + count);
     return request;
 }

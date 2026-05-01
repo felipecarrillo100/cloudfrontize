@@ -3,16 +3,18 @@ function handler(event) {
     // CFF headers are objects with a .value property
     var ua = r.headers['user-agent'];
 
-    // Check if the User-Agent header exists and contains the string 'bot'
-    // Note: includes() is available in the CFF runtime (ES 5.1+)
-    if (ua && ua.value.toLowerCase().indexOf('bot') !== -1) {
-        return {
-            statusCode: 403,
-            statusDescription: 'Bot Blocked',
-            headers: {
-                'content-type': { value: 'text/plain' }
-            }
-        };
+    if (ua) {
+        var lowerUA = ua.value.toLowerCase();
+        if (lowerUA.indexOf('bot') !== -1 || lowerUA.indexOf('spider') !== -1 || lowerUA.indexOf('crawler') !== -1) {
+            console.log('Bot Blocked: ' + ua.value);
+            return {
+                statusCode: 403,
+                statusDescription: 'Bot Blocked',
+                headers: {
+                    'content-type': { value: 'text/plain' }
+                }
+            };
+        }
     }
 
     // Allow legitimate traffic to proceed

@@ -90,36 +90,21 @@ cloudfrontize www --cff ./tutorial/module-5-cff/advanced/viewer-request-ab-route
 
 ## 🧪 How to Test
 
-### 1. Using a Browser
+### 1. The Forensic Trace (Web UI)
+Since the browser URL remains at `/`, the only way to "see" the internal routing is via the dashboard:
 
-1. Open:
+1.  Open the Web UI: `http://localhost:3001`
+2.  Trigger a request with a specific cookie:
+    `curl -H "Cookie: ab_test_group=A" http://localhost:3000/`
+3.  In the **Timeline**, click on the request.
+4.  Verify that the **Origin Fetch** stage points to `/original-page`.
+5.  Repeat with `ab_test_group=B` and verify it points to `/test-page`.
 
-```
-http://localhost:3000/
-```
-
-2. Inspect cookies using your browser developer tools:
-
-* If the `ab_test_group` cookie is **A**, you should see `/original-page`
-* If the cookie is **B**, you should see `/test-page`
-* If no cookie exists, the function should set one randomly and route accordingly
-
-3. Refresh the page to confirm that the same bucket is consistently served after the cookie is set.
-
----
-
-### 2. Using `curl` with Cookies
-
-```bash
-# Simulate user with cookie A
-curl -i -H "Cookie: ab_test_group=A" http://localhost:3000/
-
-# Simulate user with cookie B
-curl -i -H "Cookie: ab_test_group=B" http://localhost:3000/
-
-# New user (no cookie)
-curl -i http://localhost:3000/
-```
+### 2. Random Assignment Verification
+1.  Clear your cookies or use `curl` without the `-H "Cookie: ..."` flag.
+2.  Trigger multiple requests and check the **Terminal Logs**.
+3.  You should see alternating rewrites:
+    `REWRITE: / -> /original-page` OR `REWRITE: / -> /test-page`
 
 ---
 
