@@ -5,13 +5,13 @@ In this module, you'll learn how to make "smart" routing decisions before reachi
 ## Exercises
 
 ### 2.1 The Scientist (Origin Request)
-**Problem**: You want to test a new homepage layout (`/v2/index.html`) but only for 10% of users.
+**Problem**: You want to test a new homepage layout (`/experimental/index.html`) for selected users.
 **Goal**: Use a `cookie` check in an `origin-request` hook to rewrite the URI internally.
 [Go to Exercise 🛠️](./exercise-1/scenario.md)
 
 ### 2.2 The Diplomat (Origin Request)
 **Problem**: Different countries have different legal requirements for your site.
-**Goal**: Use the `CloudFront-Viewer-Country` header to append a country code to the URI (e.g., `/index.html` -> `/US/index.html`).
+**Goal**: Use the `CloudFront-Viewer-Country` header to prepend a country code to the URI (e.g., `/index.html` -> `/countries/US/index.html`).
 [Go to Exercise 🛠️](./exercise-2/scenario.md)
 
 ### 2.3 The Cloaker (Origin Response)

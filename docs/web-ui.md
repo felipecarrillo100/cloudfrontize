@@ -18,7 +18,7 @@ Once running, navigate to `http://localhost:3001/` to access the live dashboard.
 
 ---
 
-## 🛣️ 1. The Fidelity Cloud (The Highway)
+## 🛣️ 1. Functional Fidelity Cloud (The Highway)
 
 At the heart of the Pro interface is the **Fidelity Cloud**, a real-time visualization of your distribution's request pipeline.
 
@@ -69,7 +69,7 @@ Simulate how your edge logic responds to different hardware profiles:
 
 ---
 
-## 🕵️ 3. Forensic Traffic Audit
+## 🕵️ 3. Real Time Edge Traffic Forensics
 
 The lower section of the dashboard provides a deep-dive into every request that passes through the highway.
 
