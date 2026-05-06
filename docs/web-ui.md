@@ -29,7 +29,7 @@ The highway visualizes the 4-step CloudFront lifecycle:
     - **Orange Station (λ)**: Represents a Lambda@Edge hook.
     - **Blue Station (⚙️)**: Represents a CloudFront Function block.
 - **☁️ Pro Dist**: The simulated CloudFront distribution core.
-- **📦 Origin**: Your downstream source (S3, MinIO, or a Multi-Origin setup).
+- **📦 Origin**: Your downstream source (File system path, S3, MinIO, or a Multi-Origin setup).
 
 ### 🖱️ Node Interactions (Context Menus)
 Every functional node is interactive. **Right-click** on any station to access the **Node Actions** menu:
