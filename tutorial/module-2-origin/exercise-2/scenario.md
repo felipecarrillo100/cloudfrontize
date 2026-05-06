@@ -92,7 +92,8 @@ In a production **Lambda@Edge** environment, subfolders do not automatically app
 ---
 
 > [!CAUTION]
-> ### 🛑 Forensic Troubleshooting: Port 3000 Hangups
-> If the emulator fails to start because "Port 3000 is already in use," it means a previous session didn't close properly. 
-> 1. Run: `netstat -ano | findstr :3000` to find the PID.
-> 2. Run: `taskkill /F /PID <PID_NUMBER>` to clear the ghost process.
+> ### 🛑 Forensic Troubleshooting: You request / and you don't see the expected content
+> This may depend on the mode your S3 is behaving, by default an S3 behaves in REST API mode meaning that if you request a folder you are not redirected to folder/index.html, instead you receive a 404 or a not authorized. 
+> 1. To overcome this issue: you could append the index.html to your request (e.g., `http://localhost:3000/index.html`) or you 
+> 2. You can emulate an S3 in website mode with --mode website
+> 3. You can connect cloudfrontize to a real S3 service, such as LocalStack, which will allow you to configure the S3 bucket in website mode and test the behavior with real S3 responses. To do this, use the `--origin` flag to point to your LocalStack S3 endpoint:

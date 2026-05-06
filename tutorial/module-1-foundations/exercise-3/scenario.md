@@ -69,7 +69,7 @@ curl -I -H "CloudFront-Is-Mobile-Viewer: true" http://localhost:3000/any-page
 
 ### 💡 Pro Tip: Persistent Header Simulation
 
-As an alternative to the Header Intelligence in the WbUI. You can also tell the `cloudfrontize` emulator to **always** inject specific headers by creating a `headers.json` file with the `--headers` option:
+As an alternative to the **Header Intelligence** in the `WebUI`. You can also tell the `cloudfrontize` emulator to **always** inject specific headers by creating a `headers.json` file and passing it with the `--headers` option:
 
 Create `header.json`
 ```json
@@ -93,7 +93,8 @@ In AWS, to use device-detection headers, you must first enable them in your **Cl
 ---
 
 > [!CAUTION]
-> ### 🛑 Forensic Troubleshooting: Port 3000 Hangups
-> If the emulator fails to start because "Port 3000 is already in use," it means a previous session didn't close properly. 
-> 1. Run: `netstat -ano | findstr :3000` to find the PID.
-> 2. Run: `taskkill /F /PID <PID_NUMBER>` to clear the ghost process.
+> ### 🛑 Forensic Troubleshooting: You see a 404
+> Do not worry about that, that is perfectly normal. Our exercise redirects the users to `http://m.example.com`, a site that does not exist
+> This exercise focuses on performing a 302 redirect, not on building the website itself. If you prefer, you can::
+> 1. Redirect the users to a real website, for example `https://www.amazon.com/` or `https://www.google.com/` 
+> 2. Or you could redirect to a subdirectory within your own site. If you choose this path, ensure your logic is sound to avoid infinite redirect loops, where the user is trapped by repeatedly triggering the same redirect rule.

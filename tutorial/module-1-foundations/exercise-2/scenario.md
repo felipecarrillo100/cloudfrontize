@@ -84,7 +84,10 @@ Lambda@Edge `viewer-request` functions run **before** the CloudFront cache check
 ---
 
 > [!CAUTION]
-> ### 🛑 Forensic Troubleshooting: Port 3000 Hangups
-> If the emulator fails to start because "Port 3000 is already in use," it means a previous session didn't close properly. 
-> 1. Run: `netstat -ano | findstr :3000` to find the PID.
-> 2. Run: `taskkill /F /PID <PID_NUMBER>` to clear the ghost process.
+> ### 🛑 Forensic Troubleshooting: You hit reload in your web browser but nothing happens.
+> 
+> This situation could be perfectly normal, is part of the standard behaviour of your browser. It happens because your has a fresh copy of the website in its local disk cache.
+> 
+> If you face this problem, you can either:
+> 1. Open a browser window in: `Mode incognito | Private Window` a browser in this mode does not keep cache and send a new request every time.
+> 2. Clear your cache every time, just before you request a page again.

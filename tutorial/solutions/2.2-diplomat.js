@@ -25,7 +25,7 @@ exports.handler = async (event) => {
     console.log("[L@E: Diplomat] PIVOT: " + request.uri);
 
     // 🛠️ URI Normalization (Step 2): Handle trailing slashes
-    // If your S3 in REST mode a subfolder/ does not produce 'subfolder/index.html', to avoid a 404 you have two options
+    // If your S3 is in REST mode a subfolder/ does not produce 'subfolder/index.html', to avoid a 404 you have two options
     // Use the --mode website, where index.html is added automatically, or normalize the urls that end with /
     if (request.uri.endsWith('/')) {
         request.uri += 'index.html';
