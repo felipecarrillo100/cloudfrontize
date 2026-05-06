@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.10.2...v2.0.0) (2026-05-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* migrate to TypeScript and modular architecture (v2.0.0)
+
+### Features
+
+* migrate to TypeScript and modular architecture (v2.0.0) ([923e007](https://github.com/felipecarrillo100/cloudfrontize/commit/923e00738bc062ae2eb48c2df602ff85e3d01f4b))
+
+
+### Bug Fixes
+
+* **LocalProvider:** Local provider is now working properly when handling paths /folder/ ([e18fc7c](https://github.com/felipecarrillo100/cloudfrontize/commit/e18fc7c82ef095f9bde4698a06cd19504b1e3c5b))
+* **LocalProvider:** Properly implements S3Provider.ts ([18f9266](https://github.com/felipecarrillo100/cloudfrontize/commit/18f92665bbb5d55dc430f36ab59c4b7fdda46525))
+* **LocalProvider:** Properly implements S3Provider.ts ([3b0d151](https://github.com/felipecarrillo100/cloudfrontize/commit/3b0d1510875db17e3aa571df06cb2fbe4415408e))
+* **LocalProvider:** Properly implements S3Provider.ts ([4eb5fd9](https://github.com/felipecarrillo100/cloudfrontize/commit/4eb5fd928700a2df5416d1ef7dcdb1995987b72c))
+* **updated:** Deleting headers from L@E and CFF was broken in the pipeline. ([5a928af](https://github.com/felipecarrillo100/cloudfrontize/commit/5a928af28375e23397ef877e3d7ea65e86da9bb9))
+* **updated:** Deleting headers from L@E and CFF was broken in the pipeline. ([f240796](https://github.com/felipecarrillo100/cloudfrontize/commit/f240796d6cc27e76a72bbe8759fa9b2153763063))
+
 ## [1.10.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v1.10.1...v1.10.2) (2026-03-25)
 
 
