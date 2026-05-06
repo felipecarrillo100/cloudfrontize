@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.1...v2.0.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* **doc:** Fixed documentation ([d698bc7](https://github.com/felipecarrillo100/cloudfrontize/commit/d698bc7253ae49d500efcc561a52a86392c648e6))
+
 ## [2.0.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.0...v2.0.1) (2026-05-06)
 
 
