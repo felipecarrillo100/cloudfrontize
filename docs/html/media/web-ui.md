@@ -18,7 +18,7 @@ Once running, navigate to `http://localhost:3001/` to access the live dashboard.
 
 ---
 
-## 🛣️ 1. The Fidelity Cloud (The Highway)
+## 🛣️ 1. Functional Fidelity Cloud (The Highway)
 
 At the heart of the Pro interface is the **Fidelity Cloud**, a real-time visualization of your distribution's request pipeline.
 
@@ -29,7 +29,7 @@ The highway visualizes the 4-step CloudFront lifecycle:
     - **Orange Station (λ)**: Represents a Lambda@Edge hook.
     - **Blue Station (⚙️)**: Represents a CloudFront Function block.
 - **☁️ Pro Dist**: The simulated CloudFront distribution core.
-- **📦 Origin**: Your downstream source (S3, MinIO, or a Multi-Origin setup).
+- **📦 Origin**: Your downstream source (File system path, S3, MinIO, or a Multi-Origin setup).
 
 ### 🖱️ Node Interactions (Context Menus)
 Every functional node is interactive. **Right-click** on any station to access the **Node Actions** menu:
@@ -69,7 +69,7 @@ Simulate how your edge logic responds to different hardware profiles:
 
 ---
 
-## 🕵️ 3. Forensic Traffic Audit
+## 🕵️ 3. Real Time Edge Traffic Forensics
 
 The lower section of the dashboard provides a deep-dive into every request that passes through the highway.
 
