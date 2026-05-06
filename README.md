@@ -14,7 +14,7 @@ Test your Edge logic locally in milliseconds instead of waiting 15 minutes for C
 
 | CloudFrontize Console                                                                                                    | CloudFrontize Web UI |
 |--------------------------------------------------------------------------------------------------------------------------|--------------------|
-| ![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![Cloudfrontize Web UI](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-webui.jpg?v=1) |
+| ![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![CloudFrontize Pro Dashboard](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-pro-ui.png) |
 
 ---
 ## 📦 Getting started
