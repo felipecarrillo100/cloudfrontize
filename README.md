@@ -25,7 +25,6 @@ Run a local CloudFront simulation in seconds. No complex AWS IAM roles, no stack
 ```bash
 npx --yes cloudfrontize ./www --edge ./viewer-request-rewrite.js
 ```
-
 ### 📦 Or install globally
 
 ```bash
