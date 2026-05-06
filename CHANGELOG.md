@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.2...v2.0.3) (2026-05-06)
+
+
+### Bug Fixes
+
+* **doc:** Install also ui-src dependencies ([70115b7](https://github.com/felipecarrillo100/cloudfrontize/commit/70115b714dba5763be9618c79defc73a24e2392d))
+
 ## [2.0.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.1...v2.0.2) (2026-05-06)
 
 
