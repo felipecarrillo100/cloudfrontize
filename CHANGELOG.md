@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.3...v2.1.0) (2026-09-30)
+
+
+### Features
+
+* AWS fidelity — doc-based header rules, size limits, pipeline behavior ([ce81523](https://github.com/felipecarrillo100/cloudfrontize/commit/ce8152314402999ff88efc700955f7d61fddb53c))
+* Phase 1 hardening — working CLI flags, AWS-parity hook errors, WebUI security ([09b149e](https://github.com/felipecarrillo100/cloudfrontize/commit/09b149e5eada0482525eb69747f40c4eb4cd14a1))
+
+
+### Bug Fixes
+
+* 2.2.1 — bake-only output, --webui default port, credential redaction ([bfb2e3f](https://github.com/felipecarrillo100/cloudfrontize/commit/bfb2e3f5c4c01e718574bd1411924b18131c54b3))
+* **edge:** return 503 on strict-mode Lambda@Edge timeouts; add CI typecheck ([97e9e11](https://github.com/felipecarrillo100/cloudfrontize/commit/97e9e1110a664d95c8d5baf31d3e9ef55c40f89e))
+
 ## [2.2.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.2.0...v2.2.1) (2026-09-30)
 
 
