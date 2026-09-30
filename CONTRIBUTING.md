@@ -42,6 +42,7 @@ Now you can run `cloudfrontize` globally, and it will use your local modified co
 We aim for high fidelity with AWS behavior. If you add a feature (like a new header restriction), please include a test case.
 
 * **Run existing tests**: `npm test`
+* **Typecheck**: `npm run typecheck` (this is what CI runs on every pull request)
 * **Manual Verification**: Use the `./samples` directory to verify that your changes don't break the Lambda@Edge execution flow.
 
 ---
