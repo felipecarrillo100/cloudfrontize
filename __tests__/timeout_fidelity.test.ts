@@ -1,6 +1,8 @@
 export {};
 const { EdgeRunner } = require('../src/edgeRunner');
 const { AWS_LIMITS } = require('../src/constants');
+const { startServer } = require('../src/index');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
@@ -110,5 +112,49 @@ describe('Execution Timeout Fidelity', () => {
         expect(t2).toBeLessThan(t1 - 900);
         runner.close();
     }, 30000);
-});
 
+    // End-to-end: strict mode must surface a timeout as AWS does (503), not pass the request through
+    const runStrictServer = async (hookType: string) => {
+        const testDir = path.join(tmpDir, `e2e_${hookType}`);
+        const hookDir = path.join(testDir, 'hooks');
+        fs.mkdirSync(hookDir, { recursive: true });
+        fs.writeFileSync(path.join(testDir, 'index.html'), 'origin-ok');
+        fs.writeFileSync(path.join(hookDir, 'handler.js'), `
+            exports.hookType = '${hookType}';
+            exports.handler = async (event) => {
+                await new Promise(resolve => setTimeout(resolve, 6000));
+                const cf = event.Records[0].cf;
+                return cf.response || cf.request;
+            };
+        `);
+
+        const runner = new EdgeRunner(hookDir, { strict: true, watch: false });
+        runner.load();
+        const server = startServer({ port: 0, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
+        await new Promise(resolve => server.listening ? resolve(null) : server.once('listening', resolve));
+
+        const { statusCode, body } = await new Promise<any>((resolve, reject) => {
+            http.get(`http://127.0.0.1:${server.address().port}/index.html`, (res: any) => {
+                let data = '';
+                res.on('data', (c: any) => data += c);
+                res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+            }).on('error', reject);
+        });
+
+        await server.closeGracefully();
+        return { statusCode, body };
+    };
+
+    test('Strict E2E: viewer-request timeout returns 503', async () => {
+        const { statusCode, body } = await runStrictServer('viewer-request');
+        expect(statusCode).toBe(503);
+        expect(body).toContain('LambdaLimitExceeded');
+    }, 30000);
+
+    test('Strict E2E: viewer-response timeout returns 503 instead of the origin response', async () => {
+        const { statusCode, body } = await runStrictServer('viewer-response');
+        expect(statusCode).toBe(503);
+        expect(body).toContain('LambdaLimitExceeded');
+        expect(body).not.toContain('origin-ok');
+    }, 30000);
+});

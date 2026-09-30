@@ -494,6 +494,9 @@ export class Orchestrator {
 
                 if (options.verbose && originResLogs.length > 0) req._logBuffer.push(...originResLogs);
 
+                // Strict Timeout: AWS returns 503 and skips the remaining hooks
+                if (originResResult._timeout) return this._sendResponse(res, originResResult, requestId, startTime, req, options);
+
                 // State Roll-Forward (Origin Response -> Viewer Response)
                 if (originResResult.status) statusCode = parseInt(String(originResResult.status));
                 if (originResResult.headers) {
@@ -534,6 +537,9 @@ export class Orchestrator {
                 }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
 
                 if (options.verbose && viewerResLogs.length > 0) req._logBuffer.push(...viewerResLogs);
+
+                // Strict Timeout: AWS returns 503 and skips the remaining hooks
+                if (viewerResResult._timeout) return this._sendResponse(res, viewerResResult, requestId, startTime, req, options);
 
                 // Final State Roll-Forward
                 if (viewerResResult.status) statusCode = parseInt(String(viewerResResult.status));

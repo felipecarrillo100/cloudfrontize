@@ -258,7 +258,7 @@ export class EdgeRunner extends HotRunner {
                 // Fidelity Check: AWS Limit: 40KB for Viewer Request (Strict)
                 if (type === 'viewer-request' && bodyBuffer && bodyBuffer.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES) {
                     if (this.options.strict) {
-                        return { result: { _isResponse: true, status: 502, body: 'Body too large for viewer-request', headers: { 'content-type': 'text/plain' } }, logs: allLogs };
+                        return { result: { _isResponse: true, status: 502, body: 'Body too large for viewer-request', headers: { 'content-type': 'text/plain' } }, logs: allLogs, exposedHeaders };
                     }
                     console.warn(`\x1b[33m⚠️  [Fidelity Warning] Body too large for viewer-request hook\x1b[0m`);
                 }
@@ -275,7 +275,7 @@ export class EdgeRunner extends HotRunner {
                 }, () => this._invoke(mod.handler, request, type));
                 totalDurationMs += durationMs;
 
-                if (result === null && this.options.strict) return { result: { _timeout: true, totalDurationMs }, logs: allLogs };
+                if (result === null && this.options.strict) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs, exposedHeaders };
                 if (!result) continue;
 
                 if (result.status || result.statusCode) {
@@ -292,9 +292,10 @@ export class EdgeRunner extends HotRunner {
                                 _isResponse: true, 
                                 status: '502', 
                                 body: 'Generated response too large', 
-                                headers: { 'content-type': [{ key: 'Content-Type', value: 'text/plain' }] } 
+                                headers: { 'content-type': [{ key: 'Content-Type', value: 'text/plain' }] }
                                },
-                               logs: allLogs
+                               logs: allLogs,
+                               exposedHeaders
                            };
                        }
                        console.warn(`\x1b[33m⚠️  [Fidelity Warning] Generated response exceeds 1MB limit\x1b[0m`);
@@ -372,7 +373,7 @@ export class EdgeRunner extends HotRunner {
 
                 totalDurationMs += durationMs;
 
-                if (result === null && this.options.strict) return { result: { _timeout: true, totalDurationMs }, logs: allLogs };
+                if (result === null && this.options.strict) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs };
                 if (!result) continue;
 
                 if (result.status) resData.status = result.status;
@@ -412,6 +413,22 @@ export class EdgeRunner extends HotRunner {
         }
 
         return { result: response, logs: allLogs };
+    }
+
+    /**
+     * AWS Parity: CloudFront returns 503 (Lambda limit exceeded) when a function exceeds its timeout.
+     * Only underscore-prefixed extras are allowed here — HeaderManager.applyToResponse copies any
+     * other top-level string field onto the response as a header.
+     */
+    private _timeoutResponse(filePath: string, type: HookType): any {
+        const limit = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_MS : AWS_LIMITS.ORIGIN_TIMEOUT_MS;
+        return {
+            _isResponse: true,
+            _timeout: true,
+            status: '503',
+            headers: { 'content-type': [{ key: 'Content-Type', value: 'text/plain' }] },
+            body: `LambdaLimitExceeded: ${path.basename(filePath)} exceeded the ${limit}ms ${type} timeout`
+        };
     }
 
     private _invoke(handler: any, record: any, type: HookType): Promise<{ result: any; durationMs: number }> {

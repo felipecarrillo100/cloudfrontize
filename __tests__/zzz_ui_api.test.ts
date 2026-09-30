@@ -11,15 +11,21 @@ describe('Developer UI API (Visual Control Plane)', () => {
     const port = Math.floor(Math.random() * 1000) + 7000;
     const uiPort = Math.floor(Math.random() * 1000) + 8000;
     const testDir = path.join(testDirBase, 'zzz_ui_test_' + Date.now());
+    // Stub UI assets so the suite doesn't depend on a Vite build of ui-src
+    const uiDir = path.join(testDir, '_ui');
 
     beforeAll(async () => {
         if (!fs.existsSync(testDir)) fs.mkdirSync(testDir, { recursive: true });
         fs.writeFileSync(path.join(testDir, 'index.html'), 'Hello');
+        fs.mkdirSync(path.join(uiDir, 'assets'), { recursive: true });
+        fs.writeFileSync(path.join(uiDir, 'index.html'), '<!doctype html><title>UI</title>');
+        fs.writeFileSync(path.join(uiDir, 'assets', 'app.css'), 'body{}');
 
         // Cast to our local interface so server.closeGracefully() is recognized
         server = startServer({
             port,
             webui: uiPort,
+            uiDir,
             directory: testDir,
             noBanner: true,
             debug: true
@@ -34,28 +40,22 @@ describe('Developer UI API (Visual Control Plane)', () => {
         if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
     });
 
-    test('✅ should serve UI index.html at root', (done) => {
-        http.get(`http://localhost:${uiPort}/`, (res) => {
-            expect(res.statusCode).toBe(200);
-            expect(res.headers['content-type']).toBe('text/html');
-            done();
+    test('✅ should serve UI index.html at root', async () => {
+        const res: http.IncomingMessage = await new Promise((resolve, reject) => {
+            http.get(`http://localhost:${uiPort}/`, resolve).on('error', reject);
         });
+        res.resume();
+        expect(res.statusCode).toBe(200);
+        expect(res.headers['content-type']).toBe('text/html');
     });
 
-    test('✅ should serve Vite assets from /assets/ directory', (done) => {
-        const assetsDir = path.join(process.cwd(), 'ui', 'assets');
-        if (!fs.existsSync(assetsDir)) {
-            return done();
-        }
-        const files = fs.readdirSync(assetsDir);
-        const aFile = files.find(f => f.endsWith('.css') || f.endsWith('.js'));
-        if (!aFile) return done();
-
-        http.get(`http://localhost:${uiPort}/assets/${aFile}`, (res) => {
-            expect(res.statusCode).toBe(200);
-            expect(res.headers['content-type']).toMatch(/text\/(css|javascript)/);
-            done();
+    test('✅ should serve Vite assets from /assets/ directory', async () => {
+        const res: http.IncomingMessage = await new Promise((resolve, reject) => {
+            http.get(`http://localhost:${uiPort}/assets/app.css`, resolve).on('error', reject);
         });
+        res.resume();
+        expect(res.statusCode).toBe(200);
+        expect(res.headers['content-type']).toMatch(/text\/(css|javascript)/);
     });
 
     test('✅ should accept header overrides via POST /api/sticky', (done) => {

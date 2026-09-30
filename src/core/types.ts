@@ -52,6 +52,8 @@ export interface CacheBehavior {
 export interface CloudFrontizeOptions {
     port: number;
     webui?: string | number;
+    /** Overrides the directory the Developer UI assets are served from (defaults to the bundled `ui/`). */
+    uiDir?: string;
     mode?: 'rest' | 'website';
     debug?: boolean;
     strict?: boolean;

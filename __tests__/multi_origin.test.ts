@@ -1,4 +1,5 @@
 import http from 'http';
+import net from 'net';
 import fs from 'fs';
 import path from 'path';
 import { startServer } from '../src/index';
@@ -12,11 +13,19 @@ describe('Multi-Origin Routing Fidelity', () => {
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
         fs.mkdirSync(path.join(tmpDir, 'static'), { recursive: true });
         fs.writeFileSync(path.join(tmpDir, 'static', 'hello.txt'), 'local-content');
+
+        // Reserve a free port and release it, so the S3 endpoint is guaranteed to refuse connections
+        const deadPort: number = await new Promise((resolve) => {
+            const probe = net.createServer().listen(0, '127.0.0.1', () => {
+                const { port: p } = probe.address() as net.AddressInfo;
+                probe.close(() => resolve(p));
+            });
+        });
         
         const s3Config = {
             origins: [
                 { id: 'local', type: 'local', directory: path.join(tmpDir, 'static') },
-                { id: 'remote', type: 's3', bucket: 'test-bucket', endpoint: 'http://localhost:9999', credentials: { accessKeyId: 'test', secretAccessKey: 'test' } } // Mock endpoint
+                { id: 'remote', type: 's3', bucket: 'test-bucket', endpoint: `http://127.0.0.1:${deadPort}`, credentials: { accessKeyId: 'test', secretAccessKey: 'test' } } // Unreachable endpoint
             ],
             behaviors: [
                 { pathPattern: '/api/*', targetOriginId: 'remote' },
@@ -51,7 +60,7 @@ describe('Multi-Origin Routing Fidelity', () => {
     });
 
     test('Should route /api/* path to S3Provider (Remote)', async () => {
-        // We expect a 502/Error because http://localhost:9999 is down, 
+        // We expect a 502/Error because the reserved endpoint port is closed, 
         // which proves it TRIED to go to S3 instead of Local.
         const res: any = await new Promise((resolve) => {
             http.get(`http://localhost:${port}/api/data.json`, resolve);

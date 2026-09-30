@@ -152,8 +152,10 @@ export class WebUI {
         const cleanPath = url.split('?')[0];
         const assetName = cleanPath === '/' ? 'index.html' : cleanPath.slice(1);
         
-        let uiAssetPath = path.join(__dirname, '..', '..', 'ui', assetName);
-        if (!fs.existsSync(uiAssetPath)) {
+        let uiAssetPath = this.options.uiDir
+            ? path.join(this.options.uiDir, assetName)
+            : path.join(__dirname, '..', '..', 'ui', assetName);
+        if (!this.options.uiDir && !fs.existsSync(uiAssetPath)) {
             // Check in dist if running from dist
             uiAssetPath = path.join(__dirname, '..', 'ui', assetName);
         }

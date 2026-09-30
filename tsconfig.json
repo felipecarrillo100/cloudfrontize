@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "preserve",
+    "moduleResolution": "bundler",
     "types": ["node", "jest"],
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -12,6 +12,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "bin/**/*.ts", "__tests__/**/*.ts", "ui-src/src/**/*.tsx", "ui-src/src/**/*.ts"],
+  "include": ["src/**/*.ts", "bin/**/*.ts", "__tests__/**/*.ts"],
   "exclude": ["node_modules", "dist", "samples", "tutorial", ".tmp"]
 }
