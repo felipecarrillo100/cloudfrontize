@@ -16,7 +16,7 @@ export class WebUI {
      * so the browser sends them without a preflight) and DNS-rebinding via a foreign Host.
      */
     private _isAllowedRequest(req: http.IncomingMessage): boolean {
-        const port = String(this.options.webui);
+        const port = String(req.socket.localPort);
         const allowedHosts = [`localhost:${port}`, `127.0.0.1:${port}`];
         if (!allowedHosts.includes(String(req.headers.host || '').toLowerCase())) return false;
 

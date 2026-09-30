@@ -40,6 +40,46 @@ describe('CLI Argument Validation', () => {
         });
     });
 
+    test('Should write the baked file (with __VAR__ values replaced) when only baking', (done) => {
+        const hook = path.join(tmpDir, 'baked-hook.js');
+        const vars = path.join(tmpDir, 'bake.env');
+        const outDir = path.join(tmpDir, 'baked-out');
+        fs.writeFileSync(hook, "exports.hookType = 'viewer-request'; exports.handler = async (e) => { const r = e.Records[0].cf.request; r.headers['x-stage'] = [{ key: 'X-Stage', value: '__STAGE__' }]; return r; };");
+        fs.writeFileSync(vars, 'STAGE=production');
+
+        exec(`node ${tsxPath} ${cliPath} --edge ${hook} --bake ${vars} --output ${outDir}`, (error: any, stdout: string) => {
+            expect(error).toBeNull();
+            expect(stdout).toContain('Production-ready file(s) generated');
+            const written = path.join(outDir, 'baked-hook.js');
+            expect(fs.existsSync(written)).toBe(true);
+            const content = fs.readFileSync(written, 'utf8');
+            expect(content).toContain("value: 'production'");
+            expect(content).not.toContain('__STAGE__');
+            done();
+        });
+    });
+
+    test('Should exit with an error when a baked function fails to build', (done) => {
+        const broken = path.join(tmpDir, 'broken-hook.js');
+        fs.writeFileSync(broken, "exports.hookType = 'viewer-request'; exports.handler = async (e) => { return e.Records[0].cf.request; ");
+        exec(`node ${tsxPath} ${cliPath} --edge ${broken} --output ${path.join(tmpDir, 'broken-out')}`, (error: any, stdout: string, stderr: string) => {
+            expect(error).not.toBeNull();
+            expect(error.code).toBe(1);
+            expect(stderr).toContain('Build failed');
+            expect(stdout).not.toContain('Production-ready file(s) generated');
+            done();
+        });
+    });
+
+    test('Should reject an invalid --webui port', (done) => {
+        exec(`node ${tsxPath} ${cliPath} . --webui abc`, (error: any, stdout: string, stderr: string) => {
+            expect(error).not.toBeNull();
+            expect(error.code).toBe(1);
+            expect(stderr).toContain('--webui expects a port number');
+            done();
+        });
+    });
+
     test('Should fail if --bake/--output used without --edge source', (done) => {
         exec(`node ${tsxPath} ${cliPath} . --output ${outputFile}`, (error, stdout, stderr) => {
             expect(error).not.toBeNull();

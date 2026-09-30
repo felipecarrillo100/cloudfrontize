@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.2.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.2.0...v2.2.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **cli:** `--output` without a directory now writes the baked files; it previously reported success and wrote nothing. A function that fails to build now exits with an error instead of reporting success.
+* **webui:** `--webui` without a port no longer crashes the server; it defaults to the main port + 1. An invalid port is rejected with a clear error.
+* **webui:** S3 origin credentials (`accessKeyId`, `secretAccessKey`, `sessionToken`) are no longer sent to the WebUI; `/api/distribution` and the live event stream show only that credentials are configured.
+
 ## [2.2.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.1.0...v2.2.0) (2026-09-30)
 
 AWS fidelity release: limits and rules re-checked against the current CloudFront Developer Guide (quotas and edge-function restrictions). Some results change in default mode too — see **Behavior changes**.

@@ -64,6 +64,11 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
     // This ensures request logging works regardless of which property name is used.
     options.verbose = options.debug || options.verbose;
 
+    // --webui without a value: default to the main port + 1 (an ephemeral port when the main port is 0)
+    if (options.webui === true) {
+        options.webui = Number(options.port) > 0 ? Number(options.port) + 1 : 0;
+    }
+
     const historyStore = new InMemoryHistoryStore(5000);
     const telemetry = new Telemetry(historyStore);
 
@@ -135,7 +140,7 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
         }
     };
 
-    const webui = options.webui ? new WebUI(telemetry, orchestrator, options) : null;
+    const webui = options.webui !== undefined && options.webui !== false && options.webui !== '' ? new WebUI(telemetry, orchestrator, options) : null;
 
     const compress = require('compression')({
         threshold: 0,

@@ -51,7 +51,8 @@ export interface CacheBehavior {
 
 export interface CloudFrontizeOptions {
     port: number;
-    webui?: string | number;
+    /** Developer UI port. `true` (a bare `--webui`) means the main port + 1; 0 picks an ephemeral port. */
+    webui?: string | number | boolean;
     /** Overrides the directory the Developer UI assets are served from (defaults to the bundled `ui/`). */
     uiDir?: string;
     mode?: 'rest' | 'website';

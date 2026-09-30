@@ -116,7 +116,12 @@ export class Orchestrator {
                 error: this.hookRegistry.getBuildError(h.path), // Metadata Hydration: Include health in core distribution
                 code: fs.existsSync(h.path) ? fs.readFileSync(h.path, 'utf8') : '// Source not found'
             })),
-            origins: this.origins.origins || [],
+            // Security: origin credentials never leave the backend
+            origins: (this.origins.origins || []).map((o: any) => {
+                if (!o.credentials) return o;
+                const { credentials, ...rest } = o;
+                return { ...rest, credentials: { configured: true } };
+            }),
             port: this.options.port,
             mode: this.options.mode
         };

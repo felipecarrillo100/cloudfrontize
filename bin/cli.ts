@@ -42,7 +42,7 @@ program
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
     .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
     .option('--allow-networking', 'enable http/https modules in Lambda@Edge sandbox')
-    .option('--webui [port]', 'enable the Developer UI on a dedicated port')
+    .option('--webui [port]', 'enable the Developer UI on a dedicated port (default: main port + 1)')
     .option('--origins <path>', 'path to JSON file with S3/Multi-Origin configuration')
     .option('--s3-origin <bucket>', 'proxy requests to a real S3 bucket instead of local directory')
     .option('--s3-endpoint <url>', 'custom S3 endpoint (e.g. MinIO) - implies forcePathStyle')
@@ -60,6 +60,15 @@ program
         }
 
         const port = options.listen !== '3000' ? options.listen : options.port;
+
+        // --webui takes an optional port; without one it defaults to the main port + 1 (see startServer)
+        if (options.webui !== undefined && options.webui !== true) {
+            const uiPort = Number(options.webui);
+            if (!Number.isInteger(uiPort) || uiPort < 1 || uiPort > 65535) {
+                console.error(`Error: --webui expects a port number between 1 and 65535, got "${options.webui}"`);
+                process.exit(1);
+            }
+        }
         const isJustBaking = options.output && !directory && !options.origins && !options.s3Origin;
 
         let edgeRunner: EdgeRunner | null = null;
@@ -89,6 +98,17 @@ program
         }
 
         if (isJustBaking) {
+            // The server normally triggers the first load; without a server, load here so files are written
+            const failures: string[] = [];
+            for (const runner of [edgeRunner, cffRunner]) {
+                if (!runner) continue;
+                runner.on('build_error', (e: any) => failures.push(`${e.file || e.path}: ${e.error}`));
+                runner.load();
+            }
+            if (failures.length > 0) {
+                console.error(`🛑 Build failed:\n   ${failures.join('\n   ')}`);
+                process.exit(1);
+            }
             console.log(`✅ Production-ready file(s) generated at: ${options.output}`);
             process.exit(0);
         }
