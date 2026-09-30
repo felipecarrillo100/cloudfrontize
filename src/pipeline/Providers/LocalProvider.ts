@@ -78,6 +78,17 @@ export class LocalProvider implements OriginProvider {
             req.url = '/index.html' + displayQs;
         }
 
+        // S3 Fidelity: S3 sends both ETag and Last-Modified, but serve-handler emits only one of them.
+        // With ETags enabled (default; `--no-etag` disables), add Last-Modified for the file actually served.
+        const etag = options.etag !== false;
+        if (etag) {
+            try {
+                const servedPath = path.join(this.directory, decodeURIComponent(req.url.split('?')[0]));
+                const servedStats = fs.statSync(servedPath);
+                if (servedStats.isFile()) res.setHeader('Last-Modified', servedStats.mtime.toUTCString());
+            } catch (e) {}
+        }
+
         // High Fidelity Lifecycle: Wait for serve-handler to fully flush the response
         return new Promise<void>(async (resolve, reject) => {
             res.on('finish', resolve);
@@ -88,7 +99,8 @@ export class LocalProvider implements OriginProvider {
                     public: this.directory,
                     cleanUrls: false,
                     trailingSlash: false, // Handled manually for high fidelity
-                    directoryListing: false
+                    directoryListing: false,
+                    etag
                 });
             } catch (err) {
                 reject(err);

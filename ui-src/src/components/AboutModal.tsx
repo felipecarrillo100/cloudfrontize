@@ -39,7 +39,7 @@ export default function AboutModal({ onClose }: AboutModalProps) {
         />
         
         <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#f97316' }}>CloudFrontize <span style={{ color: 'var(--pro-text-main)' }}>PRO</span></h2>
-        <p style={{ margin: '0.5rem 0 1.5rem', fontSize: '0.9rem', color: 'var(--pro-text-dim)', fontWeight: 500 }}>High-Fidelity Edge Console v1.10.2</p>
+        <p style={{ margin: '0.5rem 0 1.5rem', fontSize: '0.9rem', color: 'var(--pro-text-dim)', fontWeight: 500 }}>High-Fidelity Edge Console v{__APP_VERSION__}</p>
 
         <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#94a3b8', marginBottom: '2rem' }}>
           Accelerate your Lambda@Edge and CloudFront Function development with the ultimate local simulator. 

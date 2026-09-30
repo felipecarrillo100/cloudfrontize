@@ -22,7 +22,7 @@ function fetchURL(url, headers = {}) {
     return new Promise<any>((resolve, reject) => {
         // agent: false prevents the Node.js connection pool from keeping the process alive
         http.get(url, { headers, agent: false }, (res: IncomingMessage) => {
-            let data = [];
+            const data: Buffer[] = [];
             res.on('data', chunk => data.push(chunk));
             res.on('end', () => {
                 resolve({
@@ -90,7 +90,7 @@ afterAll(async () => {
     if (fs.existsSync(TMP_DIR)) {
         try {
             fs.rmSync(TMP_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-        } catch (e) {
+        } catch (e: any) {
             console.warn('[Cleanup] Failed to remove TMP_DIR, likely file lock:', e.message);
         }
     }

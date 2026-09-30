@@ -3,15 +3,36 @@ import fs from 'fs';
 import path from 'path';
 import { Telemetry } from './Telemetry';
 import { Orchestrator } from './Orchestrator';
-import { exec } from 'child_process';
 import { TransformationLevel } from '../core/CodeProcessor';
 import { EditorUtility } from '../core/EditorUtility';
+import { VERSION } from '../version';
 
 export class WebUI {
     constructor(private telemetry: Telemetry, private orchestrator: Orchestrator, private options: any) {}
 
+    /**
+     * Security: the Developer UI only answers requests addressed to this machine by its own
+     * same-origin page. Blocks cross-site requests (the UI's POSTs are CORS "simple" requests,
+     * so the browser sends them without a preflight) and DNS-rebinding via a foreign Host.
+     */
+    private _isAllowedRequest(req: http.IncomingMessage): boolean {
+        const port = String(this.options.webui);
+        const allowedHosts = [`localhost:${port}`, `127.0.0.1:${port}`];
+        if (!allowedHosts.includes(String(req.headers.host || '').toLowerCase())) return false;
+
+        const origin = req.headers.origin;
+        if (origin === undefined) return true;
+        return allowedHosts.some(h => String(origin).toLowerCase() === `http://${h}`);
+    }
+
     public handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
         const url = req.url || '/';
+
+        if (!this._isAllowedRequest(req)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('Forbidden: the Developer UI only accepts requests from localhost');
+            return;
+        }
 
         // Event Stream (SSE)
         if (url === '/events') {
@@ -27,7 +48,7 @@ export class WebUI {
             const initData = JSON.stringify({
                 type: 'init',
                 port: this.options.port,
-                version: '1.10.3',
+                version: VERSION,
                 history,
                 buildErrors: this.orchestrator.getBuildErrors()
             });
@@ -90,7 +111,9 @@ export class WebUI {
         if (url.startsWith('/api/open-editor')) {
             const query = new URL(url, `http://${req.headers.host}`).searchParams;
             const filePath = query.get('path');
-            if (filePath && fs.existsSync(filePath)) {
+            // Only files the emulator itself loaded may be opened, never arbitrary paths
+            const allowed = filePath ? this.orchestrator.getEditablePaths().includes(path.resolve(filePath)) : false;
+            if (filePath && allowed && fs.existsSync(filePath)) {
                 EditorUtility.open(filePath);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
@@ -152,15 +175,19 @@ export class WebUI {
         const cleanPath = url.split('?')[0];
         const assetName = cleanPath === '/' ? 'index.html' : cleanPath.slice(1);
         
-        let uiAssetPath = this.options.uiDir
-            ? path.join(this.options.uiDir, assetName)
-            : path.join(__dirname, '..', '..', 'ui', assetName);
-        if (!this.options.uiDir && !fs.existsSync(uiAssetPath)) {
+        let uiRoot = this.options.uiDir
+            ? path.resolve(this.options.uiDir)
+            : path.resolve(__dirname, '..', '..', 'ui');
+        if (!this.options.uiDir && !fs.existsSync(path.join(uiRoot, assetName))) {
             // Check in dist if running from dist
-            uiAssetPath = path.join(__dirname, '..', 'ui', assetName);
+            uiRoot = path.resolve(__dirname, '..', 'ui');
         }
+        const uiAssetPath = path.resolve(uiRoot, assetName);
 
-        if (fs.existsSync(uiAssetPath) && fs.lstatSync(uiAssetPath).isFile()) {
+        // Security: never serve files outside the UI directory (e.g. raw `/../package.json` requests)
+        const insideUiRoot = uiAssetPath.startsWith(uiRoot + path.sep);
+
+        if (insideUiRoot && fs.existsSync(uiAssetPath) && fs.lstatSync(uiAssetPath).isFile()) {
             const ext = path.extname(uiAssetPath);
             const types: any = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.svg': 'image/svg+xml' };
             res.writeHead(200, { 'Content-Type': types[ext] || 'text/plain' });

@@ -1,4 +1,5 @@
 import { AWS_HEADERS } from '../constants';
+import { EdgeError } from './EdgeError';
 
 export type HeaderValue = { key: string; value: string };
 export type HeaderMap = Record<string, HeaderValue[]>;
@@ -109,7 +110,7 @@ export class HeaderManager {
                 // Mutation detected if existence changed or first value changed
                 if (m && (!o || m[0].value !== o[0].value)) {
                     const msg = `Forbidden Header Mutation (${key} inside ${hookType})`;
-                    if (strict) throw new Error(msg);
+                    if (strict) throw EdgeError.validation('lambda', msg);
                     console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${msg}\x1b[0m`);
                 }
             }
@@ -244,30 +245,16 @@ export class HeaderManager {
 
     /**
      * applyToResponse: The final step in the fidelity pipeline. 
-     * Extracts complex header structures (arrays, objects, {value}) and top-level convenience 
-     * properties from a hook response, and writes them directly to the Node.js ServerResponse.
+     * Flattens the `headers` of a hook response (arrays, objects, {value}) and writes them
+     * directly to the Node.js ServerResponse.
      */
     public static applyToResponse(res: any, responseData: any): void {
-        const processedHeaders = new Set<string>();
-
-        // 1. Fidelity Resolver Layer 1: Unwrap complex structures (Arrays, Objects, {value})
+        // AWS Parity: only `headers` reaches the viewer. Other top-level fields on a response
+        // record (id, type, uri, totalDurationMs...) are internal and must never become headers.
         if (responseData.headers) {
             const flat = HeaderManager.telemetryFlatten(responseData.headers);
             for (const [k, v] of Object.entries(flat)) {
-                const lowerK = k.toLowerCase();
-                processedHeaders.add(lowerK);
                 res.setHeader(k, v);
-            }
-        }
-
-        // 2. Fidelity Resolver Layer 2: pick up top-level convenience properties (flattened keys)
-        for (const [k, v] of Object.entries(responseData)) {
-            const lowerK = k.toLowerCase();
-            if (lowerK === 'headers' || lowerK === 'status' || lowerK === 'statusdescription' || lowerK === 'body' || lowerK.startsWith('_')) continue;
-            if (processedHeaders.has(lowerK)) continue;
-
-            if (typeof v === 'string' || typeof v === 'number') {
-                res.setHeader(k, String(v));
             }
         }
     }

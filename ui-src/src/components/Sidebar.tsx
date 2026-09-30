@@ -45,7 +45,7 @@ export default function Sidebar({ onShowAbout }: SidebarProps) {
 
       <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #30363d', fontSize: '0.6rem', color: '#484f58', display: 'flex', justifyContent: 'space-between', background: '#0d1117' }}>
         <span style={{ fontWeight: 600 }}>© 2026 Felipe Carrillo</span>
-        <span style={{ fontWeight: 700, color: '#f97316' }}>v1.10.2</span>
+        <span style={{ fontWeight: 700, color: '#f97316' }}>v{__APP_VERSION__}</span>
       </div>
     </aside>
   );

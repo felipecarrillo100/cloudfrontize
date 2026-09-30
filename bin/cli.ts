@@ -16,16 +16,14 @@ import path from 'path';
 import { startServer } from '../src/index';
 import { EdgeRunner } from '../src/core/EdgeRunner';
 import { CFFRunner } from '../src/core/CFFRunner';
-
-declare const __PKG_VERSION__: string | undefined;
+import { VERSION } from '../src/version';
 
 const program = new Command();
-const version = typeof __PKG_VERSION__ !== 'undefined' ? __PKG_VERSION__ : '1.10.2';
 
 program
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
-    .version(version)
+    .version(VERSION)
     .argument('[directory]', 'directory to serve')
     .option('-p, --port <number>', 'port to listen on', '3000')
     .option('-l, --listen <uri>', 'listen URI', '3000')
@@ -35,7 +33,7 @@ program
     .option('-u, --no-compression', 'disable auto-compression for small files')
     .option('--no-etag', 'disable ETag')
     .option('--headers <path>', 'path to JSON file with default request headers')
-    .option('-L, --no-request-logging', 'mute logs')
+    .option('-L, --no-request-logging', 'disable per-request access logs')
     .option('--log <path>', 'path to log file for Lambda@Edge console output (overwrites)')
     .option('-e, --edge <path>', 'path to a Lambda@Edge module or directory to simulate')
     .option('--cff <path>', 'path to a CloudFront Functions module or directory to simulate')

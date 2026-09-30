@@ -58,6 +58,48 @@ describe('Developer UI API (Visual Control Plane)', () => {
         expect(res.headers['content-type']).toMatch(/text\/(css|javascript)/);
     });
 
+    test('✅ should not serve files outside the UI directory', async () => {
+        // Node sends the path verbatim, so `..` reaches the server un-normalized (browsers would collapse it)
+        const res: http.IncomingMessage = await new Promise((resolve, reject) => {
+            http.request({ host: 'localhost', port: uiPort, path: '/../index.html' }, resolve).on('error', reject).end();
+        });
+        res.resume();
+        expect(res.statusCode).toBe(404);
+    });
+
+    const rawRequest = (opts: http.RequestOptions, body?: string): Promise<http.IncomingMessage> =>
+        new Promise((resolve, reject) => {
+            const r = http.request({ host: 'localhost', port: uiPort, ...opts }, (res) => { res.resume(); resolve(res); });
+            r.on('error', reject);
+            r.end(body);
+        });
+
+    test('✅ should reject cross-site requests (foreign Origin)', async () => {
+        const res = await rawRequest({
+            method: 'POST', path: '/api/sticky',
+            headers: { Origin: 'http://evil.example', 'Content-Type': 'text/plain' }
+        }, JSON.stringify({ requestHeaders: { 'x-pwned': 'yes' } }));
+        expect(res.statusCode).toBe(403);
+
+        const sticky = await new Promise<any>((resolve) => {
+            http.get(`http://localhost:${uiPort}/api/sticky`, (r) => {
+                let d = ''; r.on('data', c => d += c); r.on('end', () => resolve(JSON.parse(d)));
+            });
+        });
+        expect(sticky.request['x-pwned']).toBeUndefined();
+    });
+
+    test('✅ should reject a foreign Host header (DNS rebinding)', async () => {
+        const res = await rawRequest({ path: '/api/distribution', headers: { Host: `attacker.example:${uiPort}` } });
+        expect(res.statusCode).toBe(403);
+    });
+
+    test('✅ should refuse to open files that are not loaded hooks', async () => {
+        const target = path.join(testDir, 'index.html'); // exists, but is not a hook
+        const res = await rawRequest({ path: `/api/open-editor?path=${encodeURIComponent(target)}` });
+        expect(res.statusCode).toBe(404);
+    });
+
     test('✅ should accept header overrides via POST /api/sticky', (done) => {
         const data = JSON.stringify({
             requestHeaders: { 'X-Sticky-Test': 'Active' },

@@ -12,6 +12,7 @@ import { AWS_HEADERS, AWS_LIMITS } from './constants';
 import { CloudFrontizeOptions } from './core/types';
 import { HeaderParser } from './headerParser';
 import { ConfigLoader } from './pipeline/ConfigLoader';
+import { VERSION } from './version';
 import {IncomingMessage, ServerResponse} from "node:http";
 
 interface CloudFrontizeServer extends http.Server {
@@ -21,7 +22,7 @@ interface CloudFrontizeServer extends http.Server {
 export { EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser, CloudFrontizeOptions, CloudFrontizeServer };
 
 export function printTopBanner(options: CloudFrontizeOptions) {
-    console.log(`\n☁️  \x1b[1mCloudfrontize v1.10.2\x1b[0m\n`);
+    console.log(`\n☁️  \x1b[1mCloudfrontize v${VERSION}\x1b[0m\n`);
     console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
     if (options.webui) {
         console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${options.webui}/\x1b[0m`);
@@ -90,6 +91,9 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
 
     const edgeRunner = options.edgeRunner || (options.edge ? new EdgeRunner(options.edge, commonOptions) : null);
     const cffRunner = options.cffRunner || (options.cff ? new CFFRunner(options.cff, commonOptions) : null);
+
+    // A server-level --strict applies to a runner that was built without it (set once, not per request)
+    if (options.strict && edgeRunner) edgeRunner.options.strict = true;
 
     options.edgeRunner = edgeRunner;
     options.cffRunner = cffRunner;
@@ -180,6 +184,18 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
                 }
             }
 
+            // --cors: answer real preflights directly (browsers send them before non-simple requests)
+            if (options.cors && method === 'OPTIONS' && req.headers['access-control-request-method']) {
+                res.writeHead(204, {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': String(req.headers['access-control-request-method']),
+                    'Access-Control-Allow-Headers': String(req.headers['access-control-request-headers'] || '*'),
+                    'Access-Control-Max-Age': '86400'
+                });
+                res.end();
+                return;
+            }
+
             const handle = () => {
                 orchestrator.handleRequest(req, res, options, reqBody).catch((err: any) => {
                     console.error(`\x1b[31m[CloudFrontize] Internal Error: ${err.message}\x1b[0m`);
@@ -190,7 +206,8 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
             // Only apply compression for GET/HEAD requests (static file serving).
             // Body requests (POST etc.) go through edge hooks and must not go through compression
             // to avoid ECONNRESET when undici starts reading the response while still uploading.
-            if (!options.noCompression && !hasBody) {
+            const compressionEnabled = options.compression !== false && !options.noCompression;
+            if (compressionEnabled && !hasBody) {
                 compress(req, res, handle);
             } else {
                 handle();
@@ -248,7 +265,8 @@ export function startServer(options: CloudFrontizeOptions): CloudFrontizeServer 
             }
         });
 
-        uiServer.listen(Number(options.webui));
+        // Security: loopback only — the Developer UI exposes hook source and baked values
+        uiServer.listen(Number(options.webui), '127.0.0.1');
     }
 
     mainServer.closeGracefully = async () => {

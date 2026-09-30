@@ -6,14 +6,14 @@ const path = require('path');
 const fs = require('fs');
 
 describe('Tutorial Solutions: Automated Verification', () => {
-    let runners = [];
+    let runners: any[] = [];
     const solutionsDir = path.resolve(__dirname, '../tutorial/solutions');
 
     afterEach(() => {
         runners.forEach(r => r.runner.close());
     });
 
-    const getRunner = (file, options) => {
+    const getRunner = (file: string, options?: any) => {
         // We need to create a temp directory for the EdgeRunner because it expects a directory of hooks
         const tempDir = path.join(__dirname, '..', '.tmp', `tutorial_sol_${path.basename(file, '.js')}`);
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });

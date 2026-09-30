@@ -16,6 +16,8 @@ cloudfrontize --edge ./my-hooks --webui 3001
 
 Once running, navigate to `http://localhost:3001/` to access the live dashboard.
 
+> 🔒 The WebUI shows your hook source code and baked values, so it listens on `127.0.0.1` only and rejects requests from other origins. Open it from the same machine, using `localhost` or `127.0.0.1`.
+
 ---
 
 ## 🛣️ 1. Functional Fidelity Cloud (The Highway)

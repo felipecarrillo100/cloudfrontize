@@ -12,6 +12,7 @@ import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
 import { AWS_LIMITS } from '../constants';
 import { HookRegistry } from './HookRegistry';
 import { MultiOriginConfig } from './ConfigLoader';
+import { EdgeError } from '../core/EdgeError';
 
 /**
  * Options for configuring the Orchestrator.
@@ -121,6 +122,16 @@ export class Orchestrator {
         };
     }
 
+    /** Files the Developer UI may open in the editor: loaded hooks, failed builds and the origins config. */
+    public getEditablePaths(): string[] {
+        const paths = [
+            ...this.hookRegistry.getAllHooks().map((h: any) => h.path),
+            ...Object.keys(this.hookRegistry.getBuildErrors()),
+            ...(this.origins.origins || []).map((o: any) => o.configFile)
+        ];
+        return paths.filter(Boolean).map((p: string) => path.resolve(p));
+    }
+
     public getBuildErrors(): Record<string, any> {
         return this.hookRegistry.getBuildErrors();
     }
@@ -128,27 +139,17 @@ export class Orchestrator {
     public toggleHook(id: string, disabled: boolean): void {
         this.hookRegistry.toggleHook(id, disabled);
 
-        // Broadcast change to keep all Forensic UI tabs in sync
-        this.telemetry.broadcast({
-            type: 'distribution',
-            data: this.getDistribution()
-        } as any);
+        this._broadcastDistribution();
     }
 
     public resetHooks(): void {
         this.hookRegistry.resetHooks();
-        this.telemetry.broadcast({
-            type: 'distribution',
-            data: this.getDistribution()
-        } as any);
+        this._broadcastDistribution();
     }
 
     public disableAllHooks(disable: boolean = true): void {
         this.hookRegistry.disableAllHooks(disable);
-        this.telemetry.broadcast({
-            type: 'distribution',
-            data: this.getDistribution()
-        } as any);
+        this._broadcastDistribution();
     }
 
     /**
@@ -172,10 +173,7 @@ export class Orchestrator {
 
     public isolateHook(id: string): void {
         this.hookRegistry.isolateHook(id);
-        this.telemetry.broadcast({
-            type: 'distribution',
-            data: this.getDistribution()
-        } as any);
+        this._broadcastDistribution();
     }
 
     public getConfig() {
@@ -276,8 +274,6 @@ export class Orchestrator {
         // Initialize header sync (Sticky) and broadcast initial state
         this.headerManager.injectHeaders(req, this.stickyHeaders.request, !this.isDefaultSticky);
 
-        if (this.edgeRunner && options.strict) this.edgeRunner.options.strict = true;
-
         // AWS Fidelity: Standard CloudFront behavior is to normalize the Host header to lowercase
         if (req.headers.host) {
             req.headers.host = req.headers.host.toLowerCase();
@@ -308,10 +304,7 @@ export class Orchestrator {
                 method: req.method,
                 url: req.url,
                 // Fidelity Fix: Harmonize initial request headers with Display Flattened format
-                // Fidelity Fix: Use rawHeaders for wire-casing, but FALLBACK to req.headers if empty to prevent UI {} bugs
-                headers: HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0)
-                    ? this.headerManager.parseIncomingHeaders(req.rawHeaders)
-                    : req.headers),
+                headers: this._headerSnapshot(req),
                 ...reqBodyMeta
             }
         });
@@ -369,7 +362,7 @@ export class Orchestrator {
 
                 // Body Roll-Forward (Viewer Request)
                 if (viewerResult?.body?.action === 'replace') {
-                    reqBody = Buffer.from(viewerResult.body.data, 'base64');
+                    reqBody = this._decodeRequestBody(viewerResult.body);
                 }
 
                 liveReqBodyState = Telemetry.captureLeReqBody(viewerResult, reqBodyMeta);
@@ -378,7 +371,7 @@ export class Orchestrator {
                     this.broadcastStage(
                         `[L@E: viewer-request] ${viewerReqHooks.map(h => path.basename(h.path)).join(' + ')}`,
                         { requestId, uri: req.url, fid: viewerReqHooks[0].id, ...liveReqBodyState },
-                        HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers)
+                        this._headerSnapshot(req)
                     );
                 }
 
@@ -405,7 +398,7 @@ export class Orchestrator {
 
                 // Body Roll-Forward (Origin Request)
                 if (originResult?.body?.action === 'replace') {
-                    reqBody = Buffer.from(originResult.body.data, 'base64');
+                    reqBody = this._decodeRequestBody(originResult.body);
                 }
 
                 liveReqBodyState = Telemetry.captureLeReqBody(originResult, reqBodyMeta);
@@ -414,7 +407,7 @@ export class Orchestrator {
                     this.broadcastStage(
                         `[L@E: origin-request] ${originReqHooks.map(h => path.basename(h.path)).join(' + ')}`,
                         { requestId, uri: req.url, fid: originReqHooks[0].id, ...liveReqBodyState },
-                        HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers)
+                        this._headerSnapshot(req)
                     );
                 }
 
@@ -444,9 +437,29 @@ export class Orchestrator {
 
             // 4. Origin Fetch — body going to origin is the final post-L@E request body state
             // Fidelity Fix: Use rawHeaders for origin fetch snapshots, falling back to req.headers if empty
-            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request', ...liveReqBodyState }, HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0) ? this.headerManager.parseIncomingHeaders(req.rawHeaders) : req.headers));
+            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request', ...liveReqBodyState }, this._headerSnapshot(req));
             // High-Fidelity Origin Pulse (Body Re-injection)
             let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options, reqBody);
+
+            // --single (SPA mode): serve /index.html for missing objects, like a CloudFront custom error response.
+            // 403 is included because S3 behind OAC answers 403 (not 404) for missing keys.
+            if (options.single && (req.method === 'GET' || req.method === 'HEAD') && (statusCode === 404 || statusCode === 403)) {
+                const requestedUrl = req.url;
+                const [, qs] = requestedUrl.split('?');
+                req.url = '/index.html' + (qs ? `?${qs}` : '');
+                const fallback = await this._fetchFromProvider(provider, req, options, reqBody);
+                req.url = requestedUrl;
+                if (fallback.statusCode === 200) {
+                    ({ statusCode, headers, body, resolvedUri } = fallback);
+                }
+            }
+
+            // --no-etag: drop the origin's ETag before any hook sees it
+            if (options.etag === false) {
+                for (const k of Object.keys(headers)) {
+                    if (k.toLowerCase() === 'etag') delete headers[k];
+                }
+            }
 
             // Simulation Layer: Inject sticky response headers (simulating Origin/S3 headers)
             // so they are visible to all subsequent hooks (Fidelity Requirement).
@@ -502,25 +515,7 @@ export class Orchestrator {
                 if (originResResult.headers) {
                     headers = HeaderManager.telemetryFlatten(originResResult.headers);
                 }
-                if (originResResult.body !== undefined && originResResult.body !== null) {
-                    let rb = originResResult.body;
-                    let encoding = originResResult.bodyEncoding || 'text';
-
-                    // Unpack Internal Body Object (Fidelity Plus Leak)
-                    if (typeof rb === 'object' && rb !== null && rb.data !== undefined) {
-                        encoding = rb.encoding || encoding;
-                        rb = rb.data;
-                    }
-
-                    // Strict AWS: Replacement always overwrites origin (no pass-through)
-                    const rawBody = (typeof rb === 'object' && rb !== null)
-                        ? JSON.stringify(rb)
-                        : String(rb);
-
-                    body = encoding === 'base64'
-                        ? Buffer.from(rawBody, 'base64')
-                        : Buffer.from(rawBody);
-                }
+                body = this._applyHookBody(originResResult, body);
 
                 liveResBodyState = Telemetry.captureLeResBody(originResResult, liveResBodyState);
                 const originResHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'origin-response');
@@ -546,25 +541,7 @@ export class Orchestrator {
                 if (viewerResResult.headers) {
                     headers = HeaderManager.telemetryFlatten(viewerResResult.headers);
                 }
-                if (viewerResResult.body !== undefined && viewerResResult.body !== null) {
-                    let rb = viewerResResult.body;
-                    let encoding = viewerResResult.bodyEncoding || 'text';
-
-                    // Unpack Internal Body Object (Fidelity Plus Leak)
-                    if (typeof rb === 'object' && rb !== null && rb.data !== undefined) {
-                        encoding = rb.encoding || encoding;
-                        rb = rb.data;
-                    }
-
-                    // Strict AWS: Replacement always overwrites origin (no pass-through)
-                    const rawBody = (typeof rb === 'object' && rb !== null)
-                        ? JSON.stringify(rb)
-                        : String(rb);
-
-                    body = encoding === 'base64'
-                        ? Buffer.from(rawBody, 'base64')
-                        : Buffer.from(rawBody);
-                }
+                body = this._applyHookBody(viewerResResult, body);
 
                 liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
                 const viewerResHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'viewer-response');
@@ -608,11 +585,75 @@ export class Orchestrator {
                 type: 'error',
                 details: { message: err.message, stack: err.stack }
             });
-            if (!res.writableEnded) {
-                res.statusCode = 502;
-                res.end(`[Local Emulator] Bad Gateway: ${err.message}`);
+            if (res.writableEnded) return;
+            this._applyCors(res, options);
+
+            if (err instanceof EdgeError) {
+                // AWS Parity: 502 for function validation errors, 503 for execution errors
+                const xmlEscape = (v: string) => v.replace(/[<>&'"]/g, c => `&#${c.charCodeAt(0)};`);
+                res.statusCode = err.status;
+                res.setHeader('Content-Type', 'application/xml');
+                res.end(`<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+    <Code>${err.code}</Code>
+    <Message>${xmlEscape(err.message)}</Message>
+    <RequestId>${requestId}</RequestId>
+</Error>`);
+                return;
             }
+
+            res.statusCode = 502;
+            res.end(`[Local Emulator] Bad Gateway: ${err.message}`);
         }
+    }
+
+    /** L@E request body replacement: `encoding` is 'base64' (default) or 'text'. */
+    private _decodeRequestBody(body: { data: any; encoding?: string }): Buffer {
+        return Buffer.from(String(body.data ?? ''), body.encoding === 'text' ? 'utf8' : 'base64');
+    }
+
+    /** --cors: added at the viewer boundary only, so hooks never see it; a hook-set value wins. */
+    private _applyCors(res: any, options: any): void {
+        if (options.cors && !res.hasHeader('access-control-allow-origin')) {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        }
+    }
+
+    private _broadcastDistribution(): void {
+        // Keep all Forensic UI tabs in sync
+        this.telemetry.broadcast({
+            type: 'distribution',
+            data: this.getDistribution()
+        } as any);
+    }
+
+    /** Telemetry snapshot of the live request headers, preferring rawHeaders for wire casing. */
+    private _headerSnapshot(req: any): Record<string, any> {
+        // Fidelity Fix: Use rawHeaders for wire-casing, but FALLBACK to req.headers if empty to prevent UI {} bugs
+        return HeaderManager.telemetryFlatten((req.rawHeaders && req.rawHeaders.length > 0)
+            ? this.headerManager.parseIncomingHeaders(req.rawHeaders)
+            : req.headers);
+    }
+
+    /**
+     * Rolls a response hook's body replacement forward. Strict AWS: a replacement always
+     * overwrites the origin body (no pass-through); no body on the result keeps the current one.
+     */
+    private _applyHookBody(result: any, current: Buffer): Buffer {
+        if (result.body === undefined || result.body === null) return current;
+        if (Buffer.isBuffer(result.body)) return result.body;
+
+        let rb = result.body;
+        let encoding = result.bodyEncoding || 'text';
+
+        // Unpack Internal Body Object (Fidelity Plus Leak)
+        if (typeof rb === 'object' && rb.data !== undefined) {
+            encoding = rb.encoding || encoding;
+            rb = rb.data;
+        }
+
+        const rawBody = (typeof rb === 'object' && rb !== null) ? JSON.stringify(rb) : String(rb);
+        return encoding === 'base64' ? Buffer.from(rawBody, 'base64') : Buffer.from(rawBody);
     }
 
     private async _fetchFromProvider(provider: OriginProvider, req: any, options: any, body?: Buffer): Promise<{ statusCode: number; headers: any; body: Buffer; resolvedUri?: string }> {
@@ -655,6 +696,7 @@ export class Orchestrator {
         res.statusCode = Number(responseData.status || 200);
 
         HeaderManager.applyToResponse(res, responseData);
+        this._applyCors(res, options);
 
         const duration = Date.now() - startTime;
         const statusStr = res.statusCode >= 400 ? `\x1b[31m${res.statusCode}\x1b[0m` : `\x1b[32m${res.statusCode}\x1b[0m`;
@@ -665,7 +707,7 @@ export class Orchestrator {
 
             // ATOMIC FLUSH: Print the entire contiguous story of the request in one go.
             console.log(req._logBuffer.join('\n') + '\n');
-        } else if (!options.noBanner) {
+        } else if (!options.noBanner && options.requestLogging !== false) {
             // Two-Row Access Summary for Baseline Visibility (when --debug is off)
             console.log(`${logPrefix} ${req.method} ${req.url} \x1b[33m⟹\x1b[0m ${statusStr} [${duration}ms]`);
             if (req._originInfo) {
@@ -693,6 +735,9 @@ export class Orchestrator {
             } else if (typeof finalBody === 'object' && !Buffer.isBuffer(finalBody)) {
                 // Generic Object -> Stringify (Standard AWS Behavior)
                 finalBody = JSON.stringify(finalBody);
+            } else if (typeof finalBody === 'string' && responseData.bodyEncoding === 'base64') {
+                // Generated responses may declare a base64 body (L@E `bodyEncoding`)
+                finalBody = Buffer.from(finalBody, 'base64');
             }
         }
 

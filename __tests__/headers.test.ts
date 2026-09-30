@@ -7,7 +7,7 @@ const { HeaderManager } = require('../src/core/HeaderManager');
 // Mock request factory that mirrors a real Node HTTP IncomingMessage, including
 // rawHeaders (which preserves original casing and allows repeated keys).
 // ---------------------------------------------------------------------------
-function mockReq(overrides = {}) {
+function mockReq(overrides: any = {}) {
     const headers = overrides.headers || {};
     // Build rawHeaders from the headers if not provided separately
     const rawHeaders = overrides.rawHeaders || Object.entries(headers).flatMap(([k, v]) => [k, v]);

@@ -45,7 +45,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
                     maxRetries: 5,
                     retryDelay: 100
                 });
-            } catch (e) {
+            } catch (e: any) {
                 console.warn(`Cleanup warning: ${e.message}`);
             }
         }
@@ -69,7 +69,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
         // CloudFront fidelity: No compression for files > 10MB
         expect(res.headers.get('content-encoding')).toBeNull();
 
-        const length = parseInt(res.headers.get('content-length'));
+        const length = parseInt(res.headers.get('content-length') ?? '');
         expect(length).toBeGreaterThan(10 * 1024 * 1024);
     });
 

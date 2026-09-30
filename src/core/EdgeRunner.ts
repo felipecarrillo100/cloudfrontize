@@ -9,6 +9,7 @@ import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
 import { HookUtility } from './HookUtility';
+import { EdgeError } from './EdgeError';
 const hostRequire = require;
 
 
@@ -28,6 +29,8 @@ export class EdgeRunner extends HotRunner {
     private logContext = new AsyncLocalStorage<{ requestId: string; hookType: string; filename: string; logs: string[] }>();
     public compileError: string | null = null;
     private static EDGE_OVERHEAD_MS: number = -1;
+    /** Non-strict safety net: a handler still unsettled after this many times its AWS limit is failed. */
+    private static HARD_CAP_MULTIPLIER = 2;
 
     private headerManager = new HeaderManager();
 
@@ -267,7 +270,7 @@ export class EdgeRunner extends HotRunner {
                     allLogs.push(`\x1b[90m[${requestID}] \x1b[90m├─\x1b[0m \x1b[35m○ [L@E: ${type}] ${path.basename(mod.filePath)}\x1b[0m`);
                 }
 
-                const { result, durationMs } = await this.logContext.run({ 
+                const { result, durationMs, timedOut } = await this.logContext.run({ 
                     requestId: requestID, 
                     hookType: type, 
                     filename: path.basename(mod.filePath),
@@ -275,7 +278,7 @@ export class EdgeRunner extends HotRunner {
                 }, () => this._invoke(mod.handler, request, type));
                 totalDurationMs += durationMs;
 
-                if (result === null && this.options.strict) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs, exposedHeaders };
+                if (timedOut) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs, exposedHeaders };
                 if (!result) continue;
 
                 if (result.status || result.statusCode) {
@@ -283,6 +286,7 @@ export class EdgeRunner extends HotRunner {
                    const record: any = { headers };
                    record.status = String(result.status || result.statusCode);
                    record.body = result.body;
+                   if (result.bodyEncoding) record.bodyEncoding = result.bodyEncoding;
 
                    // Fidelity Check: Generated Response Limit (1MB)
                    if (record.body && record.body.length > AWS_LIMITS.GENERATED_RESPONSE_BODY_BYTES) {
@@ -313,6 +317,8 @@ export class EdgeRunner extends HotRunner {
 
                 if (result.uri !== undefined) request.uri = result.uri;
                 if (result.querystring !== undefined) request.querystring = result.querystring;
+                // A hook may return a new request object instead of mutating the event in place
+                if (result !== request && result.body !== undefined) request.body = result.body;
 
                 if (result.headers) {
                     const mutatedHeaders = this.headerManager.normalizeHeaders(result.headers);
@@ -356,7 +362,7 @@ export class EdgeRunner extends HotRunner {
                     allLogs.push(`\x1b[90m[${requestID}]\x1b[0m \x1b[90m├─\x1b[0m ○ \x1b[35m[L@E: ${type}]\x1b[0m ${path.basename(mod.filePath)}`);
                 }
 
-                const { result, durationMs } = await this.logContext.run({ 
+                const { result, durationMs, timedOut } = await this.logContext.run({ 
                     requestId: requestID, 
                     hookType: type, 
                     filename: path.basename(mod.filePath),
@@ -373,7 +379,7 @@ export class EdgeRunner extends HotRunner {
 
                 totalDurationMs += durationMs;
 
-                if (result === null && this.options.strict) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs };
+                if (timedOut) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs };
                 if (!result) continue;
 
                 if (result.status) resData.status = result.status;
@@ -417,8 +423,6 @@ export class EdgeRunner extends HotRunner {
 
     /**
      * AWS Parity: CloudFront returns 503 (Lambda limit exceeded) when a function exceeds its timeout.
-     * Only underscore-prefixed extras are allowed here — HeaderManager.applyToResponse copies any
-     * other top-level string field onto the response as a header.
      */
     private _timeoutResponse(filePath: string, type: HookType): any {
         const limit = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_MS : AWS_LIMITS.ORIGIN_TIMEOUT_MS;
@@ -431,7 +435,7 @@ export class EdgeRunner extends HotRunner {
         };
     }
 
-    private _invoke(handler: any, record: any, type: HookType): Promise<{ result: any; durationMs: number }> {
+    private _invoke(handler: any, record: any, type: HookType): Promise<{ result: any; durationMs: number; timedOut?: boolean }> {
         return new Promise((resolve, reject) => {
             const limit = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_MS : AWS_LIMITS.ORIGIN_TIMEOUT_MS;
             const startTime = process.hrtime.bigint();
@@ -441,15 +445,20 @@ export class EdgeRunner extends HotRunner {
 
             let resolved = false;
 
-            const timer = setTimeout(() => {
+            const failWithTimeout = () => {
                 if (resolved) return;
-                if (this.options.strict) {
-                    resolved = true;
-                    const durationMs = Number(process.hrtime.bigint() - startTime) / 1e6;
-                    resolve({ result: null, durationMs });
-                } else {
-                    console.warn(`\x1b[33m⚠️  Fidelity Warning: Handler took exceeding the AWS 5s limit\x1b[0m`);
-                }
+                resolved = true;
+                const durationMs = Number(process.hrtime.bigint() - startTime) / 1e6;
+                resolve({ result: null, durationMs, timedOut: true });
+            };
+
+            // Strict: fail at the AWS limit. Default: warn at the limit, then fail at the hard cap
+            // so a handler that never settles can't hang the request forever.
+            let timer = setTimeout(() => {
+                if (resolved) return;
+                if (this.options.strict) return failWithTimeout();
+                console.warn(`\x1b[33m⚠️  Fidelity Warning: Handler took exceeding the AWS ${limit / 1000}s limit\x1b[0m`);
+                timer = setTimeout(failWithTimeout, limit * (EdgeRunner.HARD_CAP_MULTIPLIER - 1));
             }, limit);
 
             // Support both Async and Callback (AWS Fidelity)
@@ -460,7 +469,8 @@ export class EdgeRunner extends HotRunner {
                 const endTime = process.hrtime.bigint();
                 const durationMs = Math.max(0.01, (Number(endTime - startTime) / 1e6) - EdgeRunner.EDGE_OVERHEAD_MS);
                 
-                if (err) reject(err);
+                // AWS Parity: an unhandled exception or rejection is an execution error (503)
+                if (err) reject(err instanceof EdgeError ? err : EdgeError.execution('lambda', `Unhandled error in ${type} hook: ${err?.message ?? String(err)}`));
                 else resolve({ result: res, durationMs });
             };
 

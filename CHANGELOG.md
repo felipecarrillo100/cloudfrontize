@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.1.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.3...v2.1.0) (2026-09-30)
+
+
+### Features
+
+* **cli:** `--cors` adds `Access-Control-Allow-Origin: *` and answers CORS preflight requests (previously a no-op)
+* **cli:** `--single` serves `index.html` (status 200) when the origin returns 404 or 403, for local and S3 origins (previously a no-op)
+* **cli:** `-u/--no-compression`, `--no-etag` and `-L/--no-request-logging` now take effect (previously no-ops); `-L` disables per-request access logs
+* **origin:** local origins send `ETag` alongside `Last-Modified`, like S3
+
+
+### Bug Fixes
+
+* **edge:** strict-mode Lambda@Edge timeouts return 503 `LambdaLimitExceeded` instead of silently continuing to the origin
+* **edge:** without `--strict`, a handler that never settles fails with 503 at twice its timeout instead of hanging the request
+* **edge:** hook exceptions and rejections return 503 `LambdaExecutionError` / `FunctionExecutionError`; strict forbidden-header mutations return 502 `LambdaValidationError`
+* **cff:** CloudFront Functions run with a 50ms VM timeout, so an infinite loop no longer freezes the process (including at startup)
+* **edge:** a request body replaced on a returned new request object is forwarded, and `encoding: 'text'` bodies are no longer base64-decoded
+* **edge:** internal fields (`id`, `type`, `uri`, `totalDurationMs`) no longer leak as response headers, and `bodyEncoding: 'base64'` generated responses are decoded
+* **cli:** `--version`, the startup banner and the WebUI report the real package version (previously 1.10.x)
+
+
+### Security
+
+* **webui:** the WebUI listens on `127.0.0.1` only and rejects requests with a foreign `Host` or `Origin` (blocks cross-site requests and DNS rebinding). It is no longer reachable from other machines.
+* **webui:** "open in editor" only opens loaded hook and config files, and no longer runs through a shell
+* **webui:** static assets can no longer be read from outside the UI directory using `..` paths
+
+
+### Maintenance
+
+* CI typechecks the project, including tests, on every pull request; `prepublishOnly` runs the typecheck before building
+* Tests no longer depend on local machine state (a busy port 9999, or a built UI)
+
 ## [2.0.3](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.2...v2.0.3) (2026-05-06)
 
 

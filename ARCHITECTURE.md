@@ -105,9 +105,17 @@ Runners execute user-provided code within isolated environments using the Node.j
 - **`EdgeRunner.ts`:** Implements a high-fidelity Node.js `vm` sandbox for Lambda@Edge. It maps human-friendly Node responses to the complex AWS `event` structure and back.
 - **`CFFRunner.ts`**: Executes the high-performance **CloudFront Function** logic, enforcing strict ES5.1 compliance and CloudFront-global object availability.
 
+#### Errors & Timeouts (`src/core/EdgeError.ts`)
+Hook failures surface with the status CloudFront would return:
+- **502 — validation error** (`LambdaValidationError`): e.g. a forbidden or read-only header mutation under `--strict`.
+- **503 — execution error** (`LambdaExecutionError` / `FunctionExecutionError`): a thrown exception or rejected promise (CFF: under `--strict`).
+- **503 — limit exceeded** (`LambdaLimitExceeded`): an L@E hook past its 5s (viewer) / 30s (origin) timeout. `--strict` fails at the limit; otherwise the runner warns at the limit and fails at **2×** the limit, so a handler that never settles can't hang a request.
+- **CloudFront Functions** run with a **50ms VM timeout** (`CFF_LIMITS.MAX_TOTAL_TIME_MS`), so a runaway loop is stopped instead of blocking the process (including load-time warmup).
+
 ### D. Origin Providers (Data Resolution)
-- **`LocalProvider`:** Efficiently serves local workspace assets while simulating S3-specific behaviors.
+- **`LocalProvider`:** Efficiently serves local workspace assets while simulating S3-specific behaviors, including sending both `ETag` and `Last-Modified` (disable ETags with `--no-etag`).
 - **`S3Provider`:** Simulates CloudFront connectivity to AWS S3. It bridges S3 metadata (ETags, Content-Types) back to standard HTTP headers and provides diagnostic context for connectivity failures.
+- **SPA fallback (`--single`):** Handled by the Orchestrator for any provider: a GET/HEAD that the origin answers with 404 or 403 is re-fetched as `/index.html` and served with 200, before origin-response hooks run.
 
 ---
 
@@ -198,4 +206,5 @@ This example demonstrates routing between LocalStack, MinIO, and a Local Folder 
 
 - **Atomic Journey**: Every request creates a forensic journey record, capturing the state of headers and bodies at every stage of the pipeline via `broadcastStage()`.
 - **Live Stream**: The WebUI receives live updates via Server-Sent Events (SSE).
+- **WebUI Security**: The WebUI exposes hook source and baked values, so it listens on `127.0.0.1` only, rejects requests whose `Host` or `Origin` isn't this machine's WebUI address, only opens loaded hook/config files in the editor, and never serves files outside its asset directory.
 - **Snapshot Logic**: Forensics use a **1 MB cap** (configurable via `AWS_LIMITS`) for body previews to ensure the dashboard remains high-performance.

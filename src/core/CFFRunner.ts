@@ -5,10 +5,15 @@ import * as acorn from 'acorn';
 import { HotRunner } from './HotRunner';
 import { Registry, RunnerOptions, HookType } from './types';
 import { CFFValidator } from './CFFValidator';
+import { EdgeError } from './EdgeError';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
 import { CFF_LIMITS, AWS_HEADERS } from '../constants';
 import { HookUtility } from './HookUtility';
+
+// Hard stop for runaway functions (e.g. `while (true)`): without it a single CFF blocks the whole
+// process, including load-time warmup. Calibration uses the same options so overhead stays accurate.
+const CFF_VM_OPTIONS = { timeout: CFF_LIMITS.MAX_TOTAL_TIME_MS };
 
 /**
  * A ultra-low-latency runtime for AWS CloudFront Functions (CFF).
@@ -48,7 +53,7 @@ export class CFFRunner extends HotRunner {
         const runs = 20;
         
         for (let i = 0; i < runs; i++) {
-            // Clinical Fidelity: Calibrate with exactly zero VM options to match the Optimized hot-path
+            // Clinical Fidelity: Calibrate with the same VM options as the hot-path
             const sandbox = { 
                 event: { request: {}, context: { requestId: 'warmup' } }, 
                 console: {
@@ -60,7 +65,7 @@ export class CFFRunner extends HotRunner {
             const context = vm.createContext(sandbox);
             
             const start = process.hrtime.bigint();
-            noopScript.runInContext(context); // Clinical: No options (no watchdog setup tax)
+            noopScript.runInContext(context, CFF_VM_OPTIONS);
             const end = process.hrtime.bigint();
             total += Number(end - start) / 1e6;
         }
@@ -364,9 +369,8 @@ export class CFFRunner extends HotRunner {
         const script = (mod as any).script;
         const start = process.hrtime.bigint();
         try {
-            // Zero-Overhead Execution: Removing per-request watchdogs to eliminate Wall-Clock Jitter.
-            // Safety is managed by a process-wide watchdog in the Orchestrator.
-            const result = script.runInContext(context);
+            // The VM timeout throws on runaway code; its setup cost is subtracted via CFF_OVERHEAD_MS.
+            const result = script.runInContext(context, CFF_VM_OPTIONS);
             const end = process.hrtime.bigint();
             let cpuTimeMs = Number(end - start) / 1e6;
 
@@ -398,7 +402,7 @@ export class CFFRunner extends HotRunner {
                 });
             }
 
-            if (this.options.strict) throw err;
+            if (this.options.strict) throw EdgeError.execution('function', `Unhandled error in ${path.basename(mod.filePath)}: ${err.message}`);
             return { result: null, cpuTimeMs: 0, logs: formattedLogs };
         }
     }

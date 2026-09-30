@@ -9,7 +9,7 @@ const fs = require('fs');
  */
 
 describe('EdgeRunner 100% Emulation Fidelity', () => {
-    let runners = [];
+    let runners: any[] = [];
 
     // 🛡️ Suppress console outputs during test runs so the Jest reporter stays clean
     beforeAll(() => {

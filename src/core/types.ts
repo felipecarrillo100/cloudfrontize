@@ -67,7 +67,13 @@ export interface CloudFrontizeOptions {
     cff?: string;
     headers?: string;
     defaultHeaders?: Record<string, any>;
+    /** Commander's `-u, --no-compression` sets this to false. `noCompression` is the programmatic alias. */
+    compression?: boolean;
     noCompression?: boolean;
+    /** `--no-etag` sets this to false (ETags are on by default). */
+    etag?: boolean;
+    /** `-L, --no-request-logging` sets this to false to mute per-request access logs. */
+    requestLogging?: boolean;
     noBanner?: boolean;
     s3Origin?: string;
     s3Endpoint?: string;

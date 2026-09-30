@@ -32,7 +32,7 @@ describe('CFF Runtime Fidelity: Sandbox & Limits', () => {
                     maxRetries: 5,
                     retryDelay: 100
                 });
-            } catch (e) {
+            } catch (e: any) {
                 console.warn(`Final cleanup warning: ${e.message}`);
             }
         }
