@@ -6,14 +6,16 @@ import { HotRunner } from './HotRunner';
 import { Registry, RunnerOptions, HookType } from './types';
 import { CFFValidator } from './CFFValidator';
 import { EdgeError } from './EdgeError';
+import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
 import { CFF_LIMITS, AWS_HEADERS } from '../constants';
 import { HookUtility } from './HookUtility';
 
-// Hard stop for runaway functions (e.g. `while (true)`): without it a single CFF blocks the whole
-// process, including load-time warmup. Calibration uses the same options so overhead stays accurate.
-const CFF_VM_OPTIONS = { timeout: CFF_LIMITS.MAX_TOTAL_TIME_MS };
+// Enforced guard for runaway functions (e.g. `while (true)`): without it a single CFF blocks the whole
+// process, including load-time warmup. It's set far above AWS's limit so slow local hardware never
+// trips it; the 1ms reference limit only warns. Calibration uses the same options so overhead stays accurate.
+const CFF_VM_OPTIONS = { timeout: CFF_LIMITS.RUNAWAY_GUARD_MS };
 
 /**
  * A ultra-low-latency runtime for AWS CloudFront Functions (CFF).
@@ -29,6 +31,7 @@ const CFF_VM_OPTIONS = { timeout: CFF_LIMITS.MAX_TOTAL_TIME_MS };
  * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html | AWS CloudFront Functions}
  */
 export class CFFRunner extends HotRunner {
+    private headerManager = new HeaderManager();
     private validator: CFFValidator;
     private compileError: string | null = null;
     private static CFF_OVERHEAD_MS: number = -1;
@@ -167,8 +170,24 @@ export class CFFRunner extends HotRunner {
                 return;
             }
 
-            if (fileCode.length > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
-                console.warn(`⚠️  [CFF] Code size exceeds 10KB limit for ${filename}`);
+            // AWS Parity ("Quotas on CloudFront Functions"): 10 KB maximum function size, not adjustable.
+            // Deterministic, so --strict treats it as a build error (AWS won't accept the function).
+            const codeSize = Buffer.byteLength(fileCode);
+            if (codeSize > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
+                const sizeError = `Function size ${codeSize} bytes exceeds the ${CFF_LIMITS.MAX_CODE_SIZE_BYTES}-byte (10 KB) CloudFront Functions limit`;
+                if (this.options.strict) {
+                    console.error(`\n🛑 [\x1b[31mBuild Error\x1b[0m] ${filename}: ${sizeError}`);
+                    this.emit('build_error', {
+                        type: 'CloudFront Function',
+                        file: path.basename(filePath),
+                        path: filePath,
+                        error: sizeError,
+                        line: null,
+                        snippet: null
+                    });
+                    return;
+                }
+                console.warn(`⚠️  [CFF] ${filename}: ${sizeError}`);
             }
 
             if (this.options.outputPath) {
@@ -211,10 +230,22 @@ export class CFFRunner extends HotRunner {
             if (this.options.verbose) {
                 allLogs.push(`\x1b[90m[${event.context.requestId}] \x1b[90m├─\x1b[0m \x1b[36m○ [CFF: ${type}] ${path.basename(mod.filePath)}\x1b[0m`);
             }
+            // Snapshot what the function is given, to validate its header mutations afterwards
+            const givenHeaders = HeaderManager.normalizeHeaders(type === 'viewer-request' ? currentEvent.request?.headers : currentEvent.response?.headers);
+
             const { result, logs } = this._executeSync(mod, currentEvent, path.basename(mod.filePath), type);
             allLogs.push(...logs);
 
             if (result) {
+                // AWS Parity: header restrictions apply to all edge functions. A viewer-request function
+                // that generates a response isn't mutating the request, so it isn't checked here.
+                const returned = type === 'viewer-request'
+                    ? ((result.method || result.uri) ? result : (result.request && !result.response ? result.request : null))
+                    : (result.statusCode ? result : result.response || null);
+                if (returned?.headers) {
+                    this.headerManager.reconcile(HeaderManager.normalizeHeaders(returned.headers), givenHeaders, type, this.options.strict, 'function');
+                }
+
                 if (result.method || result.uri) currentEvent.request = result;
                 else if (result.statusCode) currentEvent.response = result;
                 else if (result.request || result.response) currentEvent = result;
@@ -247,12 +278,14 @@ export class CFFRunner extends HotRunner {
         if (resData) {
             event.response = { statusCode: resData.status || 200, statusDescription: resData.statusDescription || 'OK', headers: {}, cookies: {} };
             for (const [key, value] of Object.entries(resData.headers || {})) {
+                if (HeaderManager.isDisallowed(key.toLowerCase())) continue; // AWS Parity: never exposed to functions
                 event.response.headers[key.toLowerCase()] = { value: String(Array.isArray(value) ? (value[0]?.value || value[0]) : value) };
             }
         }
 
         for (const [key, val] of Object.entries(req.headers || {})) {
             const lowerKey = key.toLowerCase();
+            if (HeaderManager.isDisallowed(lowerKey)) continue; // AWS Parity: never exposed to functions
             const value = String(Array.isArray(val) ? (val[0]?.value || val[0]) : val);
             event.request.headers[lowerKey] = { value };
 
@@ -342,9 +375,11 @@ export class CFFRunner extends HotRunner {
         // Prime V8 with several runs to reach optimized cruising speed before actual traffic hits
         for (let i = 0; i < 5; i++) {
             try {
-            this._executeSync(mod, dummyEvent, path.basename(mod.filePath));
+                this._executeSync(mod, dummyEvent, path.basename(mod.filePath));
             } catch (e) {
-                // Ignore warmup errors
+                // Warmup errors are ignored, but a failing function gains nothing from more runs
+                // (and a runaway one would cost a full guard period each time)
+                break;
             }
         }
     }
@@ -402,6 +437,10 @@ export class CFFRunner extends HotRunner {
                 });
             }
 
+            // Runaway code is stopped in every mode; other errors fail only under --strict
+            if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+                throw EdgeError.execution('function', `${path.basename(mod.filePath)} did not complete within the ${CFF_LIMITS.RUNAWAY_GUARD_MS}ms emulator guard`);
+            }
             if (this.options.strict) throw EdgeError.execution('function', `Unhandled error in ${path.basename(mod.filePath)}: ${err.message}`);
             return { result: null, cpuTimeMs: 0, logs: formattedLogs };
         }

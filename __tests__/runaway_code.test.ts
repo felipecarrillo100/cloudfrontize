@@ -28,9 +28,10 @@ describe('Runaway Hook Protection', () => {
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    test('non-strict: an L@E handler that never settles fails with 503 at the hard cap', async () => {
-        const originalLimit = AWS_LIMITS.VIEWER_TIMEOUT_MS;
-        AWS_LIMITS.VIEWER_TIMEOUT_MS = 200; // keep the test fast; the hard cap is 2× the limit
+    test('non-strict: an L@E handler that never settles fails with 503 at the enforced guard', async () => {
+        const saved = { ...AWS_LIMITS };
+        AWS_LIMITS.VIEWER_TIMEOUT_MS = 200;       // keep the test fast: AWS reference limit (warns)
+        AWS_LIMITS.VIEWER_TIMEOUT_GUARD_MS = 400; // enforced guard with leeway (stops runaways)
         try {
             const dir = path.join(tmpDir, 'never_settles');
             fs.mkdirSync(dir, { recursive: true });
@@ -49,7 +50,7 @@ describe('Runaway Hook Protection', () => {
             expect(res.text).toContain('LambdaLimitExceeded');
             expect(Date.now() - started).toBeGreaterThanOrEqual(400);
         } finally {
-            AWS_LIMITS.VIEWER_TIMEOUT_MS = originalLimit;
+            Object.assign(AWS_LIMITS, saved);
         }
     });
 
@@ -79,17 +80,19 @@ describe('Runaway Hook Protection', () => {
         return dir;
     };
 
-    test('an infinitely looping CloudFront Function does not freeze load or requests', async () => {
+    test('non-strict: an infinitely looping CloudFront Function is stopped (503) without freezing load', async () => {
         const started = Date.now();
         const cffRunner = new CFFRunner(loopingCff('cff_loop'), {});
         cffRunner.load();
-        expect(Date.now() - started).toBeLessThan(2000);
+        // Warmup stops at the first failure, so load costs a single guard period
+        expect(Date.now() - started).toBeLessThan(3000);
 
         const server = startServer({ port: 0, directory: tmpDir, cffRunner, noBanner: true });
         servers.push(server);
         const res = await request(server).get('/index.html');
-        // Non-strict: the failed function is skipped and the request passes through
-        expect(res.status).toBe(200);
+        // Runaway code is stopped in every mode
+        expect(res.status).toBe(503);
+        expect(res.text).toContain('FunctionExecutionError');
     });
 
     test('strict: an infinitely looping CloudFront Function returns 503', async () => {

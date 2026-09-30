@@ -29,8 +29,6 @@ export class EdgeRunner extends HotRunner {
     private logContext = new AsyncLocalStorage<{ requestId: string; hookType: string; filename: string; logs: string[] }>();
     public compileError: string | null = null;
     private static EDGE_OVERHEAD_MS: number = -1;
-    /** Non-strict safety net: a handler still unsettled after this many times its AWS limit is failed. */
-    private static HARD_CAP_MULTIPLIER = 2;
 
     private headerManager = new HeaderManager();
 
@@ -257,14 +255,6 @@ export class EdgeRunner extends HotRunner {
             const mods = this.modules[type].filter(m => !disabledIds.includes(m.id));
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(request.headers);
-                
-                // Fidelity Check: AWS Limit: 40KB for Viewer Request (Strict)
-                if (type === 'viewer-request' && bodyBuffer && bodyBuffer.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES) {
-                    if (this.options.strict) {
-                        return { result: { _isResponse: true, status: 502, body: 'Body too large for viewer-request', headers: { 'content-type': 'text/plain' } }, logs: allLogs, exposedHeaders };
-                    }
-                    console.warn(`\x1b[33m⚠️  [Fidelity Warning] Body too large for viewer-request hook\x1b[0m`);
-                }
 
                 if (this.options.verbose) {
                     allLogs.push(`\x1b[90m[${requestID}] \x1b[90m├─\x1b[0m \x1b[35m○ [L@E: ${type}] ${path.basename(mod.filePath)}\x1b[0m`);
@@ -288,22 +278,7 @@ export class EdgeRunner extends HotRunner {
                    record.body = result.body;
                    if (result.bodyEncoding) record.bodyEncoding = result.bodyEncoding;
 
-                   // Fidelity Check: Generated Response Limit (1MB)
-                   if (record.body && record.body.length > AWS_LIMITS.GENERATED_RESPONSE_BODY_BYTES) {
-                       if (this.options.strict) {
-                           return { 
-                               result: {
-                                _isResponse: true, 
-                                status: '502', 
-                                body: 'Generated response too large', 
-                                headers: { 'content-type': [{ key: 'Content-Type', value: 'text/plain' }] }
-                               },
-                               logs: allLogs,
-                               exposedHeaders
-                           };
-                       }
-                       console.warn(`\x1b[33m⚠️  [Fidelity Warning] Generated response exceeds 1MB limit\x1b[0m`);
-                   }
+                   this._checkGeneratedResponseSize(type, headers, record.body);
 
                     record._isResponse = true;
                     record.totalDurationMs = String(totalDurationMs);
@@ -346,7 +321,8 @@ export class EdgeRunner extends HotRunner {
     public async runResponseHook(req: any, resData: any, requestID = 'UNKNOWN', stage?: HookType, disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
         const request = this._buildRequestRecord(req);
         let totalDurationMs = 0;
-        let reconciledHeaders = this.headerManager.normalizeHeaders(resData.headers || {});
+        // AWS Parity: disallowed headers are never exposed to edge functions
+        let reconciledHeaders = HeaderManager.withoutDisallowed(this.headerManager.normalizeHeaders(resData.headers || {}));
         const allLogs: string[] = [];
 
         // If no specific stage is targetted, run both as per legacy behavior
@@ -382,14 +358,22 @@ export class EdgeRunner extends HotRunner {
                 if (timedOut) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs };
                 if (!result) continue;
 
-                if (result.status) resData.status = result.status;
-                if (result.statusDescription) resData.statusDescription = result.statusDescription;
+                if (result.status) {
+                    // AWS Parity: "Lambda@Edge functions for viewer response events cannot modify the HTTP status code"
+                    if (type === 'viewer-response' && String(result.status) !== String(resData.status)) {
+                        console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${path.basename(mod.filePath)}: viewer-response functions can't change the status code (${resData.status} kept, ${result.status} ignored)\x1b[0m`);
+                    } else {
+                        resData.status = result.status;
+                    }
+                }
+                if (result.statusDescription && type !== 'viewer-response') resData.statusDescription = result.statusDescription;
                 if (result.body) resData.body = result.body;
                 if (result.headers) {
                     const mutatedHeaders = this.headerManager.normalizeHeaders(result.headers);
                     this.headerManager.reconcile(mutatedHeaders, originalHeaders, type, this.options.strict);
                     reconciledHeaders = mutatedHeaders;
                 }
+                if (result.body) this._checkGeneratedResponseSize(type, reconciledHeaders, result.body);
             }
         }
 
@@ -401,43 +385,46 @@ export class EdgeRunner extends HotRunner {
             totalDurationMs: String(totalDurationMs),
             type: 'viewer-response'
         };
-        
-        // Final Response Size Check (Pass-through case)
-        if (resData.body && resData.body.length > AWS_LIMITS.GENERATED_RESPONSE_BODY_BYTES) {
-            if (this.options.strict) {
-                return { 
-                    result: {
-                        _isResponse: true, 
-                        status: '502', 
-                        body: 'Generated response too large', 
-                        headers: { 'content-type': [{ key: 'Content-Type', value: 'text/plain' }] } 
-                    },
-                    logs: allLogs
-                };
-            }
-            console.warn(`\x1b[33m⚠️  [Fidelity Warning] Generated response exceeds 1MB limit\x1b[0m`);
-        }
 
         return { result: response, logs: allLogs };
     }
 
     /**
-     * AWS Parity: CloudFront returns 503 (Lambda limit exceeded) when a function exceeds its timeout.
+     * Runaway guard: a handler still unsettled at the enforced guard (AWS timeout plus leeway) is
+     * stopped with the 503 CloudFront returns for an exceeded Lambda@Edge limit.
      */
     private _timeoutResponse(filePath: string, type: HookType): any {
-        const limit = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_MS : AWS_LIMITS.ORIGIN_TIMEOUT_MS;
+        const guard = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_GUARD_MS : AWS_LIMITS.ORIGIN_TIMEOUT_GUARD_MS;
         return {
             _isResponse: true,
             _timeout: true,
             status: '503',
             headers: { 'content-type': [{ key: 'Content-Type', value: 'text/plain' }] },
-            body: `LambdaLimitExceeded: ${path.basename(filePath)} exceeded the ${limit}ms ${type} timeout`
+            body: `LambdaLimitExceeded: ${path.basename(filePath)} (${type}) did not complete within the ${guard / 1000}s emulator guard`
         };
+    }
+
+    /**
+     * AWS Parity ("Quotas on Lambda@Edge"): a generated response, including headers and body, is
+     * limited to 40 KB for viewer events and 1 MB for origin events. Exceeding it is a 502 validation error.
+     */
+    private _checkGeneratedResponseSize(type: HookType, headers: any, body: any): void {
+        const limit = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_GENERATED_RESPONSE_BYTES : AWS_LIMITS.GENERATED_RESPONSE_BODY_BYTES;
+        let size = body === undefined || body === null ? 0 : Buffer.byteLength(typeof body === 'string' ? body : JSON.stringify(body));
+        for (const values of Object.values(this.headerManager.normalizeHeaders(headers || {}))) {
+            for (const v of values) size += Buffer.byteLength(`${v.key}: ${v.value}\r\n`);
+        }
+        if (size <= limit) return;
+
+        const msg = `Generated response too large: ${size} bytes exceeds the ${limit}-byte limit for ${type}`;
+        if (this.options.strict) throw EdgeError.validation('lambda', msg);
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${msg}\x1b[0m`);
     }
 
     private _invoke(handler: any, record: any, type: HookType): Promise<{ result: any; durationMs: number; timedOut?: boolean }> {
         return new Promise((resolve, reject) => {
             const limit = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_MS : AWS_LIMITS.ORIGIN_TIMEOUT_MS;
+            const guard = type.startsWith('viewer-') ? AWS_LIMITS.VIEWER_TIMEOUT_GUARD_MS : AWS_LIMITS.ORIGIN_TIMEOUT_GUARD_MS;
             const startTime = process.hrtime.bigint();
             const cf = type.includes('response') ? { request: (record as any).request, response: (record as any).response } : { request: record };
             const event = { Records: [{ cf }] };
@@ -452,13 +439,12 @@ export class EdgeRunner extends HotRunner {
                 resolve({ result: null, durationMs, timedOut: true });
             };
 
-            // Strict: fail at the AWS limit. Default: warn at the limit, then fail at the hard cap
-            // so a handler that never settles can't hang the request forever.
+            // The AWS limit only warns, in every mode: local hardware and networks aren't AWS's.
+            // The enforced guard (limit plus leeway) stops runaway code so it can't hang the request.
             let timer = setTimeout(() => {
                 if (resolved) return;
-                if (this.options.strict) return failWithTimeout();
                 console.warn(`\x1b[33m⚠️  Fidelity Warning: Handler took exceeding the AWS ${limit / 1000}s limit\x1b[0m`);
-                timer = setTimeout(failWithTimeout, limit * (EdgeRunner.HARD_CAP_MULTIPLIER - 1));
+                timer = setTimeout(failWithTimeout, Math.max(0, guard - limit));
             }, limit);
 
             // Support both Async and Callback (AWS Fidelity)
@@ -497,7 +483,8 @@ export class EdgeRunner extends HotRunner {
         const headers = req.headers || {};
         const host = headers.host || 'localhost';
         const urlObj = new URL(req.url || '/', `http://${host}`);
-        const awsHeaders = this.headerManager.parseIncomingHeaders(req);
+        // AWS Parity: disallowed headers are never exposed to edge functions
+        const awsHeaders = HeaderManager.withoutDisallowed(this.headerManager.parseIncomingHeaders(req));
 
         let body: any = undefined;
         if (bodyBuffer) {

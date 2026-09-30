@@ -6,10 +6,33 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+// Timing model: the AWS timeout (30s, "Quotas on Lambda@Edge") is a reference limit that only warns,
+// in every mode, because local hardware isn't AWS hardware. An enforced guard with leeway stops
+// runaway code (a handler that never settles) with 503 LambdaLimitExceeded.
 describe('Execution Timeout Fidelity', () => {
     const tmpDir = path.join(__dirname, '.tmp/', 'timeout_test');
-    const port = 3008;
     jest.setTimeout(30000);
+
+    // Shrink the limits so the suite stays fast; the logic is identical at the real values
+    const withLimits = async (limitMs: number, guardMs: number, fn: () => Promise<void>) => {
+        const saved = { ...AWS_LIMITS };
+        AWS_LIMITS.VIEWER_TIMEOUT_MS = limitMs;
+        AWS_LIMITS.ORIGIN_TIMEOUT_MS = limitMs;
+        AWS_LIMITS.VIEWER_TIMEOUT_GUARD_MS = guardMs;
+        AWS_LIMITS.ORIGIN_TIMEOUT_GUARD_MS = guardMs;
+        try {
+            await fn();
+        } finally {
+            Object.assign(AWS_LIMITS, saved);
+        }
+    };
+
+    const writeHook = (name: string, code: string) => {
+        const dir = path.join(tmpDir, name);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'handler.js'), code);
+        return dir;
+    };
 
     beforeAll(() => {
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -20,100 +43,90 @@ describe('Execution Timeout Fidelity', () => {
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    test('Viewer Hook: Should timeout after 5s in strict mode', async () => {
-        const testDir = path.join(tmpDir, 'strict_timeout');
-        fs.mkdirSync(testDir, { recursive: true });
-        fs.writeFileSync(path.join(testDir, 'handler.js'), `
-            exports.hookType = 'viewer-request';
-            exports.handler = async (event, context) => {
-                await new Promise(resolve => setTimeout(resolve, 6000));
-                return event.Records[0].cf.request;
-            };
-        `);
+    test('Limits match the AWS docs: 30s for every event, enforced guard above it', () => {
+        const actual = require('../src/constants').AWS_LIMITS;
+        expect(actual.VIEWER_TIMEOUT_MS).toBe(30000);
+        expect(actual.ORIGIN_TIMEOUT_MS).toBe(30000);
+        expect(actual.VIEWER_TIMEOUT_GUARD_MS).toBeGreaterThan(actual.VIEWER_TIMEOUT_MS);
+        expect(actual.ORIGIN_TIMEOUT_GUARD_MS).toBeGreaterThan(actual.ORIGIN_TIMEOUT_MS);
+    });
 
-        const runner = new EdgeRunner(testDir, { strict: true, watch: false });
-        runner.load();
-        const { result } = await runner.runRequestHook({ url: '/' });
-        expect(result._timeout).toBe(true);
-        runner.close();
-    }, 30000);
+    test.each([['strict', true], ['default', false]])(
+        '%s mode: a handler slower than the AWS limit warns but completes',
+        async (_mode, strict) => {
+            await withLimits(200, 2000, async () => {
+                const dir = writeHook(`slow_${_mode}`, `
+                    exports.hookType = 'viewer-request';
+                    exports.handler = async (event) => {
+                        await new Promise(resolve => setTimeout(resolve, 400));
+                        const req = event.Records[0].cf.request;
+                        req.uri = '/finished';
+                        return req;
+                    };
+                `);
+                const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+                const runner = new EdgeRunner(dir, { strict, watch: false });
+                runner.load();
 
-    test('Origin Hook: Should NOT timeout at 6s (Limit is 30s)', async () => {
-        const testDir = path.join(tmpDir, 'origin_ok');
-        fs.mkdirSync(testDir, { recursive: true });
-        fs.writeFileSync(path.join(testDir, 'handler.js'), `
-            exports.hookType = 'origin-request';
-            exports.handler = async (event) => {
-                await new Promise(resolve => setTimeout(resolve, 6000));
-                return event.Records[0].cf.request;
-            };
-        `);
+                const { result } = await runner.runRequestHook({ url: '/' });
 
-        const runner = new EdgeRunner(testDir, { strict: true, watch: false });
-        runner.load();
-        const { result } = await runner.runRequestHook({ url: '/' });
-        
-        expect(result).not.toBeNull();
-        expect(result.uri).toBe('/');
-        runner.close();
-    }, 30000);
+                expect(result._timeout).toBeUndefined();
+                expect(result.uri).toBe('/finished');
+                expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Fidelity Warning: Handler took'));
+                expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('exceeding the AWS 0.2s limit'));
+                warnSpy.mockRestore();
+                runner.close();
+            });
+        }
+    );
 
-    test('Default Mode: Should log warning but allow completion after timeout', async () => {
-        const testDir = path.join(tmpDir, 'viewer_warn');
-        fs.mkdirSync(testDir, { recursive: true });
-        fs.writeFileSync(path.join(testDir, 'handler.js'), `
-            exports.hookType = 'viewer-request';
-            exports.handler = async (event) => {
-                await new Promise(resolve => setTimeout(resolve, 5500));
-                const req = event.Records[0].cf.request;
-                req.uri = '/finished';
-                return req;
-            };
-        `);
+    test('A handler that never settles is stopped at the enforced guard', async () => {
+        await withLimits(100, 300, async () => {
+            const dir = writeHook('never_settles', `
+                exports.hookType = 'origin-request';
+                exports.handler = () => new Promise(() => {});
+            `);
+            const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+            const runner = new EdgeRunner(dir, { strict: true, watch: false });
+            runner.load();
 
-        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-        const runner = new EdgeRunner(testDir, { strict: false, watch: false });
-        runner.load();
-        
-        const { result } = await runner.runRequestHook({ url: '/' });
-        
-        expect(result.uri).toBe('/finished');
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Fidelity Warning: Handler took'));
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('exceeding the AWS 5s limit'));
-        
-        warnSpy.mockRestore();
-        runner.close();
-    }, 30000);
+            const started = Date.now();
+            const { result } = await runner.runRequestHook({ url: '/' });
 
-    test('Context: getRemainingTimeInMillis() should decrease', async () => {
-        const testDir = path.join(tmpDir, 'remaining_time');
-        fs.mkdirSync(testDir, { recursive: true });
-        fs.writeFileSync(path.join(testDir, 'handler.js'), `
+            expect(result._timeout).toBe(true);
+            expect(result.status).toBe('503');
+            expect(Date.now() - started).toBeGreaterThanOrEqual(290);
+            warnSpy.mockRestore();
+            runner.close();
+        });
+    });
+
+    test('Context: getRemainingTimeInMillis() counts down from the 30s AWS limit', async () => {
+        const dir = writeHook('remaining_time', `
             exports.hookType = 'viewer-request';
             exports.handler = async (event, context) => {
                 const t1 = context.getRemainingTimeInMillis();
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 const t2 = context.getRemainingTimeInMillis();
-                return { 
+                return {
                     status: '200',
                     headers: { 'x-times': [{ key: 'x-times', value: t1 + ',' + t2 }] },
                     body: 'ok'
                 };
             };
         `);
-
-        const runner = new EdgeRunner(testDir, { watch: false });
+        const runner = new EdgeRunner(dir, { watch: false });
         runner.load();
         const { result } = await runner.runRequestHook({ url: '/' });
-        
+
         const [t1, t2] = result.headers['x-times'][0].value.split(',').map(Number);
-        expect(t1).toBeGreaterThan(4500);
-        expect(t1).toBeLessThanOrEqual(5000);
+        expect(t1).toBeGreaterThan(29500);
+        expect(t1).toBeLessThanOrEqual(30000);
         expect(t2).toBeLessThan(t1 - 900);
         runner.close();
-    }, 30000);
+    });
 
-    // End-to-end: strict mode must surface a timeout as AWS does (503), not pass the request through
+    // End-to-end: a runaway hook surfaces as AWS does (503), not as a pass-through or a hang
     const runStrictServer = async (hookType: string) => {
         const testDir = path.join(tmpDir, `e2e_${hookType}`);
         const hookDir = path.join(testDir, 'hooks');
@@ -121,11 +134,7 @@ describe('Execution Timeout Fidelity', () => {
         fs.writeFileSync(path.join(testDir, 'index.html'), 'origin-ok');
         fs.writeFileSync(path.join(hookDir, 'handler.js'), `
             exports.hookType = '${hookType}';
-            exports.handler = async (event) => {
-                await new Promise(resolve => setTimeout(resolve, 6000));
-                const cf = event.Records[0].cf;
-                return cf.response || cf.request;
-            };
+            exports.handler = () => new Promise(() => {});
         `);
 
         const runner = new EdgeRunner(hookDir, { strict: true, watch: false });
@@ -145,16 +154,24 @@ describe('Execution Timeout Fidelity', () => {
         return { statusCode, body };
     };
 
-    test('Strict E2E: viewer-request timeout returns 503', async () => {
-        const { statusCode, body } = await runStrictServer('viewer-request');
-        expect(statusCode).toBe(503);
-        expect(body).toContain('LambdaLimitExceeded');
-    }, 30000);
+    test('E2E: a runaway viewer-request hook returns 503', async () => {
+        await withLimits(100, 300, async () => {
+            const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+            const { statusCode, body } = await runStrictServer('viewer-request');
+            expect(statusCode).toBe(503);
+            expect(body).toContain('LambdaLimitExceeded');
+            warnSpy.mockRestore();
+        });
+    });
 
-    test('Strict E2E: viewer-response timeout returns 503 instead of the origin response', async () => {
-        const { statusCode, body } = await runStrictServer('viewer-response');
-        expect(statusCode).toBe(503);
-        expect(body).toContain('LambdaLimitExceeded');
-        expect(body).not.toContain('origin-ok');
-    }, 30000);
+    test('E2E: a runaway viewer-response hook returns 503 instead of the origin response', async () => {
+        await withLimits(100, 300, async () => {
+            const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+            const { statusCode, body } = await runStrictServer('viewer-response');
+            expect(statusCode).toBe(503);
+            expect(body).toContain('LambdaLimitExceeded');
+            expect(body).not.toContain('origin-ok');
+            warnSpy.mockRestore();
+        });
+    });
 });

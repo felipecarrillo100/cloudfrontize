@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.2.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.1.0...v2.2.0) (2026-09-30)
+
+AWS fidelity release: limits and rules re-checked against the current CloudFront Developer Guide (quotas and edge-function restrictions). Some results change in default mode too — see **Behavior changes**.
+
+
+### Features
+
+* **headers:** header rules follow AWS's per-event tables: disallowed headers (e.g. `Connection`, `X-Cache`, `X-Forwarded-Proto`, `X-Edge-*`, `X-Amz-Cf-*`) are hidden from functions and can't be added; read-only headers can't be added, changed or deleted. `Host` is now editable in origin-request.
+* **cff:** CloudFront Functions get the same header validation as Lambda@Edge (`FunctionValidationError`)
+* **edge:** generated responses are limited to 40 KB (headers + body) on viewer events and 1 MB on origin events; replaced request bodies to 40 KB / 1 MB (text) or 53.2 KB / 1.33 MB (base64)
+* **cff:** the 10 KB function size limit is a build error under `--strict`
+* **pipeline:** combining CloudFront Functions and Lambda@Edge on viewer events is flagged (`InvalidFunctionAssociation` 502 under `--strict`, a warning otherwise)
+
+
+### Bug Fixes
+
+* **edge:** the Lambda@Edge timeout is 30 seconds for all events (was 5 s for viewer events)
+* **edge:** a viewer-request body over 40 KB is truncated (`inputTruncated: true`) instead of failing with 502
+* **pipeline:** a URI rewrite no longer changes the origin a request is routed to
+* **pipeline:** viewer-response functions no longer run when the origin returns 400 or higher
+* **edge:** Lambda@Edge viewer-response functions can no longer change the status code
+* **tutorial:** the CFF header-injector exercise used `X-Edge-Powered-By`, which AWS disallows; it now uses `X-Powered-By`
+
+
+### Behavior changes
+
+* **Timing only warns, in every mode.** `--strict` no longer fails a request when a Lambda@Edge function exceeds its 30 s limit, because local hardware isn't AWS hardware. Only runaway code is stopped with a 503: a handler still running after 60 s, or a CloudFront Function after 1 s (previously 50 ms). A runaway CloudFront Function now returns 503 in default mode too, instead of being skipped.
+* **Routing:** requests that relied on a function rewriting the URI to reach a different origin now stay on the origin matched by the original URI, as in CloudFront.
+
 ## [2.1.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.3...v2.1.0) (2026-09-30)
 
 

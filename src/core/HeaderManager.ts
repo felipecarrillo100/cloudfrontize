@@ -21,9 +21,9 @@ export type HeaderMap = Record<string, HeaderValue[]>;
  * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/edge-functions-restrictions.html#edge-functions-restrictions-all | Edge Function Restrictions}
  */
 export class HeaderManager {
-    /** List of headers that cannot be modified by any edge function. */
+    /** @deprecated Use AWS_HEADERS.DISALLOWED / AWS_HEADERS.READ_ONLY. */
     static FORBIDDEN = AWS_HEADERS.FORBIDDEN;
-    /** List of headers that are read-only in request hooks. */
+    /** @deprecated Use AWS_HEADERS.READ_ONLY['viewer-request']. */
     static REQUEST_ONLY_FORBIDDEN = AWS_HEADERS.REQUEST_ONLY_FORBIDDEN;
 
     /**
@@ -99,26 +99,58 @@ export class HeaderManager {
         return HeaderManager.normalizeHeaders(input);
     }
 
-    /**
-     * Reconciles mutations against original state, enforcing AWS forbidden-header rules.
-     */
-    public reconcile(mutated: HeaderMap, original: HeaderMap, hookType: string, strict = false): void {
-        const check = (forbidden: readonly string[]) => {
-            for (const key of forbidden) {
-                const m = mutated[key];
-                const o = original[key];
-                // Mutation detected if existence changed or first value changed
-                if (m && (!o || m[0].value !== o[0].value)) {
-                    const msg = `Forbidden Header Mutation (${key} inside ${hookType})`;
-                    if (strict) throw EdgeError.validation('lambda', msg);
-                    console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${msg}\x1b[0m`);
-                }
-            }
-        };
+    /** AWS Parity: disallowed headers are never exposed to edge functions, and functions can't add them. */
+    public static isDisallowed(lowerKey: string): boolean {
+        return (AWS_HEADERS.DISALLOWED as readonly string[]).includes(lowerKey)
+            || AWS_HEADERS.DISALLOWED_PREFIXES.some(prefix => lowerKey.startsWith(prefix));
+    }
 
-        check(HeaderManager.FORBIDDEN);
-        if (hookType.includes('-request')) {
-            check(HeaderManager.REQUEST_ONLY_FORBIDDEN);
+    /** Returns a copy of an IFF header map without the headers AWS doesn't expose to edge functions. */
+    public static withoutDisallowed(map: HeaderMap): HeaderMap {
+        const visible: HeaderMap = {};
+        for (const [key, values] of Object.entries(map)) {
+            if (!HeaderManager.isDisallowed(key)) visible[key] = values;
+        }
+        return visible;
+    }
+
+    /**
+     * Reconciles an edge function's header mutations against what it was given, enforcing the AWS
+     * disallowed and per-event read-only header rules ("Restrictions on all edge functions", which
+     * apply to both CloudFront Functions and Lambda@Edge). Violations are a 502 validation error in
+     * strict mode and a warning otherwise.
+     */
+    public reconcile(mutated: HeaderMap, original: HeaderMap, hookType: string, strict = false, kind: 'lambda' | 'function' = 'lambda'): void {
+        const violations: string[] = [];
+
+        // 1. Disallowed headers can't be added (they are never exposed, so any presence is an addition)
+        for (const key of Object.keys(mutated)) {
+            if (HeaderManager.isDisallowed(key) && !original[key]) violations.push(`${key} inside ${hookType}: disallowed header`);
+        }
+
+        // 2. Read-only headers for this event can't be added, modified or deleted
+        const readOnly: readonly string[] = [
+            ...((AWS_HEADERS.READ_ONLY as Record<string, readonly string[]>)[hookType] || []),
+            ...(hookType === 'viewer-response' && kind === 'lambda' ? AWS_HEADERS.LAMBDA_VIEWER_RESPONSE_READ_ONLY : [])
+        ];
+        for (const key of readOnly) {
+            const m = mutated[key];
+            const o = original[key];
+            const changed = !!m !== !!o || (m && o && m[0].value !== o[0].value);
+            if (changed) violations.push(`${key} inside ${hookType}: read-only header`);
+        }
+
+        // 3. A Lambda@Edge viewer request function can't add CloudFront-Viewer-Country
+        if (hookType === 'viewer-request' && kind === 'lambda') {
+            for (const key of AWS_HEADERS.VIEWER_REQUEST_CANNOT_ADD) {
+                if (mutated[key] && !original[key]) violations.push(`${key} inside ${hookType}: can't be added by a viewer request function`);
+            }
+        }
+
+        for (const detail of violations) {
+            const msg = `Forbidden Header Mutation (${detail})`;
+            if (strict) throw EdgeError.validation(kind, msg);
+            console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${msg}\x1b[0m`);
         }
     }
 

@@ -105,12 +105,17 @@ Runners execute user-provided code within isolated environments using the Node.j
 - **`EdgeRunner.ts`:** Implements a high-fidelity Node.js `vm` sandbox for Lambda@Edge. It maps human-friendly Node responses to the complex AWS `event` structure and back.
 - **`CFFRunner.ts`**: Executes the high-performance **CloudFront Function** logic, enforcing strict ES5.1 compliance and CloudFront-global object availability.
 
-#### Errors & Timeouts (`src/core/EdgeError.ts`)
-Hook failures surface with the status CloudFront would return:
-- **502 — validation error** (`LambdaValidationError`): e.g. a forbidden or read-only header mutation under `--strict`.
-- **503 — execution error** (`LambdaExecutionError` / `FunctionExecutionError`): a thrown exception or rejected promise (CFF: under `--strict`).
-- **503 — limit exceeded** (`LambdaLimitExceeded`): an L@E hook past its 5s (viewer) / 30s (origin) timeout. `--strict` fails at the limit; otherwise the runner warns at the limit and fails at **2×** the limit, so a handler that never settles can't hang a request.
-- **CloudFront Functions** run with a **50ms VM timeout** (`CFF_LIMITS.MAX_TOTAL_TIME_MS`), so a runaway loop is stopped instead of blocking the process (including load-time warmup).
+#### Errors, Limits & Timing (`src/core/EdgeError.ts`, `src/constants.ts`)
+Limits and rules follow the CloudFront Developer Guide (quotas and edge-function restrictions pages). Hook failures surface with the status CloudFront would return:
+- **502 — validation error** (`LambdaValidationError` / `FunctionValidationError`), under `--strict`: adding a disallowed header, changing a per-event read-only header, a generated response over 40 KB (viewer) / 1 MB (origin), a replaced request body over its limit, a CloudFront Function over 10 KB, or combining CloudFront Functions with Lambda@Edge on viewer events (`InvalidFunctionAssociation`).
+- **503 — execution error** (`LambdaExecutionError` / `FunctionExecutionError`): a thrown exception or rejected promise (CloudFront Functions: under `--strict`).
+- **Timing only warns.** The AWS limits (Lambda@Edge 30 s; CloudFront Functions' 1 ms compute reference) are reference limits that warn in every mode, because local hardware isn't AWS hardware. Separate **enforced guards with leeway** stop only runaway code with a 503: `*_TIMEOUT_GUARD_MS` (60 s) for Lambda@Edge, and a 1 s VM timeout (`CFF_LIMITS.RUNAWAY_GUARD_MS`) for CloudFront Functions.
+
+#### Pipeline Rules (AWS parity)
+- Disallowed headers are never exposed to functions (request or response events).
+- The request body exposed to a viewer-request function is truncated at 40 KB (1 MB for origin-request), with `inputTruncated: true`.
+- The origin is chosen from the viewer's original URI: a rewrite doesn't change the cache behavior or origin.
+- Viewer-response functions don't run when the origin returns 400 or higher; a Lambda@Edge viewer-response function can't change the status code.
 
 ### D. Origin Providers (Data Resolution)
 - **`LocalProvider`:** Efficiently serves local workspace assets while simulating S3-specific behaviors, including sending both `ETag` and `Last-Modified` (disable ETags with `--no-etag`).

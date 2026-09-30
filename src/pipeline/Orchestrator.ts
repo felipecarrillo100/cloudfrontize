@@ -244,7 +244,7 @@ export class Orchestrator {
         const logPrefix = `\x1b[90m[${requestId}]\x1b[0m`;
         req._logBuffer = [`${logPrefix} ${req.method} ${req.url} \x1b[90m(Host: ${req.headers.host || 'unknown'})\x1b[0m`];
 
-        // 0. Build Health Check: AWS Parity - Return 502 if any active hook has a syntax error
+        // 0. Build Health Check: AWS Parity - Return 502 if any active hook failed to build
         for (const hook of this.hookRegistry.getAllHooks()) {
             if (!this.hookRegistry.hasDisabledHook(hook.id) && this.hookRegistry.hasBuildError(hook.path)) {
                 const error = this.hookRegistry.getBuildError(hook.path);
@@ -255,7 +255,7 @@ export class Orchestrator {
                 res.end(`<?xml version="1.0" encoding="UTF-8"?>
 <Error>
     <Code>${awsErrorCode}</Code>
-    <Message>The hook ${path.basename(hook.path)} has a syntax error and cannot be executed.</Message>
+    <Message>The hook ${path.basename(hook.path)} failed to build and cannot be executed${error?.error ? `: ${String(error.error).replace(/[<>&'"]/g, (c: string) => `&#${c.charCodeAt(0)};`)}` : '.'}</Message>
     <RequestId>${requestId}</RequestId>
 </Error>`);
 
@@ -313,6 +313,8 @@ export class Orchestrator {
         // We buffer everything and flush atomically in _sendResponse.
 
         try {
+            this._checkViewerEventMixing(options);
+
             // Body drainage now handled at server entry point (index.ts) for maximum robustness
             if (req.method !== 'GET' && req.method !== 'HEAD' && !reqBody) {
                 // Fallback for direct calls not through index.ts startServer (e.g. tests or direct usage)
@@ -351,9 +353,9 @@ export class Orchestrator {
                 const disabledIds = this.hookRegistry.getDisabledHookIds();
                 const viewerOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-request').map(h => h.id);
 
-                // Fidelity & Performance: Slicing the input body for the Lambda snapshot
-                const reqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES : false;
-                const reqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.LE_BODY_INPUT_CAP_BYTES) : undefined;
+                // AWS Parity: the body exposed to a viewer request function is truncated at 40 KB (inputTruncated)
+                const reqBodyTruncated = reqBody ? reqBody.length > AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES : false;
+                const reqBodySlice = reqBody ? reqBody.slice(0, AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES) : undefined;
 
                 const { result: viewerResult, logs: viewerLogs, exposedHeaders: viewerExposedHeaders } = await this.edgeRunner.runRequestHook(req, reqBodySlice, requestId, [...disabledIds, ...viewerOnlyDisabled], reqBodyTruncated);
 
@@ -362,6 +364,7 @@ export class Orchestrator {
 
                 // Body Roll-Forward (Viewer Request)
                 if (viewerResult?.body?.action === 'replace') {
+                    this._checkReplacedBodySize('viewer-request', viewerResult.body, options);
                     reqBody = this._decodeRequestBody(viewerResult.body);
                 }
 
@@ -398,6 +401,7 @@ export class Orchestrator {
 
                 // Body Roll-Forward (Origin Request)
                 if (originResult?.body?.action === 'replace') {
+                    this._checkReplacedBodySize('origin-request', originResult.body, options);
                     reqBody = this._decodeRequestBody(originResult.body);
                 }
 
@@ -430,7 +434,9 @@ export class Orchestrator {
 
             // 3. Provider Selection
             const fallbackId = this.behaviors[this.behaviors.length - 1]?.targetOriginId || 'default';
-            const targetOriginId = this.selector.select(req.url, fallbackId);
+            // AWS Parity: "If a function changes the URI for a request, that doesn't change the cache
+            // behavior for the request or the origin that the request is forwarded to."
+            const targetOriginId = this.selector.select(originalUrl, fallbackId);
             const provider = this.providers[targetOriginId];
 
             if (!provider) throw new Error(`No provider found for origin ID: ${targetOriginId}`);
@@ -468,6 +474,10 @@ export class Orchestrator {
                     headers[k] = v;
                 }
             });
+
+            // AWS Parity: "CloudFront doesn't invoke edge functions for viewer response events when the
+            // origin returns HTTP status code 400 or higher." (origin response functions still run)
+            const skipViewerResponse = statusCode >= 400;
 
             // Body Forensics: Capture origin response body (1MB snapshot) and initialize live response body state
             const resBodySlice = body.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
@@ -507,7 +517,7 @@ export class Orchestrator {
 
                 if (options.verbose && originResLogs.length > 0) req._logBuffer.push(...originResLogs);
 
-                // Strict Timeout: AWS returns 503 and skips the remaining hooks
+                // Runaway guard: AWS returns 503 and skips the remaining hooks
                 if (originResResult._timeout) return this._sendResponse(res, originResResult, requestId, startTime, req, options);
 
                 // State Roll-Forward (Origin Response -> Viewer Response)
@@ -523,31 +533,35 @@ export class Orchestrator {
                     this.broadcastStage(`[L@E: origin-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
                 });
 
-                // 4b. L@E Viewer Response (Atomic Phase)
-                const viewerResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-response').map(h => h.id);
-                const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
-                    status: statusCode,
-                    headers: headers
-                    // Fidelity: Body is strictly NOT provided to response triggers in AWS
-                }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
+                // 4b. L@E Viewer Response (Atomic Phase) — not invoked for origin errors
+                if (!skipViewerResponse) {
+                    const viewerResOnlyDisabled = this.hookRegistry.getAllHooks().filter(h => h.stage === 'origin-response').map(h => h.id);
+                    const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseHook(req, {
+                        status: statusCode,
+                        headers: headers
+                        // Fidelity: Body is strictly NOT provided to response triggers in AWS
+                    }, requestId, 'viewer-response', [...disabledIds, ...viewerResOnlyDisabled]);
 
-                if (options.verbose && viewerResLogs.length > 0) req._logBuffer.push(...viewerResLogs);
+                    if (options.verbose && viewerResLogs.length > 0) req._logBuffer.push(...viewerResLogs);
 
-                // Strict Timeout: AWS returns 503 and skips the remaining hooks
-                if (viewerResResult._timeout) return this._sendResponse(res, viewerResResult, requestId, startTime, req, options);
+                    // Runaway guard: AWS returns 503 and skips the remaining hooks
+                    if (viewerResResult._timeout) return this._sendResponse(res, viewerResResult, requestId, startTime, req, options);
 
-                // Final State Roll-Forward
-                if (viewerResResult.status) statusCode = parseInt(String(viewerResResult.status));
-                if (viewerResResult.headers) {
-                    headers = HeaderManager.telemetryFlatten(viewerResResult.headers);
+                    // Final State Roll-Forward
+                    if (viewerResResult.status) statusCode = parseInt(String(viewerResResult.status));
+                    if (viewerResResult.headers) {
+                        headers = HeaderManager.telemetryFlatten(viewerResResult.headers);
+                    }
+                    body = this._applyHookBody(viewerResResult, body);
+
+                    liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
+                    const viewerResHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'viewer-response');
+                    viewerResHooks.forEach(h => {
+                        this.broadcastStage(`[L@E: viewer-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
+                    });
+                } else if (options.verbose) {
+                    req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E: viewer-response]\x1b[0m Skipped (origin returned ${statusCode})`);
                 }
-                body = this._applyHookBody(viewerResResult, body);
-
-                liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
-                const viewerResHooks = this.hookRegistry.getActiveHooks('Lambda@Edge', 'viewer-response');
-                viewerResHooks.forEach(h => {
-                    this.broadcastStage(`[L@E: viewer-response] ${path.basename(h.path)}`, { requestId, status: statusCode, uri: req.url, fid: h.id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
-                });
 
                 finalRes = {
                     status: statusCode,
@@ -556,8 +570,8 @@ export class Orchestrator {
                 };
             }
 
-            // 6. CFF Viewer Response (Atomic Forensic Journey)
-            if (this.cffRunner) {
+            // 6. CFF Viewer Response (Atomic Forensic Journey) — not invoked for origin errors
+            if (this.cffRunner && !skipViewerResponse) {
                 const cffResEvent = this.cffRunner.toCFFEvent(req, finalRes, 'viewer-response');
                 const { result: cffResResult, logs: cffResLogs } = await this.cffRunner.runChain('viewer-response', cffResEvent, this.hookRegistry.getDisabledHookIds(), (mod, result) => {
                     const cffFinal = this.cffRunner!.fromCFFEvent(result);
@@ -606,6 +620,46 @@ export class Orchestrator {
             res.end(`[Local Emulator] Bad Gateway: ${err.message}`);
         }
     }
+
+    /**
+     * AWS Parity ("Restrictions on the request body with the include body option"): a replaced body
+     * is limited to 40 KB (viewer) / 1 MB (origin) as text, or 53.2 KB / 1.33 MB as base64.
+     * Exceeding it is a 502 validation error.
+     */
+    private _checkReplacedBodySize(stage: 'viewer-request' | 'origin-request', body: { data: any; encoding?: string }, options: any): void {
+        const isBase64 = body.encoding !== 'text';
+        const limit = stage === 'viewer-request'
+            ? (isBase64 ? AWS_LIMITS.VIEWER_REPLACED_BODY_BASE64_BYTES : AWS_LIMITS.VIEWER_REPLACED_BODY_TEXT_BYTES)
+            : (isBase64 ? AWS_LIMITS.ORIGIN_REPLACED_BODY_BASE64_BYTES : AWS_LIMITS.ORIGIN_REPLACED_BODY_TEXT_BYTES);
+        const size = Buffer.byteLength(String(body.data ?? ''));
+        if (size <= limit) return;
+
+        const msg = `Replaced request body too large: ${size} bytes exceeds the ${limit}-byte limit for ${stage} (${isBase64 ? 'base64' : 'text'})`;
+        if (options.strict) throw EdgeError.validation('lambda', msg);
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${msg}\x1b[0m`);
+    }
+
+    /**
+     * AWS Parity ("Combining CloudFront Functions with Lambda@Edge"): CloudFront Functions and
+     * Lambda@Edge can't both be associated with viewer events. AWS rejects this at deploy time.
+     */
+    private _checkViewerEventMixing(options: any): void {
+        const active = this.hookRegistry.getAllHooks().filter((h: any) => !this.hookRegistry.hasDisabledHook(h.id));
+        const isViewer = (h: any) => h.stage === 'viewer-request' || h.stage === 'viewer-response';
+        const cff = active.filter((h: any) => isViewer(h) && h.type.toLowerCase().includes('function'));
+        const lae = active.filter((h: any) => isViewer(h) && !h.type.toLowerCase().includes('function'));
+        if (cff.length === 0 || lae.length === 0) return;
+
+        const names = (hs: any[]) => hs.map(h => `${path.basename(h.path)} (${h.stage})`).join(', ');
+        const msg = `CloudFront Functions and Lambda@Edge can't be combined in viewer events: ${names(cff)} + ${names(lae)}`;
+        if (options.strict) throw new EdgeError(502, 'InvalidFunctionAssociation', msg);
+        if (this.lastMixingWarning !== msg) {
+            this.lastMixingWarning = msg;
+            console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${msg}\x1b[0m`);
+        }
+    }
+
+    private lastMixingWarning: string | null = null;
 
     /** L@E request body replacement: `encoding` is 'base64' (default) or 'text'. */
     private _decodeRequestBody(body: { data: any; encoding?: string }): Buffer {

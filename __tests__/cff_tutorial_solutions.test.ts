@@ -49,7 +49,7 @@ describe('CFF Tutorial Solutions Verification', () => {
                 
                 // Whitelist of headers we want to reflect for automated verification
                 const whitelist = [
-                    'x-edge-powered-by', 
+                    'x-powered-by', 
                     'strict-transport-security', 
                     'x-frame-options', 
                     'content-security-policy', 
@@ -102,7 +102,7 @@ describe('CFF Tutorial Solutions Verification', () => {
         });
 
         const res = await request(server).get('/index.html');
-        expect(res.headers['x-edge-powered-by']).toBe('cloudfrontize');
+        expect(res.headers['x-powered-by']).toBe('cloudfrontize');
     });
 
     test('Beginner Ex 1.3: Simple Blocker', async () => {

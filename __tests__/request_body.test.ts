@@ -79,14 +79,22 @@ runner.load();
         expect(body).toContain('Forbidden Header Mutation');
     });
 
-    test('Should fail (502) when body > 40KB in --strict mode', async () => {
+    test('Should truncate a body > 40KB for viewer-request (inputTruncated), even in --strict mode', async () => {
+        // AWS Parity: "For viewer request events, the body is truncated at 40 KB." — truncated, not rejected
         const code = `
             exports.hookType = 'viewer-request';
-            exports.handler = async (event) => event.Records[0].cf.request;
+            exports.handler = async (event) => {
+                const body = event.Records[0].cf.request.body;
+                return {
+                    status: '200',
+                    headers: {},
+                    body: JSON.stringify({ exposedBytes: Buffer.from(body.data, 'base64').length, inputTruncated: body.inputTruncated })
+                };
+            };
         `;
         fs.writeFileSync(path.join(testDir, 'limit.js'), code);
         runner = new EdgeRunner(testDir, { watch: false });
-runner.load();
+        runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
 
         const massiveBody = 'a'.repeat(41 * 1024);
@@ -95,9 +103,10 @@ runner.load();
             body: massiveBody
         });
 
-        const body = await res.text();
-        expect(res.status).toBe(502);
-        expect(body).toContain('Body too large for viewer-request');
+        expect(res.status).toBe(200);
+        const seen = JSON.parse(await res.text());
+        expect(seen.exposedBytes).toBe(40 * 1024);
+        expect(seen.inputTruncated).toBe(true);
     });
 
     test('Should only warn (allow) when body > 40KB in non-strict mode', async () => {

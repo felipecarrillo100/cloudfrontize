@@ -37,8 +37,11 @@ In this exercise, you will practice injecting a new forensic marker into this ob
 Implement a **CloudFront Function** that performs a forensic header injection:
 
 1.  **Target**: Locate the `request.headers` object.
-2.  **Inject**: Add a new key `x-edge-powered-by`.
+2.  **Inject**: Add a new key `x-powered-by`.
 3.  **Validate**: Set its value to `cloudfrontize` using the proper `{ value: "..." }` pattern.
+
+> [!NOTE]
+> Choose header names carefully: AWS doesn't let edge functions add certain headers, including anything starting with `X-Edge-` or `X-Amz-Cf-`, `X-Cache`, and `X-Forwarded-Proto`. CloudFront rejects such a request with a **502**, and CloudFrontize flags it the same way.
 
 > [!IMPORTANT]
 > ### 🛑 The CFF Contract: ES5.1 Syntax Only
@@ -57,7 +60,7 @@ function handler(event) {
     var request = event.request;
 
     // TODO:
-    // Add a custom header "x-edge-powered-by"
+    // Add a custom header "x-powered-by"
     // with value "cloudfrontize"
 
     return request;
@@ -94,11 +97,11 @@ Because this modification happens on the server side, your browser's "Request He
 2.  Trigger a request using `curl` or your browser: `http://localhost:3000`
 3.  In the **Real-time Edge Traffic** list, click the request row to expand the **Execution Journey**.
 4.  In the journey tree, click the **[CFF: viewer-request]** station.
-5.  In the **State Inspector** panel, verify that the **Header Snapshots** show the `x-edge-powered-by` header.
+5.  In the **State Inspector** panel, verify that the **Header Snapshots** show the `x-powered-by` header.
 
 ### 3. Terminal Audit
 If running with `--debug`, confirm the execution in your terminal logs:
-`[CFF: viewer-request] Header Injected: x-edge-powered-by`
+`[CFF: viewer-request] Header Injected: x-powered-by`
 
 ---
 
