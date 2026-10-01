@@ -23,6 +23,8 @@ export interface FileOverride {
 export interface RunnerOptions {
     /** Manifest mode: load exactly these files, with these stages, instead of scanning runnerPath. */
     files?: RunnerFile[];
+    /** The project folder: files outside it wouldn't be in a Lambda deployment package. */
+    projectDir?: string;
     envPath?: string;
     bakePath?: string;
     outputPath?: string;

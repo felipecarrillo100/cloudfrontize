@@ -104,7 +104,7 @@ program
     .option('-b, --bake <path>', 'path to variables file for __VAR__ string replacement')
     .option('-o, --output <path>', 'output the baked .js file(s) for production deployment')
     .option('--strict', 'enforce strict CloudFront limits (40KB body, forbidden headers)')
-    .option('--allow-networking', 'enable http/https modules in Lambda@Edge sandbox')
+    .option('--allow-networking', 'deprecated: Lambda@Edge always has network access, as in AWS')
     .option('--webui [port]', 'enable the Developer UI on a dedicated port (default: main port + 1)')
     .option('--origins <path>', 'path to JSON file with S3/Multi-Origin configuration')
     .option('--s3-origin <bucket>', 'proxy requests to a real S3 bucket instead of local directory')
@@ -129,6 +129,10 @@ program
         }
 
         const port = options.listen !== '3000' ? options.listen : options.port;
+
+        if (options.allowNetworking) {
+            console.warn('⚠️  --allow-networking is no longer needed: Lambda@Edge functions have network access, as in AWS (calls to localhost or private addresses show a warning, since AWS can\'t reach them).');
+        }
 
         // --webui takes an optional port; without one it defaults to the main port + 1 (see startServer)
         if (options.webui !== undefined && options.webui !== true) {

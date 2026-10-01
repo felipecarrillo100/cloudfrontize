@@ -10,7 +10,7 @@ import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
 import { HookUtility } from './HookUtility';
 import { EdgeError } from './EdgeError';
-const hostRequire = require;
+import { createLambdaProcess, createLambdaRequire, sandboxTmpDir, wrapFetch } from './lambda/sandbox';
 
 
 /**
@@ -29,6 +29,8 @@ export class EdgeRunner extends HotRunner {
     private logContext = new AsyncLocalStorage<{ requestId: string; hookType: string; filename: string; logs: string[] }>();
     public compileError: string | null = null;
     private static EDGE_OVERHEAD_MS: number = -1;
+    /** Variables from the env file (they win over the defaults, including AWS_EXECUTION_ENV). */
+    private _envFileVars: Record<string, string> = {};
 
     private headerManager = new HeaderManager();
 
@@ -63,7 +65,8 @@ export class EdgeRunner extends HotRunner {
 
         // Manifest mode: the project decides which files run and at which stage
         if (this.options.files) {
-            this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._loadEnv(this.options.envPath) };
+            this._envFileVars = this._loadEnv(this.options.envPath);
+            this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._envFileVars };
             this.bakeVars = this._loadBake(this.options.bakePath);
             this.compileError = null;
             for (const file of this.options.files) {
@@ -87,7 +90,8 @@ export class EdgeRunner extends HotRunner {
         }
 
         // Fidelity Fix: Ensure DEFAULT_ENV is always present and merged correctly
-        this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._loadEnv(this.options.envPath) };
+        this._envFileVars = this._loadEnv(this.options.envPath);
+        this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._envFileVars };
         this.bakeVars = this._loadBake(this.options.bakePath);
         this.compileError = null;
 
@@ -126,6 +130,14 @@ export class EdgeRunner extends HotRunner {
             }
 
             // Professional: Sandbox preparation and hook detection
+            const projectDir = this.options.projectDir
+                ?? (this.runnerPath && fs.existsSync(this.runnerPath) && fs.statSync(this.runnerPath).isDirectory() ? this.runnerPath : path.dirname(filePath));
+            const sandboxContext = {
+                hookFile: filePath,
+                projectDir,
+                tmpDir: sandboxTmpDir(projectDir),
+                warn: (message: string) => this._fidelityWarning(message)
+            };
             const exportsObj = {};
             const sandbox: any = {
                 exports: exportsObj,
@@ -138,35 +150,17 @@ export class EdgeRunner extends HotRunner {
                     warn: (...args: any[]) => this._log('warn', args),
                     info: (...args: any[]) => this._log('info', args),
                 },
-                require: (id: string) => {
-                    const type = stage;
-                    
-                    for (const forbidden of AWS_RUNTIME.FORBIDDEN_MODULES) {
-                        if (id === forbidden || id.startsWith(forbidden + '/')) {
-                            throw new Error(`Forbidden: ${id} is restricted in Lambda@Edge environment`);
-                        }
-                    }
-
-                    if (type.includes('viewer')) {
-                        const allowed = AWS_RUNTIME.ALLOWED_VIEWER.includes(id as any) || 
-                                        AWS_RUNTIME.ALLOWED_VIEWER.some(a => id.startsWith(a + '/'));
-                        if (!allowed) {
-                            throw new Error(`Forbidden: ${id} is not available in Viewer hooks`);
-                        }
-                    }
-
-                    return hostRequire(id);
-                },
-                process: {
-                    // Stringify environment variables to avoid [object Object] (AWS Fidelity)
-                    env: Object.fromEntries(
-                        Object.entries({ ...process.env, ...this.envVars })
-                            .map(([k, v]) => [k, (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v))])
-                    ),
-                    nextTick: process.nextTick
-                },
-                setTimeout, clearTimeout, setInterval, clearInterval,
-                Buffer, Promise, URL, URLSearchParams
+                // AWS Parity: any module, in every event; fs and networking behave like Lambda's (lambda/sandbox.ts)
+                require: createLambdaRequire(sandboxContext),
+                // AWS Parity: "Lambda environment variables" aren't supported, except reserved ones.
+                // The host's environment is never visible.
+                process: createLambdaProcess(Object.fromEntries(
+                    Object.entries({ ...this.envVars, AWS_EXECUTION_ENV: `AWS_Lambda_${override?.runtime ?? AWS_RUNTIME.DEFAULT_NODE_RUNTIME}`, ...this._envFileVars })
+                        .map(([k, v]) => [k, (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v))])
+                ), sandboxContext),
+                setTimeout, clearTimeout, setInterval, clearInterval, setImmediate, clearImmediate, queueMicrotask, structuredClone,
+                Buffer, Promise, URL, URLSearchParams, TextEncoder, TextDecoder, AbortController, AbortSignal,
+                fetch: wrapFetch(sandboxContext), Headers, Request, Response, FormData, Blob, performance
             };
             sandbox.global = sandbox;
 
@@ -209,6 +203,15 @@ export class EdgeRunner extends HotRunner {
                 snippet: snippet
             });
         }
+    }
+
+    private warned = new Set<string>();
+
+    /** Each distinct fidelity warning is printed once per runner. */
+    private _fidelityWarning(message: string): void {
+        if (this.warned.has(message)) return;
+        this.warned.add(message);
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${message}\x1b[0m`);
     }
 
     private _log(level: string, args: any[], overrideTimestamp?: number): string {

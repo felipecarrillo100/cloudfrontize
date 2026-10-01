@@ -110,7 +110,7 @@ export function fromProject(project: Project, overrides: ProjectOverrides = {}):
             pooled.add(fnId);
             const fn = project.functions[fnId];
             if (fn.type === 'lambda-edge') {
-                edgeFiles.push({ path: fn.absoluteFile, stage: event, id: fnId });
+                edgeFiles.push({ path: fn.absoluteFile, stage: event, id: fnId, runtime: fn.runtime });
             } else {
                 const store = fn.keyValueStore ? project.manifest.keyValueStores[fn.keyValueStore] : undefined;
                 cffFiles.push({ path: fn.absoluteFile, stage: event, id: fnId, runtime: fn.runtime, kvsFile: store ? path.resolve(project.dir, store.file) : undefined });
@@ -125,6 +125,7 @@ export function fromProject(project: Project, overrides: ProjectOverrides = {}):
         debug: options.debug,
         envPath: project.envFile,
         bakePath: project.bakeFile,
+        projectDir: project.dir,
         logStream,
         watch: true
     };

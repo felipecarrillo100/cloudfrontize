@@ -102,7 +102,7 @@ This format bypasses Node.js normalization (which would lowercase `x-custom-id`)
 
 ### C. The Runners (Execution Engines)
 Runners execute user-provided code within isolated environments using the Node.js `vm` module:
-- **`EdgeRunner.ts`:** Implements a high-fidelity Node.js `vm` sandbox for Lambda@Edge. It maps human-friendly Node responses to the complex AWS `event` structure and back.
+- **`EdgeRunner.ts`:** Implements a high-fidelity Node.js `vm` sandbox for Lambda@Edge. It maps human-friendly Node responses to the complex AWS `event` structure and back. The sandbox follows Lambda (`src/core/lambda/sandbox.ts`): any module in every event, resolved from the function's folder with a fallback to the bundled AWS SDK v3; a read-only file system except `/tmp` (mapped to `os.tmpdir()/cloudfrontize/<project>/tmp`, `EROFS` elsewhere); warnings for reads outside the project and for connections to localhost or private networks; and a Lambda-like `process` with only reserved variables plus the project's `.env`, never the host environment.
 - **`CFFRunner.ts`**: Executes **CloudFront Functions**. Runtime 1.0 is checked as ES 5.1; runtime 2.0 (`src/core/cff2/runtime2.ts`) is validated against AWS's feature list, runs with `microtaskMode: 'afterEvaluate'` so async handlers settle inside one guarded evaluation, gets the documented globals and a `require` limited to `crypto`/`querystring`/`buffer`, and reads key value stores (`src/core/KeyValueStore.ts`, AWS import format). Both runtimes freeze `Date` at the function's start time. Runaway loops in runtime 2.0 are stopped by an injected loop guard, because the VM timeout can't safely interrupt code that runs after an `await`.
 
 #### Errors, Limits & Timing (`src/core/EdgeError.ts`, `src/constants.ts`)

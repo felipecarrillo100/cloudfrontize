@@ -89,23 +89,13 @@ export const AWS_HEADERS = {
  * Sandbox & Runtime Configurations
  */
 export const AWS_RUNTIME = {
-    // Unified whitelist for all Lambda@Edge hook types (Viewer & Origin)
-    ALLOWED_VIEWER: ['crypto', 'buffer', 'util', 'url', 'querystring', 'stream', 'events'],
-    ALLOWED_ORIGIN: [
-        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring', 'fs', 'stream', 'events',
-        'aws-sdk', '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64',
-        '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig',
-        '@aws-sdk/lib-dynamodb'
-    ],
-
-    // Networking modules (only active if --allow-networking is passed)
-    ALLOWED_NETWORKING: ['http', 'https', 'net', 'tls', 'dns', 'stream', 'punycode', 'string_decoder', 'timers', 'events'],
-
-    FORBIDDEN_MODULES: ['child_process', 'os'], // Strict global bans
+    // Lambda@Edge has no module restrictions: "network access" and "file system access" in every event
+    // ("Differences between CloudFront Functions and Lambda@Edge"). See src/core/lambda/sandbox.ts.
+    DEFAULT_NODE_RUNTIME: 'nodejs22.x',
     DEFAULT_ENV: {
         'AWS_REGION': 'us-east-1',
         'AWS_DEFAULT_REGION': 'us-east-1',
-        'AWS_EXECUTION_ENV': 'AWS_Lambda_nodejs20.x',
+        'AWS_EXECUTION_ENV': 'AWS_Lambda_nodejs22.x',
         'AWS_LAMBDA_FUNCTION_NAME': 'cloudfrontize-emulator',
         'AWS_LAMBDA_FUNCTION_VERSION': '1',
         'AWS_LAMBDA_FUNCTION_MEMORY_SIZE': '128'
