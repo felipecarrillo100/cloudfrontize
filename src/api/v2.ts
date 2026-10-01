@@ -7,22 +7,15 @@ import { ApiError } from './errors';
 import { EVENTS_VERSION, toApiEvent } from './events';
 import { registerFileRoutes } from './files';
 import { registerWorkspaceRoutes } from './workspace';
+import { registerDistributionRoutes } from './distribution';
 import { Router, STREAMING } from './router';
+import type { RequestSummary } from './contract';
 
 export type { ApiHost, ProjectControl } from './context';
 
 export const API_PREFIX = '/api/v2';
 
-/** Summary of one recorded request, newest first in `GET /requests`. */
-export interface RequestSummary {
-    id: string;
-    time: string;
-    method: string;
-    url: string;
-    status?: number;
-    durationMs?: number;
-    failed?: boolean;
-}
+export type { RequestSummary } from './contract';
 
 const isRequestId = (id: string) => !id.startsWith('SYSTEM_');
 
@@ -119,6 +112,8 @@ export function createApiV2(host: ApiHost): Router {
 
     // Functions, key value stores and the viewer simulation file
     registerFileRoutes(router, host);
+    // Distribution overview and function switches (projects and 2.x setups)
+    registerDistributionRoutes(router, host);
     // Folder browsing, recent projects, new projects, test requests
     registerWorkspaceRoutes(router, host);
 

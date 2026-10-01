@@ -3,7 +3,8 @@ import os from 'os';
 import path from 'path';
 import { KeyValueStore } from '../core/KeyValueStore';
 import { HeaderParser } from '../headerParser';
-import { BuildResult, CodeProblem, conventionalFile, FunctionType, staticCheck, starterCode } from '../project/functions';
+import { conventionalFile, staticCheck, starterCode } from '../project/functions';
+import type { Attachment, BuildResult, FunctionInfo, FunctionType } from './contract';
 import type { Project } from '../project/loadProject';
 import { EVENT_TYPES, EventType } from '../project/schema';
 import { ApiHost, baseRevisionOf, editManifest, objectBody, readFile, requireProject, writeChecked } from './context';
@@ -15,26 +16,7 @@ const FUNCTION_TYPES: FunctionType[] = ['cloudfront-function', 'lambda-edge'];
 /** How long a save waits for the emulator to rebuild the function before falling back to a static check. */
 const BUILD_WAIT_MS = 4000;
 
-/** Where a function is attached: a behavior ("default" or its path pattern) and an event. */
-export interface Attachment {
-    behavior: string;
-    event: EventType;
-}
-
-export interface FunctionInfo {
-    id: string;
-    type: FunctionType;
-    runtime: string;
-    /** As written in the manifest (relative to the project folder). */
-    file: string;
-    path: string;
-    keyValueStore?: string;
-    attachments: Attachment[];
-    disabled: boolean;
-    size: number | null;
-    /** `unused`: no behavior uses the function, so the emulator doesn't load it. */
-    build: { status: 'ok' | 'error' | 'unused' | 'missing'; error?: CodeProblem };
-}
+export type { Attachment, FunctionInfo } from './contract';
 
 const behaviorsOf = (project: Project) => [
     { key: 'default', functions: project.manifest.defaultBehavior.functions },
@@ -49,7 +31,7 @@ function attachmentsOf(project: Project, id: string): Attachment[] {
     return out;
 }
 
-function functionInfo(host: ApiHost, project: Project, id: string): FunctionInfo {
+export function functionInfo(host: ApiHost, project: Project, id: string): FunctionInfo {
     const fn = project.functions[id];
     if (!fn) throw ApiError.notFound(`No function "${id}" in the project`);
     const attachments = attachmentsOf(project, id);

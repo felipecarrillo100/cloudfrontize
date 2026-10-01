@@ -211,6 +211,8 @@ describe('EventHub', () => {
         expect(hub.since(1)).toBeNull();
         expect(hub.since(hub.lastSeq - 3)!.map((e: any) => e.seq)).toEqual([hub.lastSeq - 2, hub.lastSeq - 1, hub.lastSeq]);
         expect(hub.since(hub.lastSeq)).toEqual([]);
+        // A client ahead of the server saw a previous server instance (restart): it must reset
+        expect(hub.since(hub.lastSeq + 50)).toBeNull();
         hub.close();
         expect(telemetry.listenerCount('event')).toBe(0);
     });

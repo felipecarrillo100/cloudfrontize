@@ -1,13 +1,7 @@
-/**
- * A problem found while loading or validating a project.
- * `path` is a JSON pointer into the manifest (e.g. `/behaviors/0/functions/viewer-request`).
- */
-export interface Diagnostic {
-    severity: 'error' | 'warning' | 'info';
-    path: string;
-    rule: string;
-    message: string;
-}
+import type { Diagnostic } from '../api/contract';
+
+/** A problem found while loading or validating a project (see the API contract). */
+export type { Diagnostic };
 
 /** Thrown when a project can't be loaded: invalid JSON, schema errors, or AWS rule violations. */
 export class ManifestError extends Error {

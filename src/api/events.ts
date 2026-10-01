@@ -1,73 +1,20 @@
 import type { TelemetryEvent } from '../pipeline/Telemetry';
-import type { Diagnostic } from '../project/errors';
+import type { ApiEvent, BodySnapshot, FunctionRuntime } from './contract';
+import { EVENTS_VERSION } from './contract';
 
 /**
- * WebUI API v2 events: typed, versioned and sequenced.
+ * WebUI API v2 events: typed, versioned and sequenced (types in contract.ts).
  *
  * @namespace Backend
  * Every event has the same envelope. `seq` increases by one per event for the server's lifetime, so a
  * client that reconnects with `Last-Event-ID` gets exactly what it missed. Stage events say which
  * event, runtime and functions they belong to, so clients never parse display names.
  */
-export const EVENTS_VERSION = 2;
+export { EVENTS_VERSION };
+export type { ApiEvent, ApiEventType, BodySnapshot, EdgeEvent, EventPayloads, FunctionRuntime, StageInfo } from './contract';
 
-export type EdgeEvent = 'viewer-request' | 'origin-request' | 'origin-response' | 'viewer-response';
-export type FunctionRuntime = 'cloudfront-function' | 'lambda-edge';
-
-/** Where a request is in the pipeline. */
-export type StageInfo =
-    | { kind: 'function'; event: EdgeEvent; runtime: FunctionRuntime; functionIds: string[] }
-    | { kind: 'short-circuit'; event: EdgeEvent; runtime: FunctionRuntime; functionIds: string[] }
-    | { kind: 'origin-fetch'; origin: string }
-    | { kind: 'origin-response' }
-    | { kind: 'final-response' };
-
-/** Body snapshot fields, as captured by the pipeline (base64, capped). */
-export interface BodySnapshot {
-    body?: string;
-    bodySize?: number;
-    bodyTruncated?: boolean;
-    bodyUnchanged?: boolean;
-    contentType?: string;
-}
-
-export type Headers = Record<string, string | string[]>;
-
-export interface EventPayloads {
-    /** First event on every connection: what the client is talking to. */
-    'stream.hello': { apiVersion: number; version: string; seq: number; resumed: boolean };
-    /** The client asked to resume from an event that is no longer buffered: refetch state. */
-    'stream.reset': { reason: string };
-    'request.started': { method: string; url: string; headers: Headers } & BodySnapshot;
-    'request.stage': { name: string; stage: StageInfo | null; uri?: string; status?: number | string; headers?: Headers } & BodySnapshot;
-    'request.completed': { status: number; headers: Headers; durationMs?: number };
-    'request.failed': { message: string };
-    'build.succeeded': { file: string; runtime: FunctionRuntime };
-    'build.failed': { file: string; runtime?: FunctionRuntime; message: string; line?: number; column?: number; snippet?: string };
-    /** Another project was opened. */
-    'project.opened': { name: string; dir: string; revision: string; diagnostics: Diagnostic[] };
-    /** The open project was reloaded: saved through the API, edited on disk, or reloaded on request. */
-    'project.changed': { name: string; dir: string; revision: string; source: 'api' | 'disk' | 'open'; diagnostics: Diagnostic[] };
-    /** The manifest was edited on disk but can't be loaded; the previous version keeps running. */
-    'project.invalid': { name: string; dir: string; revision: string; diagnostics: Diagnostic[] };
-    /** The viewer headers file changed and was applied. */
-    'viewer.changed': { name: string; dir: string };
-    /** Functions, behaviors or their state changed: refetch the distribution. */
-    'distribution.changed': Record<string, never>;
-}
-
-export type ApiEventType = keyof EventPayloads;
-
-export interface ApiEvent<T extends ApiEventType = ApiEventType> {
-    v: typeof EVENTS_VERSION;
-    seq: number;
-    time: string;
-    type: T;
-    requestId?: string;
-    data: EventPayloads[T];
-}
-
-type Unsequenced = Omit<ApiEvent, 'v' | 'seq'>;
+type Unsequenced = DistributiveOmit<ApiEvent, 'v' | 'seq'>;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 const runtimeOf = (raw: any): FunctionRuntime | undefined =>
     raw === 'cff' ? 'cloudfront-function' : raw === 'edge' ? 'lambda-edge' : undefined;

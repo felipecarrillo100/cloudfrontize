@@ -5,26 +5,8 @@ import { rewriteImports } from '../core/cff2/runtime2';
 import { SnippetExtractor } from '../core/SnippetExtractor';
 import type { EventType } from './schema';
 
-export type FunctionType = 'cloudfront-function' | 'lambda-edge';
-
-/** One problem in a function's code. Lines and columns are 1-based. */
-export interface CodeProblem {
-    message: string;
-    line: number | null;
-    column?: number | null;
-}
-
-/** The result of building a function, as the runner (or the static check) saw it. */
-export interface BuildResult {
-    status: 'ok' | 'error';
-    /** How the result was obtained: the running emulator, or a check of the code alone (function not attached). */
-    checkedBy: 'runtime' | 'static';
-    size: number;
-    /** AWS size limit for this function type, when there's a single one (CloudFront Functions: 10 KB). */
-    sizeLimit: number | null;
-    errors: CodeProblem[];
-    warnings: CodeProblem[];
-}
+import type { BuildResult, CodeProblem, FunctionType } from '../api/contract';
+export type { BuildResult, CodeProblem, FunctionType };
 
 /** Where `cloudfrontize` puts a new function: `functions/<cloudfront|lambda-edge>/<event>.<id>.js`. */
 export function conventionalFile(type: FunctionType, event: EventType, id: string): string {

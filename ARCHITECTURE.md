@@ -219,9 +219,10 @@ This example demonstrates routing between LocalStack, MinIO, and a Local Folder 
 
 The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api/*`, `/events`) stay until the current UI is replaced.
 
+- **`contract.ts`**: every request, response and event type of the API, with no imports, so the WebUI (`ui-src`, alias `@contract`) compiles against exactly what the server sends. Server modules use the same types.
 - **`router.ts`**: a small JSON router. Handlers return `{ status, body, headers }` or throw an `ApiError` (`errors.ts`), which becomes `{ "error": { "code", "message", "details" } }` with a matching status (400 `bad-request`, 404 `not-found`, 405 `method-not-allowed`, 409 `conflict`, 413 `too-large`, 415 `unsupported-media-type`, 422 `invalid`, 500 `internal`). Responses are `Cache-Control: no-store`.
 - **`events.ts`**: the typed event model. Every event is `{ v: 2, seq, time, type, requestId?, data }`. Types: `stream.hello`, `stream.reset`, `request.started`, `request.stage`, `request.completed`, `request.failed`, `build.succeeded`, `build.failed`, `project.opened`, `project.changed`, `project.invalid`, `viewer.changed`, `distribution.changed`. A `request.stage` carries a structured `stage` (`function` / `short-circuit` with `event`, `runtime`, `functionIds`; `origin-fetch` with `origin`; `origin-response`; `final-response`), set by the Orchestrator's `broadcastStage`, so clients never parse display names.
-- **`EventHub.ts`**: numbers telemetry events (`seq` increases by one for the server's lifetime), keeps the last 2,000 for replay, and serves `GET /api/v2/events` as Server-Sent Events (`id: <seq>`, `data: <json>`). A client that reconnects with `Last-Event-ID` (or `?since=<seq>`) gets exactly the events it missed, or `stream.reset` when they're gone. A heartbeat comment every 15 s keeps idle streams open.
+- **`EventHub.ts`**: numbers telemetry events (`seq` increases by one for the server's lifetime), keeps the last 2,000 for replay, and serves `GET /api/v2/events` as Server-Sent Events (`id: <seq>`, `data: <json>`). A client that reconnects with `Last-Event-ID` (or `?since=<seq>`) gets exactly the events it missed, or `stream.reset` when they're gone or its id is ahead of the server (the server restarted and its numbering started over). A heartbeat comment every 15 s keeps idle streams open.
 - **`v2.ts`**: the routes:
   - `GET /api/v2`: server, ports, open project, route list.
   - `GET /api/v2/events`: the event stream.
@@ -239,6 +240,7 @@ The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api
   - `GET /api/v2/kvs`, `GET /api/v2/kvs/:id`, `PUT /api/v2/kvs/:id` (`422 invalid-kvs` for content AWS wouldn't import), `POST /api/v2/kvs` `{ id }` (creates `kvs/<id>.json`).
   - `GET` / `PUT /api/v2/viewer/headers`: the viewer simulation file, validated like the server reads it. A project without one gets `config/headers.json`.
 
+- **`distribution.ts`**: `GET /api/v2/distribution`, the schematic's view of what runs, for projects and 2.x setups alike (`mode`): functions with build state, behaviors in match order (default last) with their four slots, origins without credentials. `POST /api/v2/controls` `{ action: "enable" | "disable" | "isolate" | "reset", function? }` switches functions for testing, without saving.
 - **`workspace.ts`**: what the start screen and the Viewer node need.
   - `GET /api/v2/fs/roots`, `GET /api/v2/fs/list?path=&hidden=`: folder browsing for the Open and New project dialogs. Only folders are listed (`isProject` marks those with a `cloudfrontize.json`). Browsing is confined to your home folder, the folder CloudFrontize was started in and the open project's folder, never a whole drive; paths are resolved with `realpath`, so a symlink can't lead outside (`403 outside-roots`).
   - `GET /api/v2/projects/recent`, `DELETE /api/v2/projects/recent?dir=`: recent projects (`exists: false` for moved ones), stored in `~/.cloudfrontize/recent.json` (`$CLOUDFRONTIZE_HOME` overrides the folder). The CLI records opened projects; the library does when `createServer({ recentProjects: true })`.
@@ -250,4 +252,13 @@ The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api
 - **Revisions** (`src/project/revision.ts`): a file's revision is a short SHA-256 of its exact bytes. Saves name the revision they edited, so an edit made meanwhile in an editor, git or another tab is never overwritten.
 - **One operation at a time**: `openProject`, `reload`, `saveManifest` and reloads caused by external edits are serialized by the server, so they can't interleave.
 - **`ProjectWatcher`** (`src/server/ProjectWatcher.ts`) watches the open project's manifest and viewer headers file (function, KVS and env files are watched by the runners). A manifest edit on disk reloads the project (`project.changed`, `source: "disk"`); the server's own saves are recognized by revision and not reloaded twice. If the edited manifest is invalid, the previous version keeps running and `project.invalid` reports the diagnostics. A viewer headers edit is applied in place (`viewer.changed`).
+
+## 7. The WebUI (`ui-src/`) 🖥️
+
+A React app built with Vite into `ui/` (shipped as `dist/ui`, served by the WebUI port). It uses only API v2. See [ui-src/README.md](ui-src/README.md) for the stack and the dev workflow.
+
+- **Server data** goes through TanStack Query (`src/api/queries.ts`); there's no polling: `src/live/useLiveSync.ts` listens to the event stream and refetches only what an event makes stale (a build result refetches the distribution, a manifest change the project...). A fresh stream (`stream.hello` with `resumed: false`, or `stream.reset`) reloads everything.
+- **Live traffic** is a pure model (`src/live/traffic.ts`: journeys built from events, newest first, capped at 5,000) in a zustand store, so traffic bursts only re-render traffic views.
+- **Screens**: the start screen (recent projects, Open, New) and the workbench. In a 2.x setup the workbench says so and shows what runs, read-only.
+- **Design tokens** (light and dark) are CSS variables in `src/index.css`, exposed as Tailwind utilities (`bg-surface`, `text-muted`, `text-cff`...).
 

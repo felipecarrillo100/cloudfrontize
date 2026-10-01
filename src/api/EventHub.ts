@@ -41,9 +41,13 @@ export class EventHub {
         return full;
     }
 
-    /** Events after `seq` still in the buffer, or null when some were already dropped. */
+    /**
+     * Events after `seq` still in the buffer, or null when the client can't be caught up: some were
+     * already dropped, or `seq` is ahead of this server (it restarted, so its numbering started over).
+     */
     since(seq: number): ApiEvent[] | null {
-        if (seq >= this.seq) return [];
+        if (seq > this.seq) return null;
+        if (seq === this.seq) return [];
         const first = this.buffer[0]?.seq ?? this.seq + 1;
         if (seq + 1 < first) return null;
         return this.buffer.filter(e => e.seq > seq);
