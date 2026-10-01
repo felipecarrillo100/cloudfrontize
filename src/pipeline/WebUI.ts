@@ -7,12 +7,15 @@ import { TransformationLevel } from '../core/CodeProcessor';
 import { EditorUtility } from '../core/EditorUtility';
 import { VERSION } from '../version';
 import { EventHub } from '../api/EventHub';
-import { createApiV2 } from '../api/v2';
+import { createApiV2, ProjectControl } from '../api/v2';
 import type { Router } from '../api/router';
+import { ApiError } from '../api/errors';
 
 export interface WebUIHost {
     /** The ports actually listened on (they differ from the options when 0 asked for an ephemeral port). */
     ports?: () => { main: number; webui: number };
+    /** The server's project operations (open, reload, save). */
+    projects?: () => ProjectControl;
 }
 
 export class WebUI {
@@ -26,7 +29,8 @@ export class WebUI {
             telemetry,
             events: this.events,
             runtime: getRuntime,
-            ports: host.ports ?? (() => ({ main: Number(options.port), webui: Number(options.webui) }))
+            ports: host.ports ?? (() => ({ main: Number(options.port), webui: Number(options.webui) })),
+            projects: host.projects ?? (() => { throw new ApiError(409, 'no-project', 'Project operations are not available on this server'); })
         });
     }
 

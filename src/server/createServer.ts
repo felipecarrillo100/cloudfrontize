@@ -4,8 +4,11 @@ import { Logger, defaultLogger } from '../core/Logger';
 import { InMemoryHistoryStore } from '../pipeline/HistoryStore';
 import { Telemetry } from '../pipeline/Telemetry';
 import { WebUI } from '../pipeline/WebUI';
-import { Diagnostic, PortInUseError, ServerStartError } from '../project/errors';
-import { loadProject } from '../project/loadProject';
+import { Diagnostic, ManifestConflictError, ManifestError, NoProjectError, PortInUseError, ServerStartError } from '../project/errors';
+import { formatDiagnostics } from '../project/format';
+import { checkManifest, loadProject } from '../project/loadProject';
+import { formatManifest, readRevisioned, writeFileAtomic } from '../project/revision';
+import { ProjectWatcher } from './ProjectWatcher';
 import { ProjectRuntime, RuntimeSpec } from '../runtime/ProjectRuntime';
 import { fromProject, ProjectOverrides } from '../runtime/spec';
 import { printBottomBanner, printTopBanner } from './banner';
@@ -25,6 +28,14 @@ export interface CloudFrontizeServer extends http.Server {
     openProject(target: string): Promise<{ diagnostics: Diagnostic[] }>;
     /** Reloads the current project from disk. */
     reload(): Promise<{ diagnostics: Diagnostic[] }>;
+    /**
+     * Validates and saves the current project's manifest, then reloads it.
+     * @param baseRevision - The revision the edit started from.
+     * @throws {ManifestConflictError} when the file changed since `baseRevision`.
+     * @throws {ManifestError} when the manifest is invalid (nothing is written).
+     * @throws {NoProjectError} when serving a 2.x command-line setup.
+     */
+    saveManifest(manifest: unknown, baseRevision: string): Promise<{ revision: string; diagnostics: Diagnostic[] }>;
     /** Stops watchers, closes the WebUI and all connections, then the server. */
     closeGracefully(): Promise<null>;
 }
@@ -51,7 +62,7 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
     };
     let uiServer: http.Server | null = null;
     const webui = options.webui !== undefined && options.webui !== false && options.webui !== ''
-        ? new WebUI(telemetry, () => current, options, { ports: () => ({ main: portOf(mainServer, options.port), webui: portOf(uiServer, options.webui) }) })
+        ? new WebUI(telemetry, () => current, options, { ports: () => ({ main: portOf(mainServer, options.port), webui: portOf(uiServer, options.webui) }), projects: () => mainServer })
         : null;
 
     const compressionLib = require('compression');
@@ -209,14 +220,63 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
         });
     }
 
-    mainServer.ready = Promise.all([mainReady, uiReady]).then(() => undefined);
+    mainServer.ready = Promise.all([mainReady, uiReady]).then(() => watchCurrent());
     // Don't turn an un-awaited startup failure into an unhandled rejection; callers opt in via `ready`
     mainServer.ready.catch(() => {});
 
     Object.defineProperty(mainServer, 'current', { get: () => current, enumerable: true });
     Object.defineProperty(mainServer, 'webuiPort', { get: () => (uiServer?.listening ? portOf(uiServer, options.webui) : null), enumerable: true });
 
-    mainServer.openProject = async (target: string) => {
+    // Project operations (open, reload, save, external edits) run one at a time
+    let queue: Promise<unknown> = Promise.resolve();
+    const serialize = <T>(task: () => Promise<T>): Promise<T> => {
+        const run = queue.then(task, task);
+        queue = run.catch(() => {});
+        return run;
+    };
+
+    // Watches the current project's manifest and viewer headers file
+    let watcher: ProjectWatcher | null = null;
+    // The manifest revision the server already knows about (loaded, or written by saveManifest)
+    let knownRevision: string | null = null;
+    const broadcastProject = (details: Record<string, unknown>) =>
+        telemetry.broadcast({ id: 'SYSTEM_PROJECT', type: 'project', details } as any);
+
+    const watchCurrent = async () => {
+        watcher?.close();
+        watcher = null;
+        const project = current.project;
+        if (!project || !current.watches) return;
+        knownRevision = project.revision;
+        const w = new ProjectWatcher(project.manifestPath, project.viewerHeadersFile, {
+            onManifest: (revision) => {
+                if (revision === knownRevision) return; // our own write, or no real change
+                void serialize(async () => {
+                    if (watcher !== w) return; // another project was opened meanwhile
+                    try {
+                        await openInternal(project.dir, 'disk');
+                    } catch (err: any) {
+                        knownRevision = revision;
+                        const diagnostics: Diagnostic[] = err instanceof ManifestError ? err.diagnostics : [{ severity: 'error', path: '', rule: 'reload', message: err.message }];
+                        logger.warn(`\x1b[33m⚠️  ${project.manifestPath} changed but can't be loaded; still serving the previous version\x1b[0m\n${formatDiagnostics(diagnostics)}`);
+                        broadcastProject({ action: 'invalid', name: project.manifest.name, dir: project.dir, revision, diagnostics });
+                    }
+                });
+            },
+            onViewerHeaders: () => {
+                try {
+                    current.applyHeaderConfig();
+                    broadcastProject({ action: 'viewer-headers', name: project.manifest.name, dir: project.dir, revision: knownRevision });
+                } catch (err: any) {
+                    logger.error(`\x1b[31m🛑 [HeaderParser] ${err.message}\x1b[0m`);
+                }
+            }
+        });
+        watcher = w;
+        await w.start();
+    };
+
+    const openInternal = async (target: string, source: 'open' | 'api' | 'disk') => {
         const { project, diagnostics } = loadProject(target);
         const next = new ProjectRuntime(fromProject(project, settings.overrides), telemetry);
         try {
@@ -234,16 +294,39 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
         if (project.manifest.distribution.port !== Number(options.port) && settings.overrides?.port === undefined) {
             logger.warn(`\x1b[33m⚠️  ${project.manifest.name} asks for port ${project.manifest.distribution.port}; it keeps running on ${options.port} until the server restarts\x1b[0m`);
         }
-        telemetry.broadcast({ id: 'SYSTEM_PROJECT', type: 'project', details: { name: project.manifest.name, dir: project.dir } } as any);
+        const sameProject = previous.project?.dir === project.dir;
+        await watchCurrent();
+        broadcastProject({ action: sameProject ? 'changed' : 'opened', source, name: project.manifest.name, dir: project.dir, revision: project.revision, diagnostics });
         return { diagnostics };
     };
 
-    mainServer.reload = async () => {
-        if (!current.project) throw new Error('reload() is only available when serving a project');
-        return mainServer.openProject(current.project.dir);
-    };
+    mainServer.openProject = (target: string) => serialize(() => openInternal(target, 'open'));
+
+    mainServer.reload = () => serialize(async () => {
+        if (!current.project) throw new NoProjectError('reload() is only available when serving a project');
+        return openInternal(current.project.dir, 'open');
+    });
+
+    mainServer.saveManifest = (manifest: unknown, baseRevision: string) => serialize(async () => {
+        const project = current.project;
+        if (!project) throw new NoProjectError();
+        const onDisk = readRevisioned(project.manifestPath);
+        if (onDisk.revision !== baseRevision) {
+            let parsed: unknown = onDisk.content;
+            try { parsed = JSON.parse(onDisk.content); } catch { /* send the raw text */ }
+            throw new ManifestConflictError(project.manifestPath, onDisk.revision, parsed);
+        }
+        const { manifest: valid, diagnostics } = checkManifest(manifest, project.dir);
+        if (!valid || diagnostics.some(d => d.severity === 'error')) throw new ManifestError(project.manifestPath, diagnostics);
+
+        knownRevision = writeFileAtomic(project.manifestPath, formatManifest(manifest));
+        const result = await openInternal(project.dir, 'api');
+        return { revision: knownRevision, diagnostics: result.diagnostics };
+    });
 
     mainServer.closeGracefully = async () => {
+        watcher?.close();
+        watcher = null;
         current.dispose();
         webui?.close();
         if (uiServer) uiServer.close();

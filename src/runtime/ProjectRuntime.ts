@@ -62,6 +62,8 @@ export class ProjectRuntime {
     }
 
     get edgeRunner() { return this.spec.edgeRunner; }
+    /** Whether this runtime watches files (project and CLI servers do; programmatic 2.x runners don't). */
+    get watches() { return this.spec.watch; }
     get cffRunner() { return this.spec.cffRunner; }
 
     /** Starts file watchers (hot reload) for the runners this runtime built. */

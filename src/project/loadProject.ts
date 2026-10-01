@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { Diagnostic, ManifestError } from './errors';
 import { BehaviorDefinition, FunctionDefinition, Manifest, ManifestSchema, OriginDefinition } from './schema';
 import { validateManifest } from './validate';
+import { revisionOf } from './revision';
 
 export const MANIFEST_FILE = 'cloudfrontize.json';
 
@@ -14,6 +15,10 @@ export type ResolvedFunction = FunctionDefinition & { id: string; absoluteFile: 
 export interface Project {
     dir: string;
     manifestPath: string;
+    /** Revision of the manifest file this project was loaded from (see revision.ts). */
+    revision: string;
+    /** The manifest as written in the file (no defaults applied), for editing. */
+    source: unknown;
     manifest: Manifest;
     origins: ResolvedOrigin[];
     functions: Record<string, ResolvedFunction>;
@@ -85,6 +90,8 @@ export function loadProject(target: string): { project: Project; diagnostics: Di
     const project: Project = {
         dir,
         manifestPath,
+        revision: revisionOf(raw),
+        source: input,
         manifest,
         origins: manifest.origins.map(o => (o.type === 'local' ? { ...o, absolutePath: resolve(o.path) } : { ...o })),
         functions: Object.fromEntries(Object.entries(manifest.functions).map(([id, fn]) => [id, { ...fn, id, absoluteFile: resolve(fn.file)! }])),

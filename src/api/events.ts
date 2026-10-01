@@ -1,4 +1,5 @@
 import type { TelemetryEvent } from '../pipeline/Telemetry';
+import type { Diagnostic } from '../project/errors';
 
 /**
  * WebUI API v2 events: typed, versioned and sequenced.
@@ -43,7 +44,14 @@ export interface EventPayloads {
     'request.failed': { message: string };
     'build.succeeded': { file: string; runtime: FunctionRuntime };
     'build.failed': { file: string; runtime?: FunctionRuntime; message: string; line?: number; column?: number; snippet?: string };
-    'project.opened': { name: string; dir: string };
+    /** Another project was opened. */
+    'project.opened': { name: string; dir: string; revision: string; diagnostics: Diagnostic[] };
+    /** The open project was reloaded: saved through the API, edited on disk, or reloaded on request. */
+    'project.changed': { name: string; dir: string; revision: string; source: 'api' | 'disk' | 'open'; diagnostics: Diagnostic[] };
+    /** The manifest was edited on disk but can't be loaded; the previous version keeps running. */
+    'project.invalid': { name: string; dir: string; revision: string; diagnostics: Diagnostic[] };
+    /** The viewer headers file changed and was applied. */
+    'viewer.changed': { name: string; dir: string };
     /** Functions, behaviors or their state changed: refetch the distribution. */
     'distribution.changed': Record<string, never>;
 }
@@ -88,8 +96,14 @@ export function toApiEvent(event: TelemetryEvent): Unsequenced | null {
                 };
             }
             return { time, type: 'request.failed', requestId: event.id, data: { message: String(d.message ?? 'Request failed') } };
-        case 'project':
-            return { time, type: 'project.opened', data: { name: d.name, dir: d.dir } };
+        case 'project': {
+            const base = { name: d.name, dir: d.dir };
+            const diagnostics = d.diagnostics ?? [];
+            if (d.action === 'changed') return { time, type: 'project.changed', data: { ...base, revision: d.revision, source: d.source, diagnostics } };
+            if (d.action === 'invalid') return { time, type: 'project.invalid', data: { ...base, revision: d.revision, diagnostics } };
+            if (d.action === 'viewer-headers') return { time, type: 'viewer.changed', data: base };
+            return { time, type: 'project.opened', data: { ...base, revision: d.revision, diagnostics } };
+        }
         default:
             // 'distribution' broadcasts carry the whole distribution under `data` (not `details`)
             if ((event as any).type === 'distribution') return { time, type: 'distribution.changed', data: {} };

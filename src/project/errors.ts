@@ -41,3 +41,19 @@ export class HeaderConfigError extends Error {
         this.name = 'HeaderConfigError';
     }
 }
+
+/** The manifest changed on disk since the revision a save was based on. */
+export class ManifestConflictError extends Error {
+    constructor(public readonly manifestPath: string, public readonly currentRevision: string, public readonly current: unknown) {
+        super(`${manifestPath} changed since it was read (now at revision ${currentRevision})`);
+        this.name = 'ManifestConflictError';
+    }
+}
+
+/** The operation needs a project, but the server runs a 2.x command-line setup. */
+export class NoProjectError extends Error {
+    constructor(message = 'No project is open (the server runs a 2.x command-line setup)') {
+        super(message);
+        this.name = 'NoProjectError';
+    }
+}
