@@ -69,6 +69,13 @@ export interface OriginConfig {
 export interface CacheBehavior {
     pathPattern: string;
     targetOriginId: string;
+    /** Stable key for telemetry and the UI: 'default' or the path pattern. */
+    key?: string;
+    /**
+     * Function ids attached to each event of this behavior (project manifests: at most one per event).
+     * Undefined means 2.x mode: every loaded hook of the event runs, on every path.
+     */
+    functions?: Partial<Record<HookType, string[]>>;
 }
 
 export interface CloudFrontizeOptions {

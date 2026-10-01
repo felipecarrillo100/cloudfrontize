@@ -114,7 +114,8 @@ Limits and rules follow the CloudFront Developer Guide (quotas and edge-function
 #### Pipeline Rules (AWS parity)
 - Disallowed headers are never exposed to functions (request or response events).
 - The request body exposed to a viewer-request function is truncated at 40 KB (1 MB for origin-request), with `inputTruncated: true`.
-- The origin is chosen from the viewer's original URI: a rewrite doesn't change the cache behavior or origin.
+- **Cache behaviors** are matched first, on the viewer's original URI (in order; `*` and `?` wildcards; the default behavior last). The matched behavior decides the origin **and which functions run on each event**: project manifests attach functions per behavior; 2.x setups have one implicit behavior that runs every loaded hook. A rewrite doesn't change the behavior or origin.
+- Functions are compiled once (a pool keyed by function id) and can be attached to several behaviors. A function that fails to build only blocks the behaviors that use it.
 - Viewer-response functions don't run when the origin returns 400 or higher; a Lambda@Edge viewer-response function can't change the status code.
 
 ### D. Origin Providers (Data Resolution)

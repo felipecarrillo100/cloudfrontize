@@ -125,22 +125,17 @@ describe('Project manifest', () => {
         expect(find(diagnose(manifest(true), { ...WWW, 'big.js': big }), 'cff-size').severity).toBe('error');
     });
 
-    test('features not supported yet are reported clearly by the runtime', () => {
+    test('functions on specific behaviors are accepted by the runtime', () => {
         const dir = makeProject(baseManifest({
-            functions: {
-                auth: { type: 'lambda-edge', file: 'auth.js' },
-                modern: { type: 'cloudfront-function', runtime: 'cloudfront-js-2.0', file: 'modern.js' }
-            },
-            defaultBehavior: { origin: 'web', functions: { 'viewer-request': 'modern' } },
+            functions: { auth: { type: 'lambda-edge', file: 'auth.js' } },
             behaviors: [{ pathPattern: '/api/*', origin: 'web', functions: { 'origin-request': 'auth' } }]
-        }), { ...WWW, 'auth.js': LAE, 'modern.js': CFF });
+        }), { ...WWW, 'auth.js': LAE });
         try {
             const { project } = loadProject(dir);
-            let error: any;
-            try { fromProject(project); } catch (err) { error = err; }
-            expect(error).toBeInstanceOf(ManifestError);
-            const rules = error.diagnostics.map((x: any) => x.path);
-            expect(rules).toEqual(expect.arrayContaining(['/behaviors/0/functions', '/functions/modern/runtime']));
+            const spec = fromProject(project);
+            expect(spec.origins.behaviors[0]).toMatchObject({ pathPattern: '/api/*', functions: { 'origin-request': ['auth'] } });
+            expect(spec.origins.behaviors[1]).toMatchObject({ key: 'default', pathPattern: '*' });
+            spec.edgeRunner?.close();
         } finally {
             removeProject(dir);
         }

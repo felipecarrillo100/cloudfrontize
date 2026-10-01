@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "3.1 The Bouncer",
+  "origins": [
+    { "id": "website", "type": "local", "path": "origins/www" }
+  ],
+  "functions": {
+    "bouncer": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/viewer-request.bouncer.js"
+    }
+  },
+  "behaviors": [
+    {
+      "pathPattern": "/admin/*",
+      "origin": "website",
+      "functions": { "viewer-request": "bouncer" }
+    }
+  ],
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {}
+  }
+}

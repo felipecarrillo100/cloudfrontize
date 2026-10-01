@@ -184,6 +184,11 @@ export abstract class HotRunner extends EventEmitter {
         };
     }
 
+    /** Ids of the loaded functions registered for a stage (2.x mode: what runs on every path). */
+    public getStageIds(stage: HookType): string[] {
+        return this.modules[stage].map(m => m.id);
+    }
+
     public getRunnerPath(): string | null {
         return this.runnerPath;
     }

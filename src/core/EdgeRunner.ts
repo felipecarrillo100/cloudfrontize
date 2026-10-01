@@ -3,7 +3,7 @@ import path from 'path';
 import { AsyncLocalStorage } from 'async_hooks';
 import vm from 'vm';
 import { HotRunner } from './HotRunner';
-import { FileOverride, HookType, Registry } from './types';
+import { FileOverride, HookModule, HookType, Registry } from './types';
 import { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME } from '../constants';
 import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
@@ -178,8 +178,9 @@ export class EdgeRunner extends HotRunner {
             const finalType = stage;
 
             if (mod.handler && finalType && registry[finalType]) {
-                // Fidelity Check: AWS only allows one hook per type.
-                if (registry[finalType].length > 0) {
+                // Fidelity Check: AWS only allows one hook per type. (Manifest mode: the manifest enforces one
+                // function per event per behavior, and the same stage may hold functions of different behaviors.)
+                if (!override && registry[finalType].length > 0) {
                     console.warn(`\x1b[33m⚠️  [CloudFrontize] Warning: Multiple files for "${finalType}" detected. Only "${path.basename(registry[finalType][0].filePath)}" will be used.\x1b[0m`);
                     return;
                 }
@@ -255,7 +256,35 @@ export class EdgeRunner extends HotRunner {
         return logLine;
     }
 
+    /** The compiled function with this id, whichever stage registry holds it. */
+    public getModule(id: string): HookModule | undefined {
+        for (const mods of Object.values(this.modules)) {
+            const found = mods.find(m => m.id === id);
+            if (found) return found;
+        }
+        return undefined;
+    }
+
+    public hasModule(id: string): boolean {
+        return this.getModule(id) !== undefined;
+    }
+
+    /** 2.x API: runs every loaded viewer-request then origin-request hook, minus `disabledIds`. */
     public async runRequestHook(req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', disabledIds: string[] = [], bodyTruncated = false): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
+        const plan = (['viewer-request', 'origin-request'] as HookType[]).map(type => ({
+            type,
+            mods: this.modules[type].filter(m => !disabledIds.includes(m.id))
+        }));
+        return this._runRequestModules(req, bodyBuffer, requestID, bodyTruncated, plan);
+    }
+
+    /** Runs the given functions (by id, in order) for one request event. */
+    public async runRequestStage(stage: HookType, ids: string[], req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', bodyTruncated = false): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
+        const mods = ids.map(id => this.getModule(id)).filter((m): m is HookModule => !!m);
+        return this._runRequestModules(req, bodyBuffer, requestID, bodyTruncated, [{ type: stage, mods }]);
+    }
+
+    private async _runRequestModules(req: any, bodyBuffer: Buffer | undefined, requestID: string, bodyTruncated: boolean, plan: { type: HookType; mods: HookModule[] }[]): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
         const request = this._buildRequestRecord(req, bodyBuffer, bodyTruncated);
         // Capture the Exposure Boundary: the exact headers handed to the Lambda at invocation time.
         // This is used by the caller (Orchestrator) to determine which deletions were intentional.
@@ -264,8 +293,7 @@ export class EdgeRunner extends HotRunner {
         const allLogs: string[] = [];
         let finalResult: any = null;
 
-        for (const type of ['viewer-request', 'origin-request'] as HookType[]) {
-            const mods = this.modules[type].filter(m => !disabledIds.includes(m.id));
+        for (const { type, mods } of plan) {
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(request.headers);
 
@@ -324,26 +352,35 @@ export class EdgeRunner extends HotRunner {
                 querystring: request.querystring,
                 body: request.body,
                 totalDurationMs: String(totalDurationMs),
-                type: 'viewer-request' 
+                type: plan.length === 1 ? plan[0].type : 'viewer-request'
             };
         }
 
         return { result: finalResult, logs: allLogs, exposedHeaders };
     }
 
+    /** 2.x API: runs the loaded hooks of `stage` (or both response stages), minus `disabledIds`. */
     public async runResponseHook(req: any, resData: any, requestID = 'UNKNOWN', stage?: HookType, disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
+        // If no specific stage is targetted, run both as per legacy behavior
+        const stages = stage ? [stage] : (['origin-response', 'viewer-response'] as HookType[]);
+        const plan = stages.map(type => ({ type, mods: this.modules[type].filter(m => !disabledIds.includes(m.id)) }));
+        return this._runResponseModules(req, resData, requestID, plan);
+    }
+
+    /** Runs the given functions (by id, in order) for one response event. */
+    public async runResponseStage(stage: HookType, ids: string[], req: any, resData: any, requestID = 'UNKNOWN'): Promise<{ result: any; logs: string[] }> {
+        const mods = ids.map(id => this.getModule(id)).filter((m): m is HookModule => !!m);
+        return this._runResponseModules(req, resData, requestID, [{ type: stage, mods }]);
+    }
+
+    private async _runResponseModules(req: any, resData: any, requestID: string, plan: { type: HookType; mods: HookModule[] }[]): Promise<{ result: any; logs: string[] }> {
         const request = this._buildRequestRecord(req);
         let totalDurationMs = 0;
         // AWS Parity: disallowed headers are never exposed to edge functions
         let reconciledHeaders = HeaderManager.withoutDisallowed(this.headerManager.normalizeHeaders(resData.headers || {}));
         const allLogs: string[] = [];
 
-        // If no specific stage is targetted, run both as per legacy behavior
-        // But for forensic accuracy, forensic-aware callers should pass a stage.
-        const stages = stage ? [stage] : (['origin-response', 'viewer-response'] as HookType[]);
-
-        for (const type of stages) {
-            const mods = this.modules[type].filter(m => !disabledIds.includes(m.id));
+        for (const { type, mods } of plan) {
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(reconciledHeaders);
 

@@ -110,7 +110,7 @@ export class CFFRunner extends HotRunner {
 
         const stat = fs.statSync(this.runnerPath);
         const files = stat.isDirectory()
-            ? fs.readdirSync(this.runnerPath).filter(f => f.endsWith('.js'))
+            ? fs.readdirSync(this.runnerPath).filter(f => f.endsWith('.js')).sort()
             : [this.runnerPath];
 
         for (const file of files) {
@@ -225,17 +225,42 @@ export class CFFRunner extends HotRunner {
         }
     }
 
+    /** The compiled function with this id, whichever stage registry holds it. */
+    public getModule(id: string): any | undefined {
+        for (const mods of Object.values(this.modules)) {
+            const found = mods.find(m => m.id === id);
+            if (found) return found;
+        }
+        return undefined;
+    }
+
+    public hasModule(id: string): boolean {
+        return this.getModule(id) !== undefined;
+    }
+
+    /** 2.x API: runs every loaded function of `type` in order, minus `disabledIds`. */
     public async runChain(type: HookType, event: any, disabledIds: string[] = [], onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
+        const mods = this.modules[type].filter(mod => {
+            if (!disabledIds.includes((mod as any).id)) return true;
+            if (this.options.debug) {
+                console.log(`\x1b[90m[${event.context.requestId}] \x1b[36m[CFF]\x1b[0m Bypassing ${path.basename(mod.filePath)} (Manual Override)`);
+            }
+            return false;
+        });
+        return this._runModules(type, mods, event, onHookComplete);
+    }
+
+    /** Runs the given functions (by id, in order) for one viewer event. */
+    public async runStage(type: HookType, ids: string[], event: any, onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
+        const mods = ids.map(id => this.getModule(id)).filter(Boolean);
+        return this._runModules(type, mods, event, onHookComplete);
+    }
+
+    private async _runModules(type: HookType, mods: any[], event: any, onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
         let currentEvent = event;
         const allLogs: string[] = [];
 
-        for (const mod of this.modules[type]) {
-            if (disabledIds.includes((mod as any).id)) {
-                if (this.options.debug) {
-                    console.log(`\x1b[90m[${event.context.requestId}] \x1b[36m[CFF]\x1b[0m Bypassing ${path.basename(mod.filePath)} (Manual Override)`);
-                }
-                continue;
-            }
+        for (const mod of mods) {
 
             if (this.options.verbose) {
                 allLogs.push(`\x1b[90m[${event.context.requestId}] \x1b[90m├─\x1b[0m \x1b[36m○ [CFF: ${type}] ${path.basename(mod.filePath)}\x1b[0m`);

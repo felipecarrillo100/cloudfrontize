@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { EdgeRunner } from '../core/EdgeRunner';
 import { CFFRunner } from '../core/CFFRunner';
-import { CloudFrontizeOptions, OriginConfig, RunnerFile } from '../core/types';
+import { CacheBehavior, CloudFrontizeOptions, OriginConfig, RunnerFile } from '../core/types';
 import { ConfigLoader, MultiOriginConfig } from '../pipeline/ConfigLoader';
 import { Diagnostic, ManifestError } from '../project/errors';
 import type { Project } from '../project/loadProject';
@@ -70,12 +70,6 @@ export function fromProject(project: Project, overrides: ProjectOverrides = {}):
     const { manifest } = project;
 
     const unsupported: Diagnostic[] = [];
-    project.behaviors.forEach((b, i) => {
-        if (Object.values(b.functions).some(Boolean)) {
-            unsupported.push({ severity: 'error', path: `/behaviors/${i}/functions`, rule: 'not-supported-yet',
-                message: 'Functions on specific cache behaviors aren\'t supported yet; attach them to defaultBehavior for now' });
-        }
-    });
     for (const [id, fn] of Object.entries(project.functions)) {
         if (fn.type === 'cloudfront-function' && fn.runtime === 'cloudfront-js-2.0') {
             unsupported.push({ severity: 'error', path: `/functions/${id}/runtime`, rule: 'not-supported-yet',
@@ -99,24 +93,34 @@ export function fromProject(project: Project, overrides: ProjectOverrides = {}):
     } as CloudFrontizeOptions;
     options.verbose = options.debug || options.verbose;
 
+    // Each behavior lists its own functions per event (AWS: at most one per event)
+    const functionLists = (functions: Project['defaultBehavior']['functions']): CacheBehavior['functions'] =>
+        Object.fromEntries(EVENT_TYPES.filter(e => functions[e]).map(e => [e, [functions[e]!]]));
+
     // Behaviors are matched in order; the default behavior ("*") comes last
     const origins: MultiOriginConfig = {
         origins: project.origins.map((o): OriginConfig => o.type === 'local'
             ? { id: o.id, type: 'local', directory: o.absolutePath, mode: o.mode }
             : { id: o.id, type: 's3', bucket: o.bucket, region: o.region, endpoint: o.endpoint, forcePathStyle: o.forcePathStyle, mode: o.mode, credentials: o.credentials as any }),
         behaviors: [
-            ...project.behaviors.map(b => ({ pathPattern: b.pathPattern, targetOriginId: b.origin })),
-            { pathPattern: '*', targetOriginId: project.defaultBehavior.origin }
+            ...project.behaviors.map(b => ({ key: b.pathPattern, pathPattern: b.pathPattern, targetOriginId: b.origin, functions: functionLists(b.functions) })),
+            { key: 'default', pathPattern: '*', targetOriginId: project.defaultBehavior.origin, functions: functionLists(project.defaultBehavior.functions) }
         ]
     };
 
+    // Function pool: each attached function is compiled once, whatever behaviors and events use it.
+    // Its stage is the first event it's attached to (Lambda@Edge module rules use it until 2.3).
     const edgeFiles: RunnerFile[] = [];
     const cffFiles: RunnerFile[] = [];
-    for (const event of EVENT_TYPES) {
-        const fnId = project.defaultBehavior.functions[event];
-        if (!fnId) continue;
-        const fn = project.functions[fnId];
-        (fn.type === 'lambda-edge' ? edgeFiles : cffFiles).push({ path: fn.absoluteFile, stage: event, id: fnId });
+    const pooled = new Set<string>();
+    for (const b of [project.defaultBehavior, ...project.behaviors]) {
+        for (const event of EVENT_TYPES) {
+            const fnId = b.functions[event];
+            if (!fnId || pooled.has(fnId)) continue;
+            pooled.add(fnId);
+            const fn = project.functions[fnId];
+            (fn.type === 'lambda-edge' ? edgeFiles : cffFiles).push({ path: fn.absoluteFile, stage: event, id: fnId });
+        }
     }
 
     const logStream = openLogStream(options.log);

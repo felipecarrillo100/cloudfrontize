@@ -7,6 +7,7 @@ The original modules in the parent folder use the 2.x command-line style (`cloud
 | Tutorial | What it shows |
 |---|---|
 | [1.1 The Security Guard](01-foundations/1.1-security-guard/README.md) | Adding security headers in a Lambda@Edge viewer-response function |
+| [3.1 The Bouncer](03-edge/3.1-bouncer/README.md) | Basic Auth on `/admin/*` only, with a cache behavior and a short-circuit response |
 
 ## Run a tutorial
 ```bash

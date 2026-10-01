@@ -5,6 +5,7 @@ import { EdgeRunner } from '../core/EdgeRunner';
 import { CFFRunner } from '../core/CFFRunner';
 
 import { Telemetry } from './Telemetry';
+import { CacheBehavior, HookType } from '../core/types';
 
 export class HookRegistry {
     private hooks: any[] = [];
@@ -12,7 +13,11 @@ export class HookRegistry {
     private buildErrors: Map<string, any> = new Map();
     private detachListeners: Array<() => void> = [];
 
-    constructor(private edgeRunner: EdgeRunner | null, private cffRunner: CFFRunner | null, private telemetry: Telemetry) {
+    /**
+     * @param behaviors - Project mode: behaviors with explicit function associations. One entry is
+     *   listed per (function, event) attachment; a function attached to several behaviors shares its id.
+     */
+    constructor(private edgeRunner: EdgeRunner | null, private cffRunner: CFFRunner | null, private telemetry: Telemetry, private behaviors: CacheBehavior[] = []) {
         this._initialize();
         this._setupListeners();
     }
@@ -20,12 +25,24 @@ export class HookRegistry {
     private _initialize() {
         const hooks: any[] = [];
 
-        // Manifest mode: the project lists the files, their stages and ids
-        const edgeFiles = this.edgeRunner?.options?.files;
-        const cffFiles = this.cffRunner?.options?.files;
-        if (edgeFiles || cffFiles) {
-            for (const f of edgeFiles || []) hooks.push({ id: f.id, type: 'Lambda@Edge', path: f.path, stage: f.stage });
-            for (const f of cffFiles || []) hooks.push({ id: f.id, type: 'CloudFront Function', path: f.path, stage: f.stage });
+        // Manifest mode: the project lists the functions; behaviors say which events they run on
+        const edgeFiles: any[] = this.edgeRunner?.options?.files || [];
+        const cffFiles: any[] = this.cffRunner?.options?.files || [];
+        if (this.edgeRunner?.options?.files || this.cffRunner?.options?.files) {
+            const byId = new Map<string, { type: string; path: string }>();
+            for (const f of edgeFiles) byId.set(f.id, { type: 'Lambda@Edge', path: f.path });
+            for (const f of cffFiles) byId.set(f.id, { type: 'CloudFront Function', path: f.path });
+            const seen = new Set<string>();
+            for (const behavior of this.behaviors) {
+                for (const [stage, ids] of Object.entries(behavior.functions || {}) as [HookType, string[]][]) {
+                    for (const id of ids) {
+                        const fn = byId.get(id);
+                        if (!fn || seen.has(`${id}|${stage}`)) continue;
+                        seen.add(`${id}|${stage}`);
+                        hooks.push({ id, type: fn.type, path: fn.path, stage });
+                    }
+                }
+            }
             this.hooks = hooks;
             return;
         }
