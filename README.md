@@ -195,6 +195,8 @@ CloudFrontize includes a browser-based UI to help you visualize your edge logic 
 
 Using the **Header Intelligence** panel, you can inject or override headers on-the-fly to test Geo-routing, Auth tokens, or Security policies without changing a single line of code.
 
+> **CloudFront-added headers follow AWS.** Simulated geolocation, device and other headers CloudFront adds (`CloudFront-Viewer-Country`, `CloudFront-Is-Mobile-Viewer`, …) are visible where AWS exposes them: to CloudFront Functions, and to Lambda@Edge only in **origin-request** and **origin-response** (*"CloudFront adds the headers after the viewer request event"*). A value CloudFront adds overwrites one the viewer sent for origin-facing functions, while viewer-facing functions see the viewer's own value. Other simulated headers are sent as viewer headers. Functions on response events can read the query string but can't change it.
+
 **[👉 Learn how to use the Web UI](docs/web-ui.md)**
 
 ---

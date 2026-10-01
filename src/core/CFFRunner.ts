@@ -286,9 +286,22 @@ export class CFFRunner extends HotRunner {
             }
             // Snapshot what the function is given, to validate its header mutations afterwards
             const givenHeaders = HeaderManager.normalizeHeaders(type === 'viewer-request' ? currentEvent.request?.headers : currentEvent.response?.headers);
+            const givenQuerystring = type === 'viewer-response' ? JSON.stringify(currentEvent.request?.querystring ?? {}) : '';
 
             const { result, logs } = this._executeSync(mod, currentEvent, path.basename(mod.filePath), type);
             allLogs.push(...logs);
+
+            // AWS Parity: "A function can read a query string, but cannot create or update one, for
+            // origin response and viewer response events." The change is ignored.
+            if (type === 'viewer-response') {
+                const returnedRequest = result?.request ?? currentEvent.request;
+                if (JSON.stringify(returnedRequest?.querystring ?? {}) !== givenQuerystring) {
+                    const original = JSON.parse(givenQuerystring);
+                    if (currentEvent.request) currentEvent.request.querystring = original;
+                    if (result?.request) result.request.querystring = original;
+                    EdgeError.reportValidation('function', `${path.basename(mod.filePath)}: viewer-response functions can't change the query string`, this.options.strict);
+                }
+            }
 
             if (result) {
                 // AWS Parity: header restrictions apply to all edge functions. A viewer-request function

@@ -386,6 +386,7 @@ export class EdgeRunner extends HotRunner {
         for (const { type, mods } of plan) {
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(reconciledHeaders);
+                const originalQuerystring = request.querystring;
 
                 if (this.options.verbose) {
                     allLogs.push(`\x1b[90m[${requestID}]\x1b[0m \x1b[90m├─\x1b[0m ○ \x1b[35m[L@E: ${type}]\x1b[0m ${path.basename(mod.filePath)}`);
@@ -409,6 +410,13 @@ export class EdgeRunner extends HotRunner {
                 totalDurationMs += durationMs;
 
                 if (timedOut) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs };
+
+                // AWS Parity: "A function can read a query string, but cannot create or update one, for
+                // origin response and viewer response events." The change is ignored.
+                if (request.querystring !== originalQuerystring) {
+                    request.querystring = originalQuerystring;
+                    EdgeError.reportValidation('lambda', `${path.basename(mod.filePath)}: ${type} functions can't change the query string`, this.options.strict);
+                }
                 if (!result) continue;
 
                 if (result.status) {

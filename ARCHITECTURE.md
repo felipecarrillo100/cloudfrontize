@@ -50,7 +50,7 @@ graph LR
 CloudFrontize processes incoming HTTP requests through a strict, sequential pipeline mimicking the internal hook structure of AWS.
 
 ### 1.1 The Network Simulation Layer
-Before the first hook runs, the Orchestrator injects **Sticky Headers** (Header Intelligence) into the request. This simulates the CloudFront Network Layer, providing hooks with realistic metadata such as Geo-location and Device type headers (`this._injectStickyHeaders`).
+Before the first hook runs, the Orchestrator injects **Sticky Headers** (Header Intelligence) into the request. This simulates the CloudFront Network Layer, providing hooks with realistic metadata such as Geo-location and Device type headers. Simulated headers on the CloudFront-added list (`AWS_HEADERS.CLOUDFRONT_ADDED`) are kept aside (`_splitSimulatedHeaders`): CloudFront Functions get them overlaid on their event, and they are added to the live request just before origin-request (`_addCloudFrontHeaders`), so Lambda@Edge sees them only on origin events and at the origin. Lambda@Edge viewer-response gets a viewer-facing copy of the request with the viewer's own values.
 
 ### 1.2 The Hook Chain (Execution Matrix)
 

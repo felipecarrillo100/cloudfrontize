@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a visitor from France gets the French site",
+      "request": { "path": "/index.html" },
+      "expect": { "status": 200, "bodyContains": "Bonjour", "bodyNotContains": "global site" }
+    },
+    {
+      "name": "folder requests work on an S3 REST origin",
+      "request": { "path": "/" },
+      "expect": { "status": 200, "bodyContains": "Bonjour" }
+    },
+    {
+      "name": "a viewer can't fake its country: CloudFront overwrites the header for origin-facing functions",
+      "request": { "path": "/index.html", "headers": { "cloudfront-viewer-country": "MX" } },
+      "expect": { "status": 200, "bodyContains": "Bonjour", "bodyNotContains": "Hola" }
+    }
+  ]
+}

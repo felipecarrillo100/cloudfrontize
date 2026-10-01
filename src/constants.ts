@@ -72,6 +72,29 @@ export const AWS_HEADERS = {
     LAMBDA_VIEWER_RESPONSE_READ_ONLY: ['content-length', 'content-encoding', 'transfer-encoding'],
     // "If a viewer request function adds the CloudFront-Viewer-Country header, it fails validation" (502)
     VIEWER_REQUEST_CANNOT_ADD: ['cloudfront-viewer-country'],
+    /**
+     * Headers CloudFront adds to the request, when a cache or origin request policy asks for them.
+     * Source: "Add CloudFront request headers". CloudFront adds them after the viewer request event:
+     * Lambda@Edge sees them only in origin request and origin response ("Restrictions on Lambda@Edge ›
+     * CloudFront headers"); CloudFront Functions have access to them ("Differences between CloudFront
+     * Functions and Lambda@Edge › Access to geolocation and device data").
+     */
+    CLOUDFRONT_ADDED: [
+        // Device type
+        'cloudfront-is-android-viewer', 'cloudfront-is-desktop-viewer', 'cloudfront-is-ios-viewer',
+        'cloudfront-is-mobile-viewer', 'cloudfront-is-smarttv-viewer', 'cloudfront-is-tablet-viewer',
+        // Viewer location
+        'cloudfront-viewer-address', 'cloudfront-viewer-asn', 'cloudfront-viewer-country', 'cloudfront-viewer-city',
+        'cloudfront-viewer-country-name', 'cloudfront-viewer-country-region', 'cloudfront-viewer-country-region-name',
+        'cloudfront-viewer-latitude', 'cloudfront-viewer-longitude', 'cloudfront-viewer-metro-code',
+        'cloudfront-viewer-postal-code', 'cloudfront-viewer-time-zone',
+        // Viewer header structure
+        'cloudfront-viewer-header-order', 'cloudfront-viewer-header-count',
+        // TLS
+        'cloudfront-viewer-ja3-fingerprint', 'cloudfront-viewer-ja4-fingerprint', 'cloudfront-viewer-tls',
+        // Other
+        'cloudfront-error-uri', 'cloudfront-error-args', 'cloudfront-forwarded-proto', 'cloudfront-viewer-http-version'
+    ],
 
     /** @deprecated Superseded by DISALLOWED / READ_ONLY; kept for programmatic API compatibility. */
     FORBIDDEN: [

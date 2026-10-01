@@ -11,7 +11,7 @@ describe('Tutorial intro: geo rewrite', () => {
 
     beforeAll(() => {
         jest.spyOn(console, 'log').mockImplementation(() => {});
-        const runner = new EdgeRunner(path.join(introDir, 'viewer-request-geo.js'), { watch: false });
+        const runner = new EdgeRunner(path.join(introDir, 'origin-request-geo.js'), { watch: false });
         runner.load();
         server = startServer({ port: 0, directory: path.join(introDir, 'www'), edgeRunner: runner, noBanner: true });
     });

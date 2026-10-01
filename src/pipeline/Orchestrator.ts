@@ -9,7 +9,7 @@ import { CacheBehavior, CloudFrontizeOptions, HookType } from '../core/types';
 import { OriginSelector, ResolvedBehavior } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
-import { AWS_LIMITS } from '../constants';
+import { AWS_HEADERS, AWS_LIMITS } from '../constants';
 import { HookRegistry } from './HookRegistry';
 import { MultiOriginConfig } from './ConfigLoader';
 import { EdgeError } from '../core/EdgeError';
@@ -239,6 +239,57 @@ export class Orchestrator {
         return this.stickyHeaders;
     }
 
+    /**
+     * Splits the simulated request headers into the viewer's own headers and the ones CloudFront adds
+     * (AWS_HEADERS.CLOUDFRONT_ADDED). AWS: "CloudFront adds the headers after the viewer request event"
+     * and, when the viewer sent a header with the same name, "CloudFront overwrites the header values
+     * that were in the viewer request". With 2.x `defaultHeaders`, a header the viewer sent wins.
+     */
+    private _splitSimulatedHeaders(req: any): { viewer: Record<string, any>; cloudFront: Record<string, string> } {
+        const viewer: Record<string, any> = {};
+        const cloudFront: Record<string, string> = {};
+        for (const [key, value] of Object.entries(this.stickyHeaders.request || {})) {
+            const lower = key.toLowerCase();
+            if (!(AWS_HEADERS.CLOUDFRONT_ADDED as readonly string[]).includes(lower)) { viewer[key] = value; continue; }
+            if (value === null || value === undefined) continue;
+            if (this.isDefaultSticky && req.headers[lower] !== undefined) continue;
+            cloudFront[key] = String(value);
+        }
+        return { viewer, cloudFront };
+    }
+
+    /** CloudFront Functions have access to CloudFront-added headers: overlays them on a CFF event's request. */
+    private _overlayCloudFrontHeaders(cffEvent: any, cloudFront: Record<string, string>) {
+        for (const [key, value] of Object.entries(cloudFront)) cffEvent.request.headers[key.toLowerCase()] = { value };
+    }
+
+    /** Drops CloudFront-added headers a function returned unchanged, so they aren't synced as viewer headers. */
+    private _withoutUnchangedCloudFrontHeaders(headers: any, cloudFront: Record<string, string>) {
+        const normalized = HeaderManager.normalizeHeaders(headers || {});
+        const out: Record<string, any> = {};
+        for (const [lower, values] of Object.entries(normalized)) {
+            const simulated = Object.entries(cloudFront).find(([k]) => k.toLowerCase() === lower)?.[1];
+            if (simulated !== undefined && values.length === 1 && values[0].value === simulated) continue;
+            out[lower] = values;
+        }
+        return out;
+    }
+
+    /**
+     * Adds the CloudFront headers to the live request (origin-facing from here on) and returns a
+     * viewer-facing view for viewer response functions: "Viewer-facing functions see the header value
+     * from the viewer request, while origin-facing functions see the header value that CloudFront added."
+     */
+    private _addCloudFrontHeaders(req: any, cloudFront: Record<string, string>): any {
+        const names = new Set(Object.keys(cloudFront).map(k => k.toLowerCase()));
+        if (names.size === 0) return req;
+        const viewerHeaders = { ...req.headers };
+        const viewerRaw = [...(req.rawHeaders || [])];
+        this.headerManager.injectHeaders(req, cloudFront, true);
+        // Everything else (URL, method, socket) still follows the live request
+        return Object.assign(Object.create(req), { headers: viewerHeaders, rawHeaders: viewerRaw });
+    }
+
     private _syncHeadersToRequest(req: any, headers: any) {
         // Additive-only inject: used for CFF and sticky header propagation.
         // These are NOT Lambda return-value syncs — they must never delete headers.
@@ -308,7 +359,16 @@ export class Orchestrator {
         this._logToFile('INFO', 'Orchestrator', requestId, `${req.method} ${req.url} (Host: ${req.headers.host || 'unknown'})`);
 
         // Initialize header sync (Sticky) and broadcast initial state
-        this.headerManager.injectHeaders(req, this.stickyHeaders.request, !this.isDefaultSticky);
+        // CloudFront-added headers are kept aside and applied where AWS exposes them (see _splitSimulatedHeaders)
+        const simulated = this._splitSimulatedHeaders(req);
+        this.headerManager.injectHeaders(req, simulated.viewer, !this.isDefaultSticky);
+        let viewerFacingReq: any = req;
+        let cloudFrontHeadersAdded = false;
+        const addCloudFrontHeaders = () => {
+            if (cloudFrontHeadersAdded) return;
+            cloudFrontHeadersAdded = true;
+            viewerFacingReq = this._addCloudFrontHeaders(req, simulated.cloudFront);
+        };
 
         // AWS Fidelity: Standard CloudFront behavior is to normalize the Host header to lowercase
         if (req.headers.host) {
@@ -362,13 +422,14 @@ export class Orchestrator {
             // 1. CFF Viewer Request (Atomic Forensic Journey)
             if (this.cffRunner) {
                 const cffEvent = this.cffRunner.toCFFEvent(req, null, 'viewer-request');
+                this._overlayCloudFrontHeaders(cffEvent, simulated.cloudFront);
                 let lastCffId = '';
                 const { result: cffResult, logs: cffLogs } = await this.cffRunner.runStage('viewer-request', this._stageFunctions(behavior, 'viewer-request').cff, cffEvent, (mod, result) => {
                     lastCffId = mod.id;
                     const intermediateMutated = this.cffRunner!.fromCFFEvent(result);
                     if (intermediateMutated) {
                         this._syncUrlToRequest(req, intermediateMutated);
-                        this._syncHeadersToRequest(req, intermediateMutated.headers);
+                        this._syncHeadersToRequest(req, this._withoutUnchangedCloudFrontHeaders(intermediateMutated.headers, simulated.cloudFront));
                     }
                     const filename = path.basename(mod.filePath);
                     this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: mod.id, ...liveReqBodyState }, HeaderManager.telemetryFlatten(req.headers));
@@ -424,6 +485,9 @@ export class Orchestrator {
                 this.headerManager.syncToRequest(req, viewerResult?.headers ?? {}, viewerExposedHeaders);
                 this._syncUrlToRequest(req, viewerResult);
 
+                // AWS Parity: CloudFront adds its headers after the viewer request event
+                addCloudFrontHeaders();
+
                 // 2b. L@E Origin Request (Atomic Phase)
                 const originRequestIds = this._stageFunctions(behavior, 'origin-request').lae;
 
@@ -466,6 +530,8 @@ export class Orchestrator {
                 // Header Roll-Forward: Exposure Boundary sync (L@E origin-request)
                 this.headerManager.syncToRequest(req, originResult?.headers ?? {}, originExposedHeaders);
             }
+
+            addCloudFrontHeaders();
 
             // 3. Provider Selection
             // The behavior (matched on the viewer's original URI) decides the origin; URI rewrites don't
@@ -567,7 +633,7 @@ export class Orchestrator {
                 // 4b. L@E Viewer Response (Atomic Phase) — not invoked for origin errors
                 if (!skipViewerResponse) {
                     const viewerResponseIds = this._stageFunctions(behavior, 'viewer-response').lae;
-                    const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseStage('viewer-response', viewerResponseIds, req, {
+                    const { result: viewerResResult, logs: viewerResLogs } = await this.edgeRunner.runResponseStage('viewer-response', viewerResponseIds, viewerFacingReq, {
                         status: statusCode,
                         headers: headers
                         // Fidelity: Body is strictly NOT provided to response triggers in AWS

@@ -1,4 +1,6 @@
-exports.hookType = 'viewer-request';
+// origin-request: CloudFront adds CloudFront-Viewer-Country after the viewer request event, so
+// Lambda@Edge only sees CloudFront's value in origin request and origin response.
+exports.hookType = 'origin-request';
 
 exports.handler = (event, context, callback) => {
     const request = event.Records[0].cf.request;

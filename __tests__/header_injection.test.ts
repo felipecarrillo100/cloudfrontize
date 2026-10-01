@@ -18,19 +18,31 @@ describe('Default Header Injection (--headers)', () => {
         fs.mkdirSync(tmpDir, { recursive: true });
         fs.mkdirSync(edgeDir, { recursive: true });
 
-        // Create a lambda that echoes back a specific header
-        fs.writeFileSync(path.join(edgeDir, 'echo.js'), `
+        // AWS: "CloudFront adds the headers after the viewer request event, which means the headers aren't
+        // available to Lambda@Edge functions in a viewer request. The headers are only available to
+        // Lambda@Edge functions in an origin request and origin response."
+        // The viewer hook records what it saw; the origin-request hook answers with both views.
+        fs.writeFileSync(path.join(edgeDir, 'viewer.js'), `
             exports.hookType = 'viewer-request';
             exports.handler = async (event) => {
                 const req = event.Records[0].cf.request;
                 const country = req.headers['cloudfront-viewer-country'] ? req.headers['cloudfront-viewer-country'][0].value : 'NONE';
-                
-                // Return a custom response to verify the header value
+                const custom = req.headers['x-custom-header'] ? req.headers['x-custom-header'][0].value : 'NONE';
+                req.headers['x-viewer-saw'] = [{ key: 'X-Viewer-Saw', value: country + ',' + custom }];
+                return req;
+            };
+        `);
+        fs.writeFileSync(path.join(edgeDir, 'origin.js'), `
+            exports.hookType = 'origin-request';
+            exports.handler = async (event) => {
+                const req = event.Records[0].cf.request;
+                const country = req.headers['cloudfront-viewer-country'] ? req.headers['cloudfront-viewer-country'][0].value : 'NONE';
                 return {
                     status: '200',
                     statusDescription: 'OK',
                     headers: {
-                        'x-echoed-country': [{ key: 'X-Echoed-Country', value: country }]
+                        'x-echoed-country': [{ key: 'X-Echoed-Country', value: country }],
+                        'x-viewer-saw': req.headers['x-viewer-saw']
                     },
                     body: 'Country: ' + country
                 };
@@ -64,6 +76,8 @@ edgeRunner.load();
         });
 
         const res = await request(server).get('/');
+        // Viewer headers reach the viewer hook; the CloudFront-added one only the origin-facing hook
+        expect(res.header['x-viewer-saw']).toBe('NONE,foo');
         expect(res.header['x-echoed-country']).toBe('BE');
         expect(res.text).toBe('Country: BE');
     });
@@ -88,6 +102,8 @@ edgeRunner.load();
             .get('/')
             .set('CloudFront-Viewer-Country', 'MX');
 
+        // A header the viewer sent is seen by every function (2.x defaultHeaders don't overwrite it)
+        expect(res.header['x-viewer-saw']).toBe('MX,NONE');
         expect(res.header['x-echoed-country']).toBe('MX');
         expect(res.text).toBe('Country: MX');
     });
@@ -108,6 +124,7 @@ edgeRunner.load();
         });
 
         const res = await request(server).get('/');
+        expect(res.header['x-viewer-saw']).toBe('NONE,NONE');
         expect(res.header['x-echoed-country']).toBe('FR');
     });
 });
