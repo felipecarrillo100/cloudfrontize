@@ -8,6 +8,7 @@ import { KeyValueStore } from '../core/KeyValueStore';
 import { CFF_LIMITS } from '../constants';
 import type { CodeProblem, EdgeEvent } from '../api/contract';
 import { staticCheck } from './functions';
+import { parseSetting } from './settings';
 import { loadProject, Project } from './loadProject';
 import { EVENT_TYPES } from './schema';
 
@@ -33,6 +34,8 @@ export interface BuildReport {
     level: TransformationLevel;
     functions: BuiltFunction[];
     keyValueStores: { id: string; output: string; keyCount: number }[];
+    /** The `--set` settings the build used (also in build.json when there are any). */
+    settings: string[];
     ok: boolean;
 }
 
@@ -87,8 +90,8 @@ const lineOf = (code: string, needle: string) => code.slice(0, code.indexOf(need
  *   <out>/build.json                    what was built and where each function is attached
  * `bakeFile` replaces the project's bake file for this build (values per environment).
  */
-export async function buildProject(target: string, options: { outDir?: string; level?: TransformationLevel; bakeFile?: string } = {}): Promise<BuildReport> {
-    const { project } = loadProject(target);
+export async function buildProject(target: string, options: { outDir?: string; level?: TransformationLevel; bakeFile?: string; set?: string[] } = {}): Promise<BuildReport> {
+    const { project } = loadProject(target, { set: (options.set ?? []).map(parseSetting) });
     const level = options.level ?? 'baked';
     const outDir = path.resolve(options.outDir ?? path.join(project.dir, 'dist'));
     if (outDir === project.dir || project.dir.startsWith(outDir + path.sep)) throw new Error(`The output folder can't be the project folder or contain it: ${outDir}`);
@@ -138,9 +141,10 @@ export async function buildProject(target: string, options: { outDir?: string; l
         keyValueStores.push({ id, output: output.split(path.sep).join('/'), keyCount: entries.size });
     }
 
-    const report: BuildReport = { project: project.manifest.name, outDir, level, functions, keyValueStores, ok: functions.every(f => f.errors.length === 0) };
+    const report: BuildReport = { project: project.manifest.name, outDir, level, functions, keyValueStores, settings: project.settings, ok: functions.every(f => f.errors.length === 0) };
     fs.writeFileSync(path.join(outDir, BUILD_MANIFEST), JSON.stringify({
         project: report.project, level, builtAt: new Date().toISOString(), cffSizeLimit: CFF_LIMITS.MAX_CODE_SIZE_BYTES,
+        ...(project.settings.length ? { settings: project.settings } : {}),
         functions: functions.map(({ errors, warnings, ...f }) => f), keyValueStores,
     }, null, 2) + '\n');
     return report;

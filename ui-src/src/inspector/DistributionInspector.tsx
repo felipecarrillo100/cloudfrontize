@@ -41,6 +41,15 @@ export function DistributionInspector({ dist, editable }: { dist: Distribution; 
 
   return (
     <Panel title="Distribution" subtitle={dist.project?.name}>
+      {!!project.data?.settings?.length && (
+        <div role="note" className="mb-3 rounded-md border border-warn/40 px-3 py-2 text-xs">
+          <p className="font-medium text-warn">Changed for this run (--set)</p>
+          <ul className="mt-1 flex flex-col gap-0.5 font-mono">
+            {project.data.settings.map(s => <li key={s}>{s}</li>)}
+          </ul>
+          <p className="mt-1 text-muted">These run instead of what cloudfrontize.json says, and aren't saved. Below are the file's values.</p>
+        </div>
+      )}
       {editable && (
         <Section title="Settings">
           <ul className="flex flex-col gap-2.5">

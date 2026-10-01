@@ -1,6 +1,6 @@
 import EventEmitter from 'events';
 
-import { IHistoryStore } from './HistoryStore';
+import { IHistoryStore, NullHistoryStore } from './HistoryStore';
 
 export interface TelemetryEvent {
     id: string;
@@ -14,6 +14,11 @@ export interface TelemetryEvent {
 export class Telemetry extends EventEmitter {
     constructor(private store: IHistoryStore) {
         super();
+    }
+
+    /** False when nothing is kept (no WebUI): the pipeline then skips body snapshots, which only telemetry uses. */
+    public get recording(): boolean {
+        return !(this.store instanceof NullHistoryStore) || this.listenerCount('event') > 0;
     }
 
     public broadcast(event: Omit<TelemetryEvent, 'timestamp'>): void {

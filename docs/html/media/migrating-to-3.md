@@ -2,6 +2,8 @@
 
 CloudFrontize 3 works with **projects**: a folder with a `cloudfrontize.json` that describes the distribution (origins, cache behaviors, which function runs on which event), opened in the browser workbench or run from the command line. 2.x command lines keep working, so you can move when it suits you.
 
+> 🧪 During the beta, install 3.0 with `npm install -g cloudfrontize@next` (`npm install -g cloudfrontize` still installs 2.x), or try it without installing: `npx --yes cloudfrontize@next import …`.
+
 ## At a glance
 
 | | 2.x | 3.0 |
@@ -81,6 +83,7 @@ If a Lambda@Edge viewer-request function reads one of them from `--headers` or t
 
 - `Date` doesn't advance during a run: it stays at the function's start time, as AWS documents.
 - Cookies are in `request.cookies`, not in `request.headers.cookie`, as in the CloudFront Functions event structure.
+- A run's logs are truncated at 10 KB (*"Function logs in CloudFront Functions are truncated at 10 KB"*), with a last line saying so.
 - 2.x files run as **runtime 1.0** (ES 5.1). In a project, choose `"runtime": "cloudfront-js-2.0"` for modern JavaScript and KeyValueStore.
 
 ### The WebUI
@@ -94,3 +97,5 @@ CloudFrontize 3 requires Node.js 22 or later (Node 20 reached end of life in Apr
 ## The library API
 
 `startServer(options)` (2.x) still works. For projects, use `createServer({ project, port, webui })`, which resolves once the server listens, with `openProject()`, `reload()`, `saveManifest()` and `closeGracefully()`; plus `loadProject()` and `checkManifest()` to read and validate projects, and `createProject()`, `listTemplates()`, `buildProject()`, `importLegacySetup()` and `runChecks()`, which the `init`, `templates`, `build`, `import` and `check` commands use. Types ship with the package.
+
+Import it from the package name: `require('cloudfrontize')` or `import { createServer } from 'cloudfrontize'`. In 2.x the package's entry point was the command line, so library code had to reach into `cloudfrontize/dist/src/index.js`; in 3.0 that path isn't exported any more (only the package and `cloudfrontize/schema/*` are).

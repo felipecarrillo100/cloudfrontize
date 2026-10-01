@@ -50,7 +50,7 @@ The panel on the right shows whatever is selected.
 | Inspector | What you can do |
 |---|---|
 | **Viewer** | Send a **test request** (method, path, headers, body): the response appears, and its journey opens in Traffic. Edit the **viewer simulation**: headers added to every request (or to every origin response). Location and device presets use the header names CloudFront adds (`CloudFront-Viewer-Country`, `CloudFront-Is-Mobile-Viewer`…), with a matching User-Agent for devices. |
-| **Distribution** | Settings: strict mode, compression, ETag, single-page app, CORS, request logging. The behaviors in match order: add, edit, reorder, delete. Edit `cloudfrontize.json` directly. |
+| **Distribution** | Settings: strict mode, compression, ETag, single-page app, CORS, request logging (the file's values; settings changed for the run with `--set` are listed above them). The behaviors in match order: add, edit, reorder, delete. Edit `cloudfrontize.json` directly. |
 | **Origin** | Which origin the selected behavior uses; the origin's settings (a local folder, or an S3 bucket with region, endpoint, path-style URLs, REST or website behavior, credentials from the default chain, a profile or the environment); **Test connection**; add or delete origins. |
 | **Function** | Build state (with the line of a build error), runtime, the key value store a CloudFront Function reads, its size against the 10 KB CloudFront Functions limit, and the behaviors and events it runs on. |
 

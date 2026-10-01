@@ -83,6 +83,7 @@ If a Lambda@Edge viewer-request function reads one of them from `--headers` or t
 
 - `Date` doesn't advance during a run: it stays at the function's start time, as AWS documents.
 - Cookies are in `request.cookies`, not in `request.headers.cookie`, as in the CloudFront Functions event structure.
+- A run's logs are truncated at 10 KB (*"Function logs in CloudFront Functions are truncated at 10 KB"*), with a last line saying so.
 - 2.x files run as **runtime 1.0** (ES 5.1). In a project, choose `"runtime": "cloudfront-js-2.0"` for modern JavaScript and KeyValueStore.
 
 ### The WebUI

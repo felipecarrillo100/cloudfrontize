@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "as written, the project is production: its content and its baked values",
+      "request": { "path": "/index.html" },
+      "expect": { "status": 200, "headers": { "x-environment": "production" }, "bodyContains": "<h1>Production</h1>" }
+    }
+  ]
+}

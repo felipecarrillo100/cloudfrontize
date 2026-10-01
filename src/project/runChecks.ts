@@ -59,13 +59,13 @@ export function readChecks(projectDir: string): CheckDefinition[] | null {
  * Serves a project on a free port and runs its checks against it, like a viewer would. The server
  * is closed afterwards. Logging is quiet unless `verbose`.
  */
-export async function runChecks(target: string, options: { checks?: CheckDefinition[]; verbose?: boolean } = {}): Promise<CheckResult[]> {
+export async function runChecks(target: string, options: { checks?: CheckDefinition[]; verbose?: boolean; set?: string[] } = {}): Promise<CheckResult[]> {
     const dir = path.dirname(resolveManifestPath(target));
     const checks = options.checks ?? readChecks(dir);
     if (!checks) throw new Error(`${path.join(dir, CHECKS_FILE)} not found`);
 
     // Loopback only: the checks are this process's own requests
-    const server = await createServer({ project: dir, port: 0, host: '127.0.0.1', noBanner: true, requestLogging: !!options.verbose });
+    const server = await createServer({ project: dir, port: 0, host: '127.0.0.1', noBanner: true, requestLogging: !!options.verbose, set: options.set });
     try {
         const port = (server.address() as { port: number }).port;
         const results: CheckResult[] = [];

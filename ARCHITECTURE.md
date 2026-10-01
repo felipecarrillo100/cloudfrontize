@@ -204,6 +204,8 @@ This example demonstrates routing between LocalStack, MinIO, and a Local Folder 
 
 - **Request-Scoped State**: Headers, Body Snapshots, and the "Journey ID" are unique per request. The Orchestrator creates a new **State Container** for every incoming connection to ensure 100% isolation.
 - **Singleton Services**: The `HistoryStore`, `HookRegistry`, and `WebUI` are singletons. They manage global state that persists across multiple requests.
+- **Bounded history**: the traffic history keeps at most 5,000 requests and about 256 MB of events (its strings, mostly body snapshots, are counted), dropping the oldest first. Only the WebUI reads it, so a server without `--webui` keeps none (`NullHistoryStore`), and the pipeline skips body snapshots (`telemetry.recording`).
+- **A fresh context per CloudFront Function run**: each invocation gets a new VM context (about 0.25 ms), so no global state carries over between requests. AWS doesn't document state persisting between invocations, and code that relied on it would work locally and not reliably in CloudFront.
 - **Thread Safety**: Since Node.js is single-threaded, the Orchestrator relies on asynchronous isolation. We use the **IFF (Internal Fidelity Format)** to ensure that one request's header mutations never bleed into another.
 
 ---

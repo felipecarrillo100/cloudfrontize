@@ -371,7 +371,7 @@ export class Orchestrator {
         // Body Forensics: Capture initial request body (L@E rules: POST/PUT/PATCH/DELETE, 40KB cap)
         const BODY_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
         let reqBodyMeta: { body: string; bodySize: number; bodyTruncated: boolean; contentType: string } | undefined;
-        if (reqBody && reqBody.length > 0 && BODY_METHODS.includes(req.method)) {
+        if (this.telemetry.recording && reqBody && reqBody.length > 0 && BODY_METHODS.includes(req.method)) {
             const slice = reqBody.slice(0, AWS_LIMITS.VIEWER_REQUEST_BODY_BYTES);
             reqBodyMeta = {
                 body: slice.toString('base64'),
@@ -576,7 +576,7 @@ export class Orchestrator {
 
             // Body Forensics: Capture origin response body (1MB snapshot) and initialize live response body state
             const resBodySlice = body.slice(0, AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES);
-            const resBodyMeta = body.length > 0 ? {
+            const resBodyMeta = this.telemetry.recording && body.length > 0 ? {
                 body: resBodySlice.toString('base64'),
                 bodySize: body.length,
                 bodyTruncated: body.length > AWS_LIMITS.TRAFFIC_BODY_SNAPSHOT_BYTES,
@@ -620,7 +620,7 @@ export class Orchestrator {
                 }
                 body = this._applyHookBody(originResResult, body);
 
-                liveResBodyState = Telemetry.captureLeResBody(originResResult, liveResBodyState);
+                if (this.telemetry.recording) liveResBodyState = Telemetry.captureLeResBody(originResResult, liveResBodyState);
                 originResponseIds.forEach(id => {
                     this.broadcastStage(`[L@E: origin-response] ${this._fileNames(this.edgeRunner, [id])}`, { requestId, status: statusCode, uri: req.url, fid: id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers), { kind: 'function', event: 'origin-response', runtime: 'lambda-edge', functionIds: [id] });
                 });
@@ -646,7 +646,7 @@ export class Orchestrator {
                     }
                     body = this._applyHookBody(viewerResResult, body);
 
-                    liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
+                    if (this.telemetry.recording) liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
                     viewerResponseIds.forEach(id => {
                         this.broadcastStage(`[L@E: viewer-response] ${this._fileNames(this.edgeRunner, [id])}`, { requestId, status: statusCode, uri: req.url, fid: id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers), { kind: 'function', event: 'viewer-response', runtime: 'lambda-edge', functionIds: [id] });
                     });

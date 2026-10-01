@@ -11,6 +11,7 @@
     "src/project/importLegacy.ts",
     "src/project/runChecks.ts",
     "src/project/schema.ts",
+    "src/project/settings.ts",
     "src/pipeline/Orchestrator.ts",
     "src/core/EdgeRunner.ts",
     "src/core/CFFRunner.ts",

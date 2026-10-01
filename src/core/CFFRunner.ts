@@ -36,6 +36,32 @@ const CFF2_VM_OPTIONS = { timeout: CFF_LIMITS.RUNAWAY_GUARD_MS * 2 };
  * 
  * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html | AWS CloudFront Functions}
  */
+/**
+ * "Function logs in CloudFront Functions are truncated at 10 KB" (Restrictions on CloudFront
+ * Functions): one invocation's log messages, up to 10 KB of text (UTF-8); the message that crosses
+ * the limit is cut, later ones are dropped, and a last line says so.
+ */
+export function truncateLogs(entries: Array<{ level: string; args: any[]; ts: number }>, limit = CFF_LIMITS.MAX_LOG_BYTES): Array<{ level: string; message: string; ts: number }> {
+    const messages = entries.map(e => ({ level: e.level, ts: e.ts, message: e.args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }));
+    const sizes = messages.map(m => Buffer.byteLength(m.message));
+    const out: typeof messages = [];
+    let used = 0;
+    for (let i = 0; i < messages.length; i++) {
+        if (used + sizes[i] <= limit) {
+            out.push(messages[i]);
+            used += sizes[i];
+            continue;
+        }
+        // Cut at a character boundary within the remaining bytes
+        const rest = Buffer.from(messages[i].message).subarray(0, limit - used).toString('utf8').replace(/\uFFFD$/, '');
+        if (rest) out.push({ ...messages[i], message: rest });
+        const total = sizes.reduce((n, b) => n + b, 0);
+        out.push({ level: 'warn', ts: messages[i].ts, message: `[CloudFrontize] Function logs truncated at 10 KB, as in CloudFront (this run logged ${(total / 1024).toFixed(1)} KB)` });
+        break;
+    }
+    return out;
+}
+
 export class CFFRunner extends HotRunner {
     /** KeyValueStores by file, shared by the functions that use them; reloaded with the functions. */
     private stores = new Map<string, KeyValueStore>();
@@ -526,9 +552,9 @@ export class CFFRunner extends HotRunner {
             // Clinical Alignment: No direct console.log here. Instead, return logs to orchestrator 
             // for atomic flushing alongside the request header.
             if (logBuffer.length > 0 && event.context.requestId !== 'warmup') {
-                logBuffer.forEach(log => {
-                    formattedLogs.push(this._log(log.level, log.args, event.context.requestId, filename, stage, log.ts));
-                });
+                for (const log of truncateLogs(logBuffer)) {
+                    formattedLogs.push(this._log(log.level, log.message, event.context.requestId, filename, stage, log.ts));
+                }
             }
 
             return { result, cpuTimeMs, logs: formattedLogs };
@@ -538,9 +564,9 @@ export class CFFRunner extends HotRunner {
             const formattedLogs: string[] = [];
             // Still flush any logs that occurred before the crash
             if (logBuffer.length > 0 && event.context.requestId !== 'warmup') {
-                logBuffer.forEach(log => {
-                    formattedLogs.push(this._log(log.level, log.args, event.context.requestId, filename, stage, log.ts));
-                });
+                for (const log of truncateLogs(logBuffer)) {
+                    formattedLogs.push(this._log(log.level, log.message, event.context.requestId, filename, stage, log.ts));
+                }
             }
 
             // Runaway code is stopped in every mode; other errors fail only under --strict
@@ -566,11 +592,9 @@ export class CFFRunner extends HotRunner {
         return store;
     }
 
-    private _log(level: string, args: any[], requestId: string, filename: string, stage: string, overrideTimestamp?: number): string {
+    private _log(level: string, message: string, requestId: string, filename: string, stage: string, overrideTimestamp?: number): string {
         const timestamp = overrideTimestamp ? new Date(overrideTimestamp).toISOString() : new Date().toISOString();
         const type = `[CFF: ${stage}] ${filename}`;
-
-        const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
         
         // No direct console.log here! We return the formatted line to the caller for atomic alignment.
         // Clinical Spine: Using vertical connector and indented level marker.

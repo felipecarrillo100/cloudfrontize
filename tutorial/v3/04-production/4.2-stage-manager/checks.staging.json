@@ -1,0 +1,10 @@
+{
+  "set": ["origins.site.path=origins/staging", "bake.file=config/staging.env"],
+  "checks": [
+    {
+      "name": "with --set, the same project is staging: another origin, other baked values",
+      "request": { "path": "/index.html" },
+      "expect": { "status": 200, "headers": { "x-environment": "staging" }, "bodyContains": "<h1>Staging</h1>" }
+    }
+  ]
+}

@@ -25,6 +25,7 @@ import { buildProject } from '../src/project/build';
 import { importLegacySetup } from '../src/project/importLegacy';
 import { ProjectExistsError } from '../src/project/errors';
 import { isProject, loadProject } from '../src/project/loadProject';
+import { parseSetting, Setting } from '../src/project/settings';
 import { ManifestError } from '../src/project/errors';
 import { formatDiagnostics } from '../src/project/format';
 
@@ -35,6 +36,18 @@ const LEGACY_SOURCE_FLAGS: Record<string, string> = {
 };
 // Flags that override a project's distribution settings for this run
 const PROJECT_OVERRIDE_FLAGS = ['host', 'strict', 'cors', 'single', 'compression', 'etag', 'requestLogging', 'debug', 'webui', 'log'];
+
+// --set path=value, repeatable
+const SET_HELP = 'change a cloudfrontize.json setting for this run, e.g. distribution.strict=true (repeatable; the file is not changed)';
+const collect = (value: string, previous: string[] = []) => [...previous, value];
+const settingsFrom = (list: string[] | undefined): Setting[] => {
+    try {
+        return (list ?? []).map(parseSetting);
+    } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+    }
+};
 
 const onShutdown = (server: CloudFrontizeServer) => {
     const shutdown = async () => {
@@ -71,7 +84,7 @@ async function runProject(target: string, options: any, command: Command) {
 
     let diagnostics;
     try {
-        ({ diagnostics } = loadProject(target));
+        ({ diagnostics } = loadProject(target, { set: settingsFrom(options.set) }));
     } catch (err) {
         reportManifestError(err);
     }
@@ -79,7 +92,7 @@ async function runProject(target: string, options: any, command: Command) {
 
     let server: CloudFrontizeServer;
     try {
-        server = await createServer({ project: target, recentProjects: true, ...overrides });
+        server = await createServer({ project: target, recentProjects: true, ...(options.set ? { set: options.set } : {}), ...overrides });
     } catch (err) {
         reportManifestError(err); // other startup errors were already reported by the server
         process.exit(1);
@@ -119,11 +132,17 @@ program
     .option('--s3-origin <bucket>', 'proxy requests to a real S3 bucket instead of local directory')
     .option('--s3-endpoint <url>', 'custom S3 endpoint (e.g. MinIO) - implies forcePathStyle')
     .option('-m, --mode <mode>', 'routing behavior: website (S3 Website Hosting) or rest (S3 REST/OAC, default)', 'rest')
+    .option('--set <path=value>', `projects: ${SET_HELP}`, collect)
     .action(async (directory: string, options: any, command: Command) => {
         // 3.x: a folder with cloudfrontize.json (or the current folder, when no 2.x source is given) is a project
         const legacySource = options.edge || options.cff || options.origins || options.s3Origin || options.output;
         if (isProject(directory) || (!directory && !legacySource && isProject(process.cwd()))) {
             return runProject(directory || process.cwd(), options, command);
+        }
+
+        if (options.set) {
+            console.error('Error: --set changes cloudfrontize.json settings, so it needs a project (turn this setup into one with `cloudfrontize import`)');
+            process.exit(1);
         }
 
         // 2.x command lines keep working; 3.0 suggests turning them into a project
@@ -226,11 +245,12 @@ program
     .command('validate')
     .description('check a project against AWS CloudFront rules')
     .argument('[project]', 'project folder or cloudfrontize.json', '.')
-    .action((target: string) => {
+    .option('--set <path=value>', SET_HELP, collect)
+    .action((target: string, options: { set?: string[] }) => {
         try {
-            const { project, diagnostics } = loadProject(target);
+            const { project, diagnostics } = loadProject(target, { set: settingsFrom(options.set) });
             if (diagnostics.length) console.log(formatDiagnostics(diagnostics));
-            console.log(`✅ ${project.manifest.name} is valid (${project.manifestPath})`);
+            console.log(`✅ ${project.manifest.name} is valid${project.settings.length ? ` with ${project.settings.join(', ')}` : ''} (${project.manifestPath})`);
         } catch (err) {
             reportManifestError(err);
         }
@@ -307,14 +327,16 @@ program
     .option('-o, --out <dir>', 'output folder (replaced; default: <project>/dist)')
     .option('-l, --level <level>', 'baked, minified or uglified', 'baked')
     .option('-b, --bake <file>', "bake file for this build, instead of the project's (e.g. config/production.env)")
-    .action(async (target: string, options: { out?: string; level: string; bake?: string }) => {
+    .option('--set <path=value>', SET_HELP, collect)
+    .action(async (target: string, options: { out?: string; level: string; bake?: string; set?: string[] }) => {
         if (!['baked', 'minified', 'uglified'].includes(options.level)) {
             console.error(`Error: --level must be baked, minified or uglified, got "${options.level}"`);
             process.exit(1);
         }
         let report;
         try {
-            report = await buildProject(target, { outDir: options.out, level: options.level as any, bakeFile: options.bake });
+            settingsFrom(options.set);
+            report = await buildProject(target, { outDir: options.out, level: options.level as any, bakeFile: options.bake, set: options.set });
         } catch (err: any) {
             if (err instanceof ManifestError) reportManifestError(err);
             console.error(`🛑 ${err.message}`);
@@ -341,16 +363,17 @@ program
     .description("run a project's checks.json against it (requests and the responses they must get)")
     .argument('[project]', 'project folder or cloudfrontize.json', '.')
     .option('-d, --debug', 'show the request log and function output')
-    .action(async (target: string, options: { debug?: boolean }) => {
+    .option('--set <path=value>', SET_HELP, collect)
+    .action(async (target: string, options: { debug?: boolean; set?: string[] }) => {
         let results;
         try {
-            loadProject(target);
+            loadProject(target, { set: settingsFrom(options.set) });
             // Functions' own console output is shown only with --debug
             const quiet = !options.debug;
             const original = { log: console.log, warn: console.warn };
             if (quiet) { console.log = () => {}; console.warn = () => {}; }
             try {
-                results = await runChecks(target, { verbose: options.debug });
+                results = await runChecks(target, { verbose: options.debug, set: options.set });
             } finally {
                 Object.assign(console, original);
             }

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "stage-manager",
+  "origins": [
+    { "id": "site", "type": "local", "path": "origins/production" }
+  ],
+  "functions": {
+    "environment": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-response.environment.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "site",
+    "functions": { "viewer-response": "environment" }
+  },
+  "bake": { "file": "config/production.env" }
+}

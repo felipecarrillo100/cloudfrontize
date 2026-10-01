@@ -35,6 +35,7 @@ export const AWS_LIMITS = {
  */
 export const CFF_LIMITS = {
     MAX_CODE_SIZE_BYTES: 10 * 1024,           // 10 KB (Quotas on CloudFront Functions; not adjustable)
+    MAX_LOG_BYTES: 10 * 1024,                 // 10 KB: logs are truncated beyond it (Restrictions on CloudFront Functions)
     MAX_CPU_TIME_MS: 1,                       // Reference limit: 1ms warning (AWS measures compute utilization)
     RUNAWAY_GUARD_MS: 1000                    // Enforced limit with leeway (emulator-only): stops infinite loops
 } as const;

@@ -21,6 +21,7 @@ The original modules in the parent folder use the 2.x command-line style (`cloud
 | [3.3 The Inspector](03-edge/3.3-inspector/README.md) | Blocking malicious request bodies |
 | **Module 4: Production** | |
 | [4.1 The Baker](04-production/4.1-baker/README.md) | Configuration per environment without environment variables: baking, and `cloudfrontize build` |
+| [4.2 The Stage Manager](04-production/4.2-stage-manager/README.md) | Staging and production from one project: `--set` changes settings for a run, without editing the file |
 | **Module 5: CloudFront Functions** | |
 | [5.1 The Traffic Director](05-cff/5.1-traffic-director/README.md) | A permanent redirect, keeping the query string |
 | [5.2 The Header Injector](05-cff/5.2-header-injector/README.md) | Telling the origin the viewer's IP address (`True-Client-IP`) |

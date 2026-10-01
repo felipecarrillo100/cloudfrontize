@@ -19,7 +19,7 @@ const manifest = {
   defaultBehavior: { origin: 'web', functions: { 'viewer-request': 'idx' } },
   behaviors: [{ pathPattern: '/a/*', origin: 'web' }, { pathPattern: '/b/*', origin: 'media' }],
 }
-const project: ProjectInfo = { name: 'Shop', dir: '/p', manifestPath: '/p/cloudfrontize.json', revision: 'rev-1', manifest, diagnostics: [] }
+const project: ProjectInfo = { name: 'Shop', dir: '/p', manifestPath: '/p/cloudfrontize.json', revision: 'rev-1', manifest, settings: [], diagnostics: [] }
 const dist: Distribution = {
   mode: 'project', project: { name: 'Shop', dir: '/p', revision: 'rev-1' },
   functions: [{ id: 'idx', type: 'cloudfront-function', runtime: 'cloudfront-js-2.0', file: 'functions/cloudfront/viewer-request.idx.js', path: '/p/i.js', disabled: false, build: { status: 'ok' } }],
@@ -58,6 +58,14 @@ describe('inspectors', () => {
     expect(saves[0].manifest.distribution).toEqual({ strict: true })
     // Nothing else in the manifest was touched
     expect({ ...saves[0].manifest, distribution: undefined }).toEqual({ ...manifest, distribution: undefined })
+  })
+
+  test('settings changed with --set are listed, and the checkboxes show the file', async () => {
+    server.use(apiV2.get('/project', { ...project, settings: ['distribution.strict=true'] }), apiV2.get('/distribution', dist))
+    renderWithQuery(<DistributionInspector dist={dist} editable />)
+    const note = await screen.findByRole('note')
+    expect(note).toHaveTextContent('distribution.strict=true')
+    expect(screen.getByRole('checkbox', { name: /Strict mode/ })).not.toBeChecked()
   })
 
   test('behaviors can be reordered (match order matters)', async () => {

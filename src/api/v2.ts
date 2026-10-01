@@ -68,6 +68,7 @@ export function createApiV2(host: ApiHost): Router {
             manifestPath: project.manifestPath,
             revision: project.revision,
             manifest: project.source,
+            settings: project.settings,
             diagnostics
         };
     };

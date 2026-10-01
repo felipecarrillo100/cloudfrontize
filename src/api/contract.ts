@@ -66,6 +66,11 @@ export interface ProjectInfo {
     revision: string;
     /** The manifest as written (no defaults applied). */
     manifest: Record<string, any>;
+    /**
+     * Settings changed for this run with `--set` (`path=value`), not in the file: what runs differs
+     * from `manifest` there. Saving keeps them out of the file.
+     */
+    settings: string[];
     diagnostics: Diagnostic[];
 }
 

@@ -1,12 +1,14 @@
 import http, { IncomingMessage, ServerResponse } from 'http';
+import path from 'path';
 import { AWS_LIMITS } from '../constants';
 import { Logger, defaultLogger } from '../core/Logger';
-import { InMemoryHistoryStore } from '../pipeline/HistoryStore';
+import { InMemoryHistoryStore, NullHistoryStore } from '../pipeline/HistoryStore';
 import { Telemetry } from '../pipeline/Telemetry';
 import { WebUI } from '../pipeline/WebUI';
 import { Diagnostic, ManifestConflictError, ManifestError, NoProjectError, PortInUseError, ServerStartError } from '../project/errors';
 import { formatDiagnostics } from '../project/format';
-import { checkManifest, loadProject } from '../project/loadProject';
+import { checkManifest, loadProject, resolveManifestPath } from '../project/loadProject';
+import { parseSetting, Setting } from '../project/settings';
 import { formatManifest, readRevisioned, writeFileAtomic } from '../project/revision';
 import { ProjectWatcher } from './ProjectWatcher';
 import { recordRecent } from '../project/recent';
@@ -49,6 +51,8 @@ export interface ServerSettings {
     overrides?: ProjectOverrides;
     /** Remember opened projects in ~/.cloudfrontize/recent.json (the CLI does; the library doesn't by default). */
     recentProjects?: boolean;
+    /** `--set` settings for one project folder: applied each time it loads (they name paths in its manifest). */
+    set?: { dir: string; settings: Setting[] };
 }
 
 /**
@@ -57,7 +61,9 @@ export interface ServerSettings {
  */
 export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings = {}): CloudFrontizeServer {
     const logger = (settings.logger ?? defaultLogger).child('server');
-    const telemetry = new Telemetry(new InMemoryHistoryStore(5000));
+    // Only the WebUI reads the history: without it, nothing is kept (and no body snapshots are taken)
+    const hasWebui = (o: RuntimeSpec['options']) => o.webui !== undefined && o.webui !== false && o.webui !== '';
+    const telemetry = new Telemetry(hasWebui(initialSpec.options) ? new InMemoryHistoryStore(5000) : new NullHistoryStore());
     let current = new ProjectRuntime(initialSpec, telemetry);
     const options = current.options; // server-level settings (port, webui, banner) come from the initial spec
 
@@ -66,7 +72,7 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
         return address && typeof address === 'object' ? address.port : Number(fallback);
     };
     let uiServer: http.Server | null = null;
-    const webui = options.webui !== undefined && options.webui !== false && options.webui !== ''
+    const webui = hasWebui(options)
         ? new WebUI(telemetry, () => current, options, { ports: () => ({ main: portOf(mainServer, options.port), webui: portOf(uiServer, options.webui) }), projects: () => mainServer })
         : null;
 
@@ -296,7 +302,8 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
     };
 
     const openInternal = async (target: string, source: 'open' | 'api' | 'disk') => {
-        const { project, diagnostics } = loadProject(target);
+        const dir = path.dirname(resolveManifestPath(target));
+        const { project, diagnostics } = loadProject(target, { set: settings.set?.dir === dir ? settings.set.settings : [] });
         const next = new ProjectRuntime(fromProject(project, settings.overrides), telemetry);
         try {
             await next.start();
@@ -369,6 +376,12 @@ export interface CreateServerOptions extends ProjectOverrides {
     logger?: Logger;
     /** Remember opened projects for the WebUI's start screen (default false). */
     recentProjects?: boolean;
+    /**
+     * Manifest settings changed for this run only, as `path=value` (the CLI's `--set`), e.g.
+     * `distribution.strict=true` or `origins.assets.bucket=staging-assets`. They apply to this
+     * project (also when it reloads), never to another project opened later, and are never saved.
+     */
+    set?: string[];
 }
 
 /**
@@ -376,15 +389,16 @@ export interface CreateServerOptions extends ProjectOverrides {
  * @throws {ManifestError} for an invalid project; {PortInUseError} / {ServerStartError} when it can't listen.
  */
 export async function createServer(opts: CreateServerOptions): Promise<CloudFrontizeServer> {
-    const { project: target, logger, recentProjects, ...overrides } = opts;
+    const { project: target, logger, recentProjects, set, ...overrides } = opts;
 
-    const { project } = loadProject(target);
+    const settings = (set ?? []).map(parseSetting);
+    const { project } = loadProject(target, { set: settings });
     const spec = fromProject(project, overrides);
     // A bare --webui means the main port + 1 (an ephemeral port when the main port is 0)
     if (spec.options.webui === true) {
         spec.options.webui = Number(spec.options.port) > 0 ? Number(spec.options.port) + 1 : 0;
     }
-    const server = buildServer(spec, { logger, overrides, recentProjects });
+    const server = buildServer(spec, { logger, overrides, recentProjects, ...(settings.length ? { set: { dir: project.dir, settings } } : {}) });
     try {
         await server.current.start();
         await server.ready;

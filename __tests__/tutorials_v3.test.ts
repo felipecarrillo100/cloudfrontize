@@ -5,10 +5,13 @@ const request = require('supertest');
 const { createServer } = require('../src/server/createServer');
 const { loadProject } = require('../src/project/loadProject');
 const { ChecksSchema } = require('../src/project/checks');
+const { parseSetting } = require('../src/project/settings');
 
 /**
  * Tutorial runner: every tutorial/v3/**\/checks.json is a tutorial project. Each one is validated,
  * served, and its checks run as one test each. Add a tutorial = add a folder; no test code needed.
+ * A tutorial about `--set` adds checks.<variant>.json files with a "set" list: the project is
+ * served with those settings for them (runner-only; `cloudfrontize check` reads checks.json).
  */
 const TUTORIALS_ROOT = path.resolve(__dirname, '..', 'tutorial', 'v3');
 
@@ -27,17 +30,20 @@ describe('Tutorials (v3 projects)', () => {
         expect(tutorials.length).toBeGreaterThan(0);
     });
 
-    for (const dir of tutorials) {
-        const label = path.relative(TUTORIALS_ROOT, dir);
-        const checks = ChecksSchema.parse(JSON.parse(fs.readFileSync(path.join(dir, 'checks.json'), 'utf8'))).checks;
+    const runs = tutorials.flatMap(dir => fs.readdirSync(dir).filter((f: string) => /^checks(\.[\w-]+)?\.json$/.test(f)).sort().map((file: string) => {
+        const { set, ...rest } = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+        const variant = file === 'checks.json' ? '' : ` (${file})`;
+        return { dir, label: path.relative(TUTORIALS_ROOT, dir) + variant, set: (set ?? []) as string[], checks: ChecksSchema.parse(rest).checks };
+    }));
 
+    for (const { dir, label, set, checks } of runs) {
         describe(label, () => {
             let server: any;
 
             beforeAll(async () => {
                 jest.spyOn(console, 'log').mockImplementation(() => {});
                 jest.spyOn(console, 'warn').mockImplementation(() => {});
-                server = await createServer({ project: dir, port: 0, noBanner: true });
+                server = await createServer({ project: dir, port: 0, noBanner: true, set });
             });
 
             afterAll(async () => {
@@ -46,7 +52,7 @@ describe('Tutorials (v3 projects)', () => {
             });
 
             test('the project is valid (cloudfrontize validate)', () => {
-                expect(() => loadProject(dir)).not.toThrow();
+                expect(() => loadProject(dir, { set: set.map(parseSetting) })).not.toThrow();
             });
 
             for (const check of checks) {

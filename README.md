@@ -96,6 +96,15 @@ my-site/
 
 Options that override a project's settings for one run: `--port`, `--host` (e.g. `127.0.0.1` to keep the server off your network), `--strict`, `--cors`, `--single`, `--no-compression`, `--no-etag`, `-L`, `--debug`, `--log`.
 
+`--set path=value` changes any `cloudfrontize.json` setting for one run, without editing the file. It works when serving and with `validate`, `check` and `build`, and can be repeated:
+
+```bash
+cloudfrontize --set origins.assets.bucket=staging-assets --set distribution.strict=true
+cloudfrontize check --set 'origins.assets.credentials={"profile":"ci"}'
+```
+
+The path follows the file: origins by id (or index), behaviors by index (`behaviors.0.origin`). Values are JSON when they parse as JSON (`true`, `3005`, `{…}`), text otherwise. The result is checked like the file. The workbench lists the settings in force, and saving from it never writes them; `build` records them in `build.json`.
+
 ---
 
 ## 🖥️ The workbench

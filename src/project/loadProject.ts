@@ -5,6 +5,7 @@ import { Diagnostic, ManifestError } from './errors';
 import { BehaviorDefinition, FunctionDefinition, Manifest, ManifestSchema, OriginDefinition } from './schema';
 import { validateManifest } from './validate';
 import { revisionOf } from './revision';
+import { applySettings, Setting } from './settings';
 
 export const MANIFEST_FILE = 'cloudfrontize.json';
 
@@ -19,7 +20,10 @@ export interface Project {
     revision: string;
     /** The manifest as written in the file (no defaults applied), for editing. */
     source: unknown;
+    /** The manifest this project runs: the file, with defaults and any `--set` settings applied. */
     manifest: Manifest;
+    /** The `--set` settings applied for this run (empty when none). */
+    settings: string[];
     origins: ResolvedOrigin[];
     functions: Record<string, ResolvedFunction>;
     defaultBehavior: Manifest['defaultBehavior'];
@@ -61,11 +65,17 @@ export function checkManifest(input: unknown, projectDir: string): { manifest: M
     return { manifest: parsed.data, diagnostics: validateManifest(parsed.data, projectDir) };
 }
 
+export interface LoadOptions {
+    /** Settings applied on top of the file for this run (`--set`); the file isn't changed. */
+    set?: Setting[];
+}
+
 /**
  * Loads a project from its folder (or manifest path).
- * @throws {ManifestError} when the manifest can't be read, parsed, or breaks an AWS rule.
+ * @throws {ManifestError} when the manifest can't be read, parsed, or breaks an AWS rule (also
+ * when a `set` setting can't be applied, or makes it invalid).
  */
-export function loadProject(target: string): { project: Project; diagnostics: Diagnostic[] } {
+export function loadProject(target: string, options: LoadOptions = {}): { project: Project; diagnostics: Diagnostic[] } {
     const manifestPath = resolveManifestPath(target);
     const dir = path.dirname(manifestPath);
 
@@ -83,7 +93,15 @@ export function loadProject(target: string): { project: Project; diagnostics: Di
         throw new ManifestError(manifestPath, [{ severity: 'error', path: '', rule: 'invalid-json', message: `Not valid JSON: ${err.message}` }]);
     }
 
-    const { manifest, diagnostics } = checkManifest(input, dir);
+    const settings = options.set ?? [];
+    let effective = input;
+    if (settings.length) {
+        const applied = applySettings(input, settings);
+        if (applied.diagnostics.length) throw new ManifestError(manifestPath, applied.diagnostics);
+        effective = applied.manifest;
+    }
+
+    const { manifest, diagnostics } = checkManifest(effective, dir);
     if (!manifest || diagnostics.some(d => d.severity === 'error')) throw new ManifestError(manifestPath, diagnostics);
 
     const resolve = (rel?: string) => (rel ? path.resolve(dir, rel) : undefined);
@@ -93,6 +111,7 @@ export function loadProject(target: string): { project: Project; diagnostics: Di
         revision: revisionOf(raw),
         source: input,
         manifest,
+        settings: settings.map(s => s.text),
         origins: manifest.origins.map(o => (o.type === 'local' ? { ...o, absolutePath: resolve(o.path) } : { ...o })),
         functions: Object.fromEntries(Object.entries(manifest.functions).map(([id, fn]) => [id, { ...fn, id, absoluteFile: resolve(fn.file)! }])),
         defaultBehavior: manifest.defaultBehavior,

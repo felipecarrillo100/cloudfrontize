@@ -133,7 +133,7 @@ describe('EditorPane', () => {
     const manifest = { version: 1, name: 'shop', origins: [{ id: 'web', type: 'local', path: 'origins/www' }], defaultBehavior: { origin: 'web' } }
     let puts = 0
     server.use(
-      apiV2.get('/project', { name: 'shop', dir: '/p', manifestPath: '/p/cloudfrontize.json', revision: 'm1', manifest, diagnostics: [] }),
+      apiV2.get('/project', { name: 'shop', dir: '/p', manifestPath: '/p/cloudfrontize.json', revision: 'm1', manifest, settings: [], diagnostics: [] }),
       http.put('*/api/v2/project/manifest', () => {
         puts++
         return HttpResponse.json({ error: { code: 'invalid-manifest', message: 'The manifest has errors', details: { diagnostics: [{ severity: 'error', path: '/defaultBehavior/origin', rule: 'unknown-origin', message: 'No origin with id "nope"' }] } } }, { status: 422 })

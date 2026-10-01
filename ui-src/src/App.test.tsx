@@ -34,7 +34,7 @@ const dist: Distribution = {
   ],
   origins: [{ id: 'web', type: 'local', path: 'origins/www' }],
 }
-const project = { name: 'Shop', dir: '/p/shop', manifestPath: '/p/shop/cloudfrontize.json', revision: 'r1', manifest: {}, diagnostics: [] }
+const project = { name: 'Shop', dir: '/p/shop', manifestPath: '/p/shop/cloudfrontize.json', revision: 'r1', manifest: {}, settings: [], diagnostics: [] }
 
 describe('App', () => {
   beforeEach(() => {
