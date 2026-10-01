@@ -86,6 +86,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const res = await request(server).get('/promo');
         expect(res.status).toBe(301);
@@ -100,6 +101,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             cffRunner: new CFFRunner(solPath),
             edgeRunner // Use diagnostic reflection
         });
+        await server.ready;
 
         const res = await request(server).get('/index.html');
         expect(res.headers['x-powered-by']).toBe('cloudfrontize');
@@ -112,6 +114,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const resOk = await request(server).get('/index.html');
         expect(resOk.status).toBe(200);
@@ -129,6 +132,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const res = await request(server).get('/products.html?utm_source=google&id=123&utm_campaign=xyz');
         expect(res.status).toBe(200);
@@ -142,6 +146,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const resFR = await request(server)
             .get('/index.html')
@@ -167,6 +172,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const resBot = await request(server)
             .get('/')
@@ -188,6 +194,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const resA = await request(server)
             .get('/')
@@ -212,6 +219,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             cffRunner: new CFFRunner(solPath),
             edgeRunner // Use diagnostic reflection
         });
+        await server.ready;
 
         const res = await request(server).get('/');
         expect(res.headers['strict-transport-security']).toBeDefined();
@@ -225,6 +233,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         const resOk = await request(server)
             .get('/')
@@ -246,6 +255,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             directory: wwwDir,
             cffRunner: new CFFRunner(solPath)
         });
+        await server.ready;
 
         let res = await request(server).get('/');
         expect(res.headers['set-cookie'][0]).toContain('client-request-count=1');
@@ -270,6 +280,7 @@ describe('CFF Tutorial Solutions Verification', () => {
             cffRunner: new CFFRunner(solPath, { bakePath }),
             edgeRunner // Use diagnostic reflection to see the injected CSP header
         });
+        await server.ready;
 
         const res = await request(server).get('/');
         // The CFF should have baked "strict" into MODE, thus adding the CSP header

@@ -29,6 +29,7 @@ describe('LocalProvider Directory Fidelity', () => {
 
     test('Case 1: REST Mode should return 404 for directories (not 403)', async () => {
         server = startServer({ directory: tmpDir, port, mode: 'rest', noBanner: true });
+        await server.ready;
         
         // CloudFront REST: /countries/MX is a key that doesn't exist as a file
         const res = await request(server).get('/countries/MX');
@@ -38,6 +39,7 @@ describe('LocalProvider Directory Fidelity', () => {
 
     test('Case 2: Website Mode should serve index.html for directories (not listing)', async () => {
         server = startServer({ directory: tmpDir, port, mode: 'website', noBanner: true });
+        await server.ready;
         
         // S3 Website: /countries/MX should either serve index or redirect to /countries/MX/
         const res = await request(server).get('/countries/MX');

@@ -11,13 +11,14 @@ describe('Hook Error → Status Mapping', () => {
     const tmpDir = path.join(__dirname, '.tmp/', 'error_mapping');
     const servers: any[] = [];
 
-    const serveEdge = (name: string, code: string, opts: any = {}) => {
+    const serveEdge = async (name: string, code: string, opts: any = {}) => {
         const dir = path.join(tmpDir, name);
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, 'hook.js'), code);
         const runner = new EdgeRunner(dir, { watch: false, ...opts });
         runner.load();
         const server = startServer({ port: 0, directory: tmpDir, edgeRunner: runner, noBanner: true, ...opts });
+        await server.ready;
         servers.push(server);
         return server;
     };
@@ -40,7 +41,7 @@ describe('Hook Error → Status Mapping', () => {
     });
 
     test('a throwing L@E handler returns 503 LambdaExecutionError', async () => {
-        const server = serveEdge('throws', `
+        const server = await serveEdge('throws', `
             exports.hookType = 'viewer-request';
             exports.handler = async () => { throw new Error('boom <&>'); };
         `);
@@ -51,7 +52,7 @@ describe('Hook Error → Status Mapping', () => {
     });
 
     test('a callback error from an origin-response handler returns 503', async () => {
-        const server = serveEdge('cb_error', `
+        const server = await serveEdge('cb_error', `
             exports.hookType = 'origin-response';
             exports.handler = (event, context, callback) => callback(new Error('cb-failure'));
         `);
@@ -62,7 +63,7 @@ describe('Hook Error → Status Mapping', () => {
     });
 
     test('a strict forbidden header mutation stays a 502 validation error', async () => {
-        const server = serveEdge('forbidden', `
+        const server = await serveEdge('forbidden', `
             exports.hookType = 'viewer-request';
             exports.handler = async (event) => {
                 const req = event.Records[0].cf.request;
@@ -85,6 +86,7 @@ describe('Hook Error → Status Mapping', () => {
         const cffRunner = new CFFRunner(cffDir, { strict: true });
         cffRunner.load();
         const server = startServer({ port: 0, directory: tmpDir, cffRunner, noBanner: true, strict: true });
+        await server.ready;
         servers.push(server);
 
         const res = await request(server).get('/index.html');

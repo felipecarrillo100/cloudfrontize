@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a first article is free, and counted",
+      "request": {
+        "path": "/articles/edge-computing.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Edge computing",
+        "headersContain": {
+          "set-cookie": "articles-read=1"
+        }
+      }
+    },
+    {
+      "name": "the count goes up",
+      "request": {
+        "path": "/articles/edge-computing.html",
+        "headers": {
+          "cookie": "articles-read=3"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "headersContain": {
+          "set-cookie": "articles-read=4"
+        }
+      }
+    },
+    {
+      "name": "after 5 articles, readers are asked to subscribe",
+      "request": {
+        "path": "/articles/edge-computing.html",
+        "headers": {
+          "cookie": "articles-read=5"
+        }
+      },
+      "expect": {
+        "status": 302,
+        "headers": {
+          "location": "/subscribe.html"
+        }
+      }
+    },
+    {
+      "name": "the rest of the site isn't metered",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "cookie": "articles-read=9"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "headersAbsent": [
+          "set-cookie"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "5.10 The Cookie Gate",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "article-meter": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.article-meter.js"
+    },
+    "article-counter": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-response.article-counter.js"
+    }
+  },
+  "behaviors": [
+    {
+      "pathPattern": "/articles/*",
+      "origin": "website",
+      "functions": {
+        "viewer-request": "article-meter",
+        "viewer-response": "article-counter"
+      }
+    }
+  ],
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {}
+  }
+}

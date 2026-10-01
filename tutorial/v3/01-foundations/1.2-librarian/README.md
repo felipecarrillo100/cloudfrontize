@@ -53,7 +53,7 @@ curl -sI "http://localhost:3000/index.html?z=9&a=1" | grep -i x-query
 In the workbench's **Traffic**, select the request: the **viewer-request** step shows the query string changing.
 
 ## 💡 Fidelity Tips
-- **This is a job for CloudFront Functions.** AWS lists *cache key normalization* among what CloudFront Functions are for: they're cheaper and faster than Lambda@Edge for small changes like this one. See [1.4 The Query Normalizer](../../05-cff/1.4-query-normalizer/README.md) for a CloudFront Function version.
+- **This is a job for CloudFront Functions.** AWS lists *cache key normalization* among what CloudFront Functions are for: they're cheaper and faster than Lambda@Edge for small changes like this one. See [5.4 The Query Normalizer](../../05-cff/5.4-query-normalizer/README.md) for a CloudFront Function version.
 - **Only what's in the cache key matters.** A cache policy decides which query parameters are part of the cache key; normalizing helps when they are.
 
 ## 🎓 Learning More

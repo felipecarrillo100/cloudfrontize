@@ -74,6 +74,7 @@ beforeAll(async () => {
         edgeRunner: edgeRunner,
         noBanner: true
     });
+    await server.ready;
 
     // Brief wait to ensure server is bound
     await new Promise(resolve => setTimeout(resolve, 200));

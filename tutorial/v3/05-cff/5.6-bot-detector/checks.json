@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "browsers get the page",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "search engines are allowed",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "self-declared scrapers are blocked",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "user-agent": "Scrapy/2.11 (+https://scrapy.org)"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "bodyContains": "Automated access"
+      }
+    },
+    {
+      "name": "so is a request without a User-Agent",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "user-agent": ""
+        }
+      },
+      "expect": {
+        "status": 403
+      }
+    }
+  ]
+}

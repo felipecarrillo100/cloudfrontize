@@ -42,6 +42,7 @@ describe('Runaway Hook Protection', () => {
             const runner = new EdgeRunner(dir, { watch: false });
             runner.load();
             const server = startServer({ port: 0, directory: tmpDir, edgeRunner: runner, noBanner: true });
+            await server.ready;
             servers.push(server);
 
             const started = Date.now();
@@ -64,6 +65,7 @@ describe('Runaway Hook Protection', () => {
         const runner = new EdgeRunner(dir, { watch: false });
         runner.load();
         const server = startServer({ port: 0, directory: tmpDir, edgeRunner: runner, noBanner: true });
+        await server.ready;
         servers.push(server);
 
         const res = await request(server).get('/index.html');
@@ -88,6 +90,7 @@ describe('Runaway Hook Protection', () => {
         expect(Date.now() - started).toBeLessThan(3000);
 
         const server = startServer({ port: 0, directory: tmpDir, cffRunner, noBanner: true });
+        await server.ready;
         servers.push(server);
         const res = await request(server).get('/index.html');
         // Runaway code is stopped in every mode
@@ -99,6 +102,7 @@ describe('Runaway Hook Protection', () => {
         const cffRunner = new CFFRunner(loopingCff('cff_loop_strict'), { strict: true });
         cffRunner.load();
         const server = startServer({ port: 0, directory: tmpDir, cffRunner, noBanner: true, strict: true });
+        await server.ready;
         servers.push(server);
 
         const res = await request(server).get('/index.html');

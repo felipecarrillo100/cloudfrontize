@@ -1,5 +1,8 @@
 # Exercise 3.5: The Cookie Gate (Pro)
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.10-cookie-gate/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 
 AWS enforces a strict separation of concerns for CloudFront Functions. A function attached to the **Viewer Request** context is physically unable to see or modify the **Viewer Response**.

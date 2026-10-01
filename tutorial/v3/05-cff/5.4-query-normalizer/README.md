@@ -1,4 +1,4 @@
-# 1.4 The Query Normalizer
+# 5.4 The Query Normalizer
 
 ## 🎭 The Scenario
 Links to your site arrive full of marketing trackers:
@@ -28,7 +28,7 @@ request.querystring = {
 Delete a key and the parameter is gone. A parameter that appears more than once keeps its first value in `value`, plus a `multiValue` array with every value.
 
 ### Runtime 2.0
-This function uses **CloudFront Functions JavaScript runtime 2.0**, selected with `"runtime": "cloudfront-js-2.0"` in `cloudfrontize.json`. Compared with runtime 1.0 (ES 5.1 only), it adds `const` and `let`, arrow functions, template literals, `async`/`await` and more. It is also the runtime that can read a KeyValueStore (see [1.12 The Redirect Map](../1.12-redirect-map/README.md)). CloudFrontize checks your code against the runtime you choose, as AWS would.
+This function uses **CloudFront Functions JavaScript runtime 2.0**, selected with `"runtime": "cloudfront-js-2.0"` in `cloudfrontize.json`. Compared with runtime 1.0 (ES 5.1 only), it adds `const` and `let`, arrow functions, template literals, `async`/`await` and more. It is also the runtime that can read a KeyValueStore (see [5.12 The Redirect Map](../5.12-redirect-map/README.md)). CloudFrontize checks your code against the runtime you choose, as AWS would.
 
 ## 🗂️ This Project
 

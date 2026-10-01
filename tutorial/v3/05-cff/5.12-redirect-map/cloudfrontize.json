@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
   "version": 1,
-  "name": "1.12 The Redirect Map",
+  "name": "5.12 The Redirect Map",
   "origins": [
     { "id": "website", "type": "local", "path": "origins/www" }
   ],

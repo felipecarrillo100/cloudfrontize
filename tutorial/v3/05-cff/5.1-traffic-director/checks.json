@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the old URL redirects permanently",
+      "request": {
+        "path": "/promo"
+      },
+      "expect": {
+        "status": 301,
+        "headers": {
+          "location": "/summer-sale"
+        }
+      }
+    },
+    {
+      "name": "the query string comes along",
+      "request": {
+        "path": "/promo?ref=newsletter"
+      },
+      "expect": {
+        "status": 301,
+        "headers": {
+          "location": "/summer-sale?ref=newsletter"
+        }
+      }
+    },
+    {
+      "name": "other pages are untouched",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "The Shop"
+      }
+    }
+  ]
+}

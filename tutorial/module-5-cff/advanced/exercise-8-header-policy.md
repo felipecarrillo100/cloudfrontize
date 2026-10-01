@@ -1,5 +1,8 @@
 # Exercise 3.3: The Header Policy
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.8-header-policy/README.md), with the workbench and automatic checks. The 2.x solution adds the headers to the request (they go to the origin, not the browser); the v3 version adds them to the response. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 
 Your security team wants to ensure all requests **adhere to strict security standards** before they reach your origin.

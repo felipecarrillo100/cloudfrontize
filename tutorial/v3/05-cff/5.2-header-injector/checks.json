@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the origin gets the viewer's IP address",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "headersContain": {
+          "x-origin-saw-true-client-ip": "127.0.0.1"
+        }
+      }
+    },
+    {
+      "name": "and the marker header",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "headers": {
+          "x-origin-saw-x-cdn-processed": "true"
+        }
+      }
+    },
+    {
+      "name": "request headers go to the origin, not to the viewer",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "headersAbsent": [
+          "true-client-ip",
+          "x-cdn-processed"
+        ]
+      }
+    }
+  ]
+}

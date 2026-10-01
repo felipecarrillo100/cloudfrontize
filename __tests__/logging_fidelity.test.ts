@@ -44,6 +44,7 @@ describe('Logging Fidelity (AWS-style Formatting)', () => {
         edgeRunner = new EdgeRunner(edgeDir, { logPath: logFile, watch: false });
         edgeRunner.load();
         server = startServer({ directory: tmpDir, port: 0, edgeRunner, noBanner: true });
+        await server.ready;
 
         await request(server).get('/');
 
@@ -90,6 +91,7 @@ edgeRunner.load();
             logPath: logFile,
             noBanner: true 
         });
+        await server.ready;
 
         await request(server).get('/');
 

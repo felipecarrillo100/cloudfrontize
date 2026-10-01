@@ -50,7 +50,7 @@ The build also reports any `__PLACEHOLDER__` without a value, so nothing ships u
 
 ## 💡 Fidelity Tips
 - **Secrets don't belong in code.** Baked values end up in the deployment package. For secrets, read them at run time from AWS Secrets Manager or SSM Parameter Store (Lambda@Edge has network access and the AWS SDK), and cache them between invocations.
-- **CloudFront Functions bake too**, but they can't call AWS services: use a CloudFront KeyValueStore for configuration that changes (see [1.12 The Redirect Map](../../05-cff/1.12-redirect-map/README.md)).
+- **CloudFront Functions bake too**, but they can't call AWS services: use a CloudFront KeyValueStore for configuration that changes (see [5.12 The Redirect Map](../../05-cff/5.12-redirect-map/README.md)).
 
 ## 🎓 Learning More
 - **AWS**: [Restrictions on Lambda@Edge: environment variables](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html#lambda-at-edge-restrictions-features)

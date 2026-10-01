@@ -74,6 +74,7 @@ edgeRunner.load();
             noBanner: true,
             defaultHeaders
         });
+        await server.ready;
 
         const res = await request(server).get('/');
         // Viewer headers reach the viewer hook; the CloudFront-added one only the origin-facing hook
@@ -96,6 +97,7 @@ edgeRunner.load();
             noBanner: true,
             defaultHeaders
         });
+        await server.ready;
 
         // Send request with an existing country header
         const res = await request(server)
@@ -122,6 +124,7 @@ edgeRunner.load();
             noBanner: true,
             defaultHeaders
         });
+        await server.ready;
 
         const res = await request(server).get('/');
         expect(res.header['x-viewer-saw']).toBe('NONE,NONE');

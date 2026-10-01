@@ -19,7 +19,7 @@ describe('Request Body Replacement', () => {
         };
     `;
 
-    const serveWithViewerHook = (name: string, viewerCode: string) => {
+    const serveWithViewerHook = async (name: string, viewerCode: string) => {
         const dir = path.join(tmpDir, name);
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, 'a-viewer.js'), viewerCode);
@@ -27,6 +27,7 @@ describe('Request Body Replacement', () => {
         const runner = new EdgeRunner(dir, { watch: false });
         runner.load();
         const server = startServer({ port: 0, directory: tmpDir, edgeRunner: runner, noBanner: true });
+        await server.ready;
         servers.push(server);
         return server;
     };
@@ -45,7 +46,7 @@ describe('Request Body Replacement', () => {
     });
 
     test('a replacement on a returned new request object is forwarded', async () => {
-        const server = serveWithViewerHook('new_object', `
+        const server = await serveWithViewerHook('new_object', `
             exports.hookType = 'viewer-request';
             exports.handler = async (event) => {
                 const req = event.Records[0].cf.request;
@@ -57,7 +58,7 @@ describe('Request Body Replacement', () => {
     });
 
     test('a text-encoded replacement is not base64-decoded', async () => {
-        const server = serveWithViewerHook('text_encoding', `
+        const server = await serveWithViewerHook('text_encoding', `
             exports.hookType = 'viewer-request';
             exports.handler = async (event) => {
                 const req = event.Records[0].cf.request;

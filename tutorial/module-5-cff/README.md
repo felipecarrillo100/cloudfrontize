@@ -1,5 +1,8 @@
 # 🌐 CloudFront Functions (CFF) Tutorial
 
+> [!IMPORTANT]
+> **Using CloudFrontize 3?** These exercises are [projects in `v3/05-cff/`](../v3/README.md), with corrected solutions and automatic checks.
+
 **CloudFront Functions (CFF)** are ultra-fast, lightweight JavaScript functions that execute **at the edge**—directly at AWS CloudFront locations worldwide.
 
 They are ideal for **high-performance, low-latency tasks** such as:

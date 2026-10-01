@@ -1,5 +1,8 @@
 # Exercise 1.11: The Variable Baker (Pro)
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.11-variable-baker/README.md), with the workbench and automatic checks. The 2.x solution adds the policy to the request; the v3 version adds it to the response, where the browser enforces it. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 
 Just like Lambda@Edge, **CloudFront Functions do not support environment variables**. This makes it difficult to manage different configurations (like API endpoints, feature flags, or debug modes) between `development`, `staging`, and `production` environments.

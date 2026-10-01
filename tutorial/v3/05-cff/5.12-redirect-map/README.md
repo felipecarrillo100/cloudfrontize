@@ -1,4 +1,4 @@
-# 1.12 The Redirect Map
+# 5.12 The Redirect Map
 
 ## 🎭 The Scenario
 Marketing creates short links (`/summer`) for every campaign, and the content team keeps retiring old pages. Each change has meant editing and redeploying a function. You'll move the redirect list **out of the code** into a CloudFront KeyValueStore, so the list can change without touching the function.

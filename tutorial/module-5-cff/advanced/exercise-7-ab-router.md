@@ -1,5 +1,8 @@
 # Exercise 3.2: The A/B Router
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.7-ab-router/README.md), with the workbench and automatic checks. The 2.x solution picks a group without remembering it, so visitors switch groups between visits; the v3 version keeps the group in a cookie. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 
 Your marketing team wants to **test two versions of a landing page** without touching the origin server.

@@ -140,6 +140,7 @@ describe('Execution Timeout Fidelity', () => {
         const runner = new EdgeRunner(hookDir, { strict: true, watch: false });
         runner.load();
         const server = startServer({ port: 0, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
+        await server.ready;
         await new Promise(resolve => server.listening ? resolve(null) : server.once('listening', resolve));
 
         const { statusCode, body } = await new Promise<any>((resolve, reject) => {

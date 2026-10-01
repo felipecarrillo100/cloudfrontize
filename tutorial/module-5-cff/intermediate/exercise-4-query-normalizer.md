@@ -1,7 +1,7 @@
 # Exercise 1.4: The Query Normalizer
 
 > [!NOTE]
-> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/1.4-query-normalizer/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.4-query-normalizer/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
 
 ## 🎭 The Scenario
 

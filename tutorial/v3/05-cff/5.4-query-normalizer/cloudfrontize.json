@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "5.4 The Query Normalizer",
+  "origins": [
+    { "id": "website", "type": "local", "path": "origins/www" }
+  ],
+  "functions": {
+    "query-normalizer": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.query-normalizer.js"
+    },
+    "query-probe": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/origin-response.query-probe.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "viewer-request": "query-normalizer",
+      "origin-response": "query-probe"
+    }
+  }
+}

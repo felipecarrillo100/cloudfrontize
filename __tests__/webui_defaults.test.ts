@@ -56,6 +56,7 @@ describe('WebUI Defaults & Secret Handling', () => {
     test('a bare --webui (webui: true) serves the UI on the main port + 1', async () => {
         const port = await freePortPair();
         server = startServer({ port, directory: path.join(tmpDir, 'www'), webui: true, noBanner: true });
+        await server.ready;
         await new Promise(resolve => setTimeout(resolve, 200));
 
         const res = await getJson(port + 1, '/api/v2/distribution');
@@ -73,6 +74,7 @@ describe('WebUI Defaults & Secret Handling', () => {
         }));
         const port = await freePortPair();
         server = startServer({ port, origins: configPath, webui: true, noBanner: true });
+        await server.ready;
         await new Promise(resolve => setTimeout(resolve, 200));
 
         const res = await getJson(port + 1, '/api/v2/distribution');

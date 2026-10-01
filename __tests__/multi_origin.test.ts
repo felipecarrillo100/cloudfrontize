@@ -40,6 +40,7 @@ describe('Multi-Origin Routing Fidelity', () => {
             origins: configPath,
             noBanner: true
         });
+        await server.ready;
     });
 
     afterAll(async () => {

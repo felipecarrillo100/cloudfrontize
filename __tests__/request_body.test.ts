@@ -43,6 +43,7 @@ describe('RequestBody & Strict Mode Fidelity', () => {
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port}/`, {
             method: 'POST',
@@ -68,6 +69,7 @@ runner.load();
         runner = new EdgeRunner(testDir, { watch: false, strict: true });
 runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port}/`, {
             method: 'POST',
@@ -96,6 +98,7 @@ runner.load();
         runner = new EdgeRunner(testDir, { watch: false });
         runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
+        await server.ready;
 
         const massiveBody = 'a'.repeat(41 * 1024);
         const res = await fetch(`http://localhost:${port}/`, {
@@ -120,6 +123,7 @@ runner.load();
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: false });
+        await server.ready;
 
         const massiveBody = 'a'.repeat(41 * 1024);
         const res = await fetch(`http://localhost:${port}/`, {

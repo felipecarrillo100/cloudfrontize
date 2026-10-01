@@ -60,6 +60,7 @@ describe('EdgeRunner: Final Fidelity & Scale Stress Tests', () => {
             edgeRunner: runner,
             noBanner: true
         });
+        await server.ready;
 
         // Use global fetch (Node 20 native)
         const res = await fetch(`http://localhost:${port}/massive.txt`, {

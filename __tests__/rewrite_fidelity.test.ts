@@ -52,6 +52,7 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
     test('Strict Mode: Should return 404 if rewritten target is missing', async () => {
         const spy = jest.spyOn(console, 'error').mockImplementation(() => { });
         server = startServer({ directory: tmpDir, port, edgeRunner, strict: true, noBanner: true });
+        await server.ready;
 
         const res = await request(server).get('/test.js').set('Accept-Encoding', 'br');
 
@@ -68,6 +69,7 @@ describe('Rewrite Fidelity (Strict Mode vs Default)', () => {
         fs.writeFileSync(path.join(tmpDir, 'test.js.br'), compressed);
 
         server = startServer({ directory: tmpDir, port, edgeRunner, noBanner: true });
+        await server.ready;
 
         const res = await request(server)
             .get('/test.js')

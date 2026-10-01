@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the admin area is blocked",
+      "request": {
+        "path": "/admin/index.html"
+      },
+      "expect": {
+        "status": 403,
+        "bodyNotContains": "Admin console"
+      }
+    },
+    {
+      "name": "so is /admin itself, in any case",
+      "request": {
+        "path": "/ADMIN"
+      },
+      "expect": {
+        "status": 403
+      }
+    },
+    {
+      "name": "a page that only starts with the same letters isn't",
+      "request": {
+        "path": "/administrators-guide.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Administrators guide"
+      }
+    },
+    {
+      "name": "secrets files are blocked too",
+      "request": {
+        "path": "/.env"
+      },
+      "expect": {
+        "status": 403
+      }
+    },
+    {
+      "name": "the public site works",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200
+      }
+    }
+  ]
+}

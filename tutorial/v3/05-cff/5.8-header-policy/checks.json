@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the browser gets the security headers",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+          "x-content-type-options": "nosniff",
+          "x-frame-options": "DENY",
+          "content-security-policy": "default-src 'self'",
+          "referrer-policy": "same-origin"
+        }
+      }
+    }
+  ]
+}

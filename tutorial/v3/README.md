@@ -2,7 +2,7 @@
 
 Each tutorial here is a small **CloudFrontize project**: open it in the WebUI or run it from the command line, read the article, and change the code. Every tutorial is also checked automatically, so they stay correct as CloudFrontize evolves.
 
-The original modules in the parent folder use the 2.x command-line style (`cloudfrontize www --edge …`). They keep working; the ones converted here say so at the top.
+The original modules in the parent folder use the 2.x command-line style (`cloudfrontize www --edge …`) and the 2.x WebUI. Every one of them has a version here.
 
 | Tutorial | What it shows |
 |---|---|
@@ -22,8 +22,18 @@ The original modules in the parent folder use the 2.x command-line style (`cloud
 | **Module 4: Production** | |
 | [4.1 The Baker](04-production/4.1-baker/README.md) | Configuration per environment without environment variables: baking, and `cloudfrontize build` |
 | **Module 5: CloudFront Functions** | |
-| [1.4 The Query Normalizer](05-cff/1.4-query-normalizer/README.md) | Removing tracking parameters with a CloudFront Function on runtime 2.0 |
-| [1.12 The Redirect Map](05-cff/1.12-redirect-map/README.md) | Redirects driven by a CloudFront KeyValueStore |
+| [5.1 The Traffic Director](05-cff/5.1-traffic-director/README.md) | A permanent redirect, keeping the query string |
+| [5.2 The Header Injector](05-cff/5.2-header-injector/README.md) | Telling the origin the viewer's IP address (`True-Client-IP`) |
+| [5.3 The Simple Blocker](05-cff/5.3-simple-blocker/README.md) | Blocking paths at the edge, without blocking look-alikes |
+| [5.4 The Query Normalizer](05-cff/5.4-query-normalizer/README.md) | Removing tracking parameters with runtime 2.0 |
+| [5.5 The Geo Router](05-cff/5.5-geo-router/README.md) | Routing by country on viewer-request, where CloudFront Functions see location headers |
+| [5.6 The Bot Detector](05-cff/5.6-bot-detector/README.md) | Blocking self-declared scrapers, letting search engines in |
+| [5.7 The A/B Router](05-cff/5.7-ab-router/README.md) | Sticky A/B groups with cookies |
+| [5.8 The Header Policy](05-cff/5.8-header-policy/README.md) | Security headers on viewer-response |
+| [5.9 The Rate Gate](05-cff/5.9-rate-gate/README.md) | `429` with `Retry-After`, and why functions can't count |
+| [5.10 The Cookie Gate](05-cff/5.10-cookie-gate/README.md) | A metered paywall with a viewer-request and viewer-response pair |
+| [5.11 The Variable Baker](05-cff/5.11-variable-baker/README.md) | Per-environment values in CloudFront Functions, within 10 KB |
+| [5.12 The Redirect Map](05-cff/5.12-redirect-map/README.md) | Redirects driven by a CloudFront KeyValueStore |
 
 ## Run a tutorial
 ```bash
