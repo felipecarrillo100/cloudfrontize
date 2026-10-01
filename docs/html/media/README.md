@@ -1,71 +1,87 @@
-# 🎓 CloudFrontize Academy: Lambda@Edge Masterclass
+# Tutorials for CloudFrontize 3
 
-Welcome to the CloudFrontize Academy! This structured, hands-on tutorial is designed to take you from a **Lambda@Edge Newbie** to a **Production Pro** using the CloudFrontize emulator.
+Each tutorial here is a small **CloudFrontize project**: open it in the WebUI or run it from the command line, read the article, and change the code. Every tutorial is also checked automatically, so they stay correct as CloudFrontize evolves.
 
-## 🗺️ The Path to Mastery
+The original modules in the parent folder use the 2.x command-line style (`cloudfrontize www --edge …`) and the 2.x WebUI. Every one of them has a version here.
 
-The tutorial is organized into four thematic modules. Each module contains real-world scenarios, architectural explanations, and hands-on exercises.
+| Tutorial | What it shows |
+|---|---|
+| [Intro: Run & Debug](00-intro/README.md) | A tour: the schematic, the viewer simulation, a request's journey, the editor, `check` and `build` |
+| **Module 1: Foundations** | |
+| [1.1 The Security Guard](01-foundations/1.1-security-guard/README.md) | Adding security headers in a Lambda@Edge viewer-response function |
+| [1.2 The Librarian](01-foundations/1.2-librarian/README.md) | Sorting query strings so the cache isn't fragmented |
+| [1.3 The Concierge](01-foundations/1.3-concierge/README.md) | Redirecting phones with a CloudFront Function, which can read CloudFront's device headers |
+| **Module 2: Origin intelligence** | |
+| [2.1 The Scientist](02-origin/2.1-scientist/README.md) | A/B testing with an internal rewrite on origin-request |
+| [2.2 The Diplomat](02-origin/2.2-diplomat/README.md) | Serving each country its own site from a Lambda@Edge origin-request function |
+| [2.3 The Cloaker](02-origin/2.3-cloaker/README.md) | Removing version-revealing headers before CloudFront caches them |
+| **Module 3: Edge computing** | |
+| [3.1 The Bouncer](03-edge/3.1-bouncer/README.md) | Basic Auth on `/admin/*` only, with a cache behavior and a short-circuit response |
+| [3.2 The Architect](03-edge/3.2-architect/README.md) | A maintenance page generated at the edge |
+| [3.3 The Inspector](03-edge/3.3-inspector/README.md) | Blocking malicious request bodies |
+| **Module 4: Production** | |
+| [4.1 The Baker](04-production/4.1-baker/README.md) | Configuration per environment without environment variables: baking, and `cloudfrontize build` |
+| **Module 5: CloudFront Functions** | |
+| [5.1 The Traffic Director](05-cff/5.1-traffic-director/README.md) | A permanent redirect, keeping the query string |
+| [5.2 The Header Injector](05-cff/5.2-header-injector/README.md) | Telling the origin the viewer's IP address (`True-Client-IP`) |
+| [5.3 The Simple Blocker](05-cff/5.3-simple-blocker/README.md) | Blocking paths at the edge, without blocking look-alikes |
+| [5.4 The Query Normalizer](05-cff/5.4-query-normalizer/README.md) | Removing tracking parameters with runtime 2.0 |
+| [5.5 The Geo Router](05-cff/5.5-geo-router/README.md) | Routing by country on viewer-request, where CloudFront Functions see location headers |
+| [5.6 The Bot Detector](05-cff/5.6-bot-detector/README.md) | Blocking self-declared scrapers, letting search engines in |
+| [5.7 The A/B Router](05-cff/5.7-ab-router/README.md) | Sticky A/B groups with cookies |
+| [5.8 The Header Policy](05-cff/5.8-header-policy/README.md) | Security headers on viewer-response |
+| [5.9 The Rate Gate](05-cff/5.9-rate-gate/README.md) | `429` with `Retry-After`, and why functions can't count |
+| [5.10 The Cookie Gate](05-cff/5.10-cookie-gate/README.md) | A metered paywall with a viewer-request and viewer-response pair |
+| [5.11 The Variable Baker](05-cff/5.11-variable-baker/README.md) | Per-environment values in CloudFront Functions, within 10 KB |
+| [5.12 The Redirect Map](05-cff/5.12-redirect-map/README.md) | Redirects driven by a CloudFront KeyValueStore |
 
-### [Intro: CloudFrontize Development Environment](./intro/README.md)
-*Learn how to run, test, and debug your Lambda@Edge and CloudFront Functions locally.*
-
-- **Intro – Run & Debug**: Use CloudFrontize to execute your logic and debug it using both the console and the Visual Control Plane (Web UI).
-  
-### [Module 1: Foundations (Newbie)](./module-1-foundations/README.md)
-*Mastering the basics of headers and redirects.*
-- **1.1 The Security Guard**: Injecting security headers.
-- **1.2 The Librarian**: Normalizing query strings for caching.
-- **1.3 The Concierge**: Simple device-based redirection.
-
-### [Module 2: Origin Intelligence (Intermediate)](./module-2-origin/README.md)
-*Dynamic routing and state management.*
-- **2.1 The Scientist**: Cookie-based A/B testing.
-- **2.2 The Diplomat**: Geo-routing (L10n).
-- **2.3 The Cloaker**: Cleaning up sensitive origin headers.
-
-### [Module 3: Edge Computing (Advanced)](./module-3-edge/README.md)
-*Intercepting requests and generating responses.*
-- **3.1 The Bouncer**: Edge-side Basic Authentication.
-- **3.2 The Architect**: Dynamic maintenance page generation.
-- **3.3 The Inspector**: Request body validation.
-
-### [Module 4: Production Workflows (Pro)](./module-4-production/README.md)
-*Baking code for the real world.*
-- **4.1 The Baker**: Using `.env` variables and code baking.
-
-### [Module 5: Cloud Front Functions (CFF)](./module-5-cff/README.md)
-*A completely new tutorial focused only on Cloud Front Functions.*
-
----
-
-### 📂 The `www` Directory
-Most examples use the `www` folder as the static directory. This is the **"Paws" Dog Adoption** sample project provided with the CloudFrontize repository. 
-
-> [!TIP]
-> If you are running these tutorials from a local installation, we highly recommend **cloning the [CloudFrontize GitHub Repository](https://github.com/felipecarrillo100/cloudfrontize)** to get access to all samples, includes the `www` folder used in these exercises.
-
----
-
-## 🚀 How to Complete an Exercise
-
-1. Navigate to an exercise folder (e.g., `tutorial/module-1-foundations/exercise-1`).
-2. Read the `scenario.md` to understand the goal.
-3. Edit the `index.js` (look for `TODO` comments).
-4. Start the emulator pointing to the static folder and hook file:
-   ```bash
-   cloudfrontize www --edge ./tutorial/module-1-foundations/exercise-1/index.js
-   ```
-5. Open `http://localhost:3000` and see your logic in action!
-
-### 🔭 Modern Debugging with the Visual Control Plane
-While you can always check your terminal logs, we highly recommend running your exercises with the Visual Control Plane enabled. This provides a live "Trace View" of your logic and full header visibility:
-
+## Run a tutorial
 ```bash
-cloudfrontize www --edge ./your-code.js --webui 3003
+cd tutorial/v3/01-foundations/1.1-security-guard
+cloudfrontize validate       # checks the project against AWS rules
+cloudfrontize --webui        # serves it on :3000, the workbench on :3001
+cloudfrontize check          # runs its checks.json
 ```
-![CloudFrontize Pro Dashboard](../assets/cloudfrontize-pro-ui.png)
 
-Using the **Header Intelligence** panel in the UI, you can simulate different countries, user-agents, or auth tokens without ever stopping the emulator.
+## Check every tutorial
+```bash
+npm run tutorials
+```
+This validates each project, starts it, and runs its `checks.json`. It also runs the 2.x tutorial suites.
 
-> [!TIP]
-> **Stuck?** Check the [solutions/](./solutions/) directory for reference implementations of every exercise. You can also paste the exercise into any major AI assistant to generate a detailed solution or hints.
+## Add a tutorial
+Create a folder `tutorial/v3/<NN-module>/<exercise>/`:
+
+```
+README.md            the article: scenario, lesson, goal, how to run and test it
+cloudfrontize.json   the project (origins, functions, which event each one runs on)
+functions/…          the solution code
+origins/www/…        the website it serves
+checks.json          what the tutorial must do
+```
+
+`checks.json` lists requests and what their responses must contain:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "adds HSTS to the page",
+      "request": { "method": "GET", "path": "/", "headers": { "user-agent": "curl" } },
+      "expect": {
+        "status": 200,
+        "headers": { "strict-transport-security": "max-age=63072000; includeSubDomains; preload" },
+        "headersContain": { "content-type": "text/html" },
+        "headersAbsent": ["server"],
+        "bodyContains": "Paws",
+        "bodyNotContains": ["error"]
+      }
+    }
+  ]
+}
+```
+
+Header names are matched case-insensitively. Nothing else is needed: the runner finds every `checks.json` under this folder.
+
+Keep tutorials faithful to AWS: if CloudFront wouldn't allow something (for example a header Lambda@Edge can't see in viewer-request), the tutorial shouldn't rely on it, and the article should explain why.

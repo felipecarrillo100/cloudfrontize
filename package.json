@@ -1,9 +1,18 @@
 {
   "name": "cloudfrontize",
   "description": "High-performance, high-fidelity local emulator for AWS Lambda@Edge and CloudFront Functions. Validate edge logic, catch illegal header mutations, and execute production-grade runtimes on a specialized local static server.",
-  "version": "2.2.1",
+  "version": "3.0.0-beta.1",
   "type": "commonjs",
-  "main": "dist/bin/cli.js",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./schema/*": "./schema/*",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "cloudfrontize": "dist/bin/cli.js"
   },

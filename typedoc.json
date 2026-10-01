@@ -2,6 +2,15 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
     "src/index.ts",
+    "src/api/contract.ts",
+    "src/server/createServer.ts",
+    "src/project/loadProject.ts",
+    "src/project/create.ts",
+    "src/project/templates.ts",
+    "src/project/build.ts",
+    "src/project/importLegacy.ts",
+    "src/project/runChecks.ts",
+    "src/project/schema.ts",
     "src/pipeline/Orchestrator.ts",
     "src/core/EdgeRunner.ts",
     "src/core/CFFRunner.ts",
@@ -16,25 +25,30 @@
     "src/pipeline/Telemetry.ts",
     "src/pipeline/HistoryStore.ts",
     "bin/cli.ts",
-    "ui-src/src/App.tsx",
-    "ui-src/src/contexts/UIContext.tsx",
-    "ui-src/src/contexts/HeaderContext.tsx",
-    "ui-src/src/contexts/DistributionContext.tsx",
-    "ui-src/src/components/TrafficCenter.tsx",
-    "ui-src/src/components/CloudCenter.tsx",
-    "ui-src/src/components/EdgeIntelligence.tsx",
-    "ui-src/src/components/HeaderIntelligence.tsx"
+    "src/core/Logger.ts",
+    "src/runtime/ProjectRuntime.ts"
   ],
   "name": "CloudFrontize Expert Documentation",
   "out": "docs/html",
   "theme": "default",
-  "plugin": ["typedoc-material-theme"],
-  "exclude": ["node_modules/**", "**/__tests__/**"],
+  "plugin": [
+    "typedoc-material-theme"
+  ],
+  "exclude": [
+    "node_modules/**",
+    "**/__tests__/**"
+  ],
   "cleanOutputDir": true,
   "hideGenerator": true,
   "includeVersion": true,
   "categorizeByGroup": true,
-  "categoryOrder": ["Backend", "Frontend", "*"],
-  "sort": ["source-order"],
+  "categoryOrder": [
+    "Backend",
+    "Frontend",
+    "*"
+  ],
+  "sort": [
+    "source-order"
+  ],
   "skipErrorChecking": true
 }

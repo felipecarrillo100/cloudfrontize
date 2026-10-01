@@ -195,10 +195,6 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
                 reject(err);
                 return;
             }
-            if (!options.noBanner) {
-                printTopBanner(options, current.project);
-                printBottomBanner(options);
-            }
             if (options.debug) logger.info(`\n\x1b[32m✔  [Ready] CloudFrontize is serving traffic on port ${options.port}\x1b[0m\n`);
             resolve();
         });
@@ -236,6 +232,11 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
     }
 
     mainServer.ready = Promise.all([mainReady, uiReady]).then(() => {
+        // Once both listen, so an ephemeral port (0) shows as the one assigned
+        if (!options.noBanner) {
+            printTopBanner(options, current.project, { port: portOf(mainServer, options.port), webui: uiServer ? portOf(uiServer, options.webui) : null });
+            printBottomBanner(options);
+        }
         if (settings.recentProjects && current.project) recordRecent({ dir: current.project.dir, name: current.project.manifest.name });
         return watchCurrent();
     });

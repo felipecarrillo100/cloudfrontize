@@ -3,12 +3,13 @@ import { CloudFrontizeOptions } from '../core/types';
 import type { Project } from '../project/loadProject';
 import { VERSION } from '../version';
 
-export function printTopBanner(options: CloudFrontizeOptions, project?: Project) {
+/** `ports`: the ports the servers listen on, when they differ from the options (port 0). */
+export function printTopBanner(options: CloudFrontizeOptions, project?: Project, ports?: { port: number; webui?: number | null }) {
     console.log(`\n☁️  \x1b[1mCloudfrontize v${VERSION}\x1b[0m\n`);
     if (project) console.log(`  ➜ Project: \x1b[1m${project.manifest.name}\x1b[0m \x1b[90m(${project.dir})\x1b[0m`);
-    console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${options.port}/\x1b[0m`);
+    console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${ports?.port ?? options.port}/\x1b[0m`);
     if (options.webui !== undefined && options.webui !== false) {
-        console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${options.webui}/\x1b[0m`);
+        console.log(`  ➜ WebUI:   \x1b[36mhttp://localhost:${ports?.webui ?? options.webui}/\x1b[0m`);
     }
     if (!project) console.log(`  ➜ Mode:    ${options.mode || 'rest'}`);
     const activeFlags = [

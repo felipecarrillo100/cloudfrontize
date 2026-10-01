@@ -21,6 +21,8 @@ Build a distribution, write its functions and test them locally, with CloudFront
 
 CloudFrontize needs **Node.js 22** or later.
 
+> 🧪 **3.0 is in beta.** Until 3.0.0 is released, `npm install -g cloudfrontize` installs 2.x: install the beta with `npm install -g cloudfrontize@next` (or `npx --yes cloudfrontize@next init my-site`). Feedback is welcome in [the issues](https://github.com/felipecarrillo100/cloudfrontize/issues).
+
 ```bash
 npm install -g cloudfrontize
 cloudfrontize init my-site --template spa     # a project from a starter template
