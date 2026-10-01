@@ -2,13 +2,18 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { Telemetry } from './Telemetry';
-import { Orchestrator } from './Orchestrator';
+import type { ProjectRuntime } from '../runtime/ProjectRuntime';
 import { TransformationLevel } from '../core/CodeProcessor';
 import { EditorUtility } from '../core/EditorUtility';
 import { VERSION } from '../version';
 
 export class WebUI {
-    constructor(private telemetry: Telemetry, private orchestrator: Orchestrator, private options: any) {}
+    /** @param getRuntime - Returns the project runtime currently being served (it changes when a project is opened). */
+    constructor(private telemetry: Telemetry, private getRuntime: () => ProjectRuntime, private options: any) {}
+
+    private get orchestrator() {
+        return this.getRuntime().orchestrator;
+    }
 
     /**
      * Security: the Developer UI only answers requests addressed to this machine by its own

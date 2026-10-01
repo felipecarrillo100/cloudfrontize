@@ -1,6 +1,22 @@
 export type HookType = 'viewer-request' | 'origin-request' | 'origin-response' | 'viewer-response';
 
+/** A function file with its stage decided by the project manifest (no stage detection). */
+export interface RunnerFile {
+    path: string;
+    stage: HookType;
+    /** Stable id (the manifest function id); used for enable/disable and telemetry. */
+    id: string;
+}
+
+/** Stage and id a manifest assigns to a file, bypassing HookUtility.detectStage. */
+export interface FileOverride {
+    stage: HookType;
+    id: string;
+}
+
 export interface RunnerOptions {
+    /** Manifest mode: load exactly these files, with these stages, instead of scanning runnerPath. */
+    files?: RunnerFile[];
     envPath?: string;
     bakePath?: string;
     outputPath?: string;
@@ -36,10 +52,16 @@ export interface OriginConfig {
     domain?: string;
     protocol?: 'http' | 'https';
     forcePathStyle?: boolean;
+    /**
+     * Project manifests use `{ profile }` or `{ fromEnv: true }`; literal keys are accepted only from
+     * 2.x `--origins` files.
+     */
     credentials?: {
-        accessKeyId: string;
-        secretAccessKey: string;
+        accessKeyId?: string;
+        secretAccessKey?: string;
         sessionToken?: string;
+        profile?: string;
+        fromEnv?: boolean;
     };
     mode?: 'website' | 'rest';
 }

@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['bin/cli.ts', 'src/index.ts'],
   format: ['cjs'],
-  target: 'node20',
+  target: 'node22',
   splitting: false,
   sourcemap: false,
   clean: true,

@@ -17,6 +17,69 @@ import { startServer } from '../src/index';
 import { EdgeRunner } from '../src/core/EdgeRunner';
 import { CFFRunner } from '../src/core/CFFRunner';
 import { VERSION } from '../src/version';
+import { createServer, CloudFrontizeServer } from '../src/server/createServer';
+import { isProject, loadProject } from '../src/project/loadProject';
+import { ManifestError } from '../src/project/errors';
+import { formatDiagnostics } from '../src/project/format';
+
+// 2.x source flags that a project configures in cloudfrontize.json instead
+const LEGACY_SOURCE_FLAGS: Record<string, string> = {
+    edge: '--edge', cff: '--cff', origins: '--origins', s3Origin: '--s3-origin', s3Endpoint: '--s3-endpoint',
+    env: '--env', bake: '--bake', output: '--output', headers: '--headers', mode: '--mode'
+};
+// Flags that override a project's distribution settings for this run
+const PROJECT_OVERRIDE_FLAGS = ['strict', 'cors', 'single', 'compression', 'etag', 'requestLogging', 'debug', 'webui', 'log'];
+
+const onShutdown = (server: CloudFrontizeServer) => {
+    const shutdown = async () => {
+        console.log(`\n\n👋 \x1b[1mCloudFrontize shutting down gracefully...\x1b[0m`);
+        await server.closeGracefully();
+        process.exit(0);
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+};
+
+const reportManifestError = (err: unknown): never => {
+    if (err instanceof ManifestError) {
+        console.error(`\n🛑 \x1b[1m${err.manifestPath}\x1b[0m\n${formatDiagnostics(err.diagnostics)}\n`);
+        process.exit(1);
+    }
+    throw err;
+};
+
+/** Runs a project folder (cloudfrontize.json) with CLI flags as per-run overrides. */
+async function runProject(target: string, options: any, command: Command) {
+    const fromCli = (key: string) => command.getOptionValueSource(key) === 'cli';
+
+    const conflicting = Object.keys(LEGACY_SOURCE_FLAGS).filter(fromCli).map(k => LEGACY_SOURCE_FLAGS[k]);
+    if (conflicting.length) {
+        console.error(`Error: ${conflicting.join(', ')} ${conflicting.length === 1 ? "doesn't" : "don't"} apply to projects; configure ${conflicting.length === 1 ? 'it' : 'them'} in cloudfrontize.json`);
+        process.exit(1);
+    }
+
+    const overrides: Record<string, any> = {};
+    for (const key of PROJECT_OVERRIDE_FLAGS) if (fromCli(key)) overrides[key] = options[key];
+    if (fromCli('port')) overrides.port = parseInt(options.port);
+    if (fromCli('listen')) overrides.port = parseInt(options.listen);
+
+    let diagnostics;
+    try {
+        ({ diagnostics } = loadProject(target));
+    } catch (err) {
+        reportManifestError(err);
+    }
+    if (diagnostics!.some(d => d.severity !== 'info')) console.warn(formatDiagnostics(diagnostics!.filter(d => d.severity !== 'info')) + '\n');
+
+    let server: CloudFrontizeServer;
+    try {
+        server = await createServer({ project: target, ...overrides });
+    } catch (err) {
+        reportManifestError(err); // other startup errors were already reported by the server
+        process.exit(1);
+    }
+    onShutdown(server!);
+}
 
 const program = new Command();
 
@@ -47,7 +110,13 @@ program
     .option('--s3-origin <bucket>', 'proxy requests to a real S3 bucket instead of local directory')
     .option('--s3-endpoint <url>', 'custom S3 endpoint (e.g. MinIO) - implies forcePathStyle')
     .option('-m, --mode <mode>', 'routing behavior: website (S3 Website Hosting) or rest (S3 REST/OAC, default)', 'rest')
-    .action(async (directory: string, options: any) => {
+    .action(async (directory: string, options: any, command: Command) => {
+        // 3.x: a folder with cloudfrontize.json (or the current folder, when no 2.x source is given) is a project
+        const legacySource = options.edge || options.cff || options.origins || options.s3Origin || options.output;
+        if (isProject(directory) || (!directory && !legacySource && isProject(process.cwd()))) {
+            return runProject(directory || process.cwd(), options, command);
+        }
+
         if ((options.output || options.bake) && (!options.edge && !options.cff)) {
             console.error('Error: --bake and --output require a source --edge or --cff file');
             process.exit(1);
@@ -123,14 +192,23 @@ program
             cffRunner
         });
 
-        const shutdown = async () => {
-            console.log(`\n\n👋 \x1b[1mCloudFrontize shutting down gracefully...\x1b[0m`);
-            await server.closeGracefully();
-            process.exit(0);
-        };
+        // Startup problems (busy port, invalid headers file) were already reported by the server
+        server.ready.catch(() => process.exit(1));
+        onShutdown(server);
+    });
 
-        process.on('SIGINT', shutdown);
-        process.on('SIGTERM', shutdown);
+program
+    .command('validate')
+    .description('check a project against AWS CloudFront rules')
+    .argument('[project]', 'project folder or cloudfrontize.json', '.')
+    .action((target: string) => {
+        try {
+            const { project, diagnostics } = loadProject(target);
+            if (diagnostics.length) console.log(formatDiagnostics(diagnostics));
+            console.log(`✅ ${project.manifest.name} is valid (${project.manifestPath})`);
+        } catch (err) {
+            reportManifestError(err);
+        }
     });
 
 program.parse(process.argv);

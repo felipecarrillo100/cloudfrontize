@@ -1,0 +1,34 @@
+'use strict';
+
+/**
+ * CloudFrontize Exercise 1.1: The Security Guard
+ * Event: viewer-response (set in cloudfrontize.json, not in this file)
+ * This runs AFTER the cache/origin has provided a response, but BEFORE it reaches the user.
+ * Using this event ensures these headers are present even on cached content.
+ */
+
+exports.handler = async (event) => {
+    const response = event.Records[0].cf.response;
+    const headers = response.headers;
+
+    // 🔒 HSTS (Strict-Transport-Security)
+    // Tells the browser to ONLY communicate with this site over HTTPS for the next 2 years.
+    // This prevents SSL stripping attacks.
+    headers['strict-transport-security'] = [{
+        key: 'Strict-Transport-Security',
+        value: 'max-age=63072000; includeSubDomains; preload'
+    }];
+
+    // 🛡️ X-Content-Type-Options
+    // Prevents the browser from "MIME-sniffing" a response away from the declared content-type.
+    // This stops browsers from executing a .txt file as if it were a .js file (Cross-Site Scripting).
+    headers['x-content-type-options'] = [{
+        key: 'X-Content-Type-Options',
+        value: 'nosniff'
+    }];
+
+    console.log("[L@E: Guard] Security headers injected");
+
+    // Return the hardened response to the viewer
+    return response;
+};

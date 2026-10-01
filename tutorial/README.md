@@ -2,6 +2,9 @@
 
 Welcome to the CloudFrontize Academy! This structured, hands-on tutorial is designed to take you from a **Lambda@Edge Newbie** to a **Production Pro** using the CloudFrontize emulator.
 
+> [!NOTE]
+> **CloudFrontize 3:** project-based versions of these tutorials are being added in [`v3/`](./v3/README.md). To check every tutorial automatically, run `npm run tutorials` from the repository root.
+
 ## 🗺️ The Path to Mastery
 
 The tutorial is organized into four thematic modules. Each module contains real-world scenarios, architectural explanations, and hands-on exercises.

@@ -14,10 +14,12 @@ import { OriginProvider } from './base';
 export class LocalProvider implements OriginProvider {
     /**
      * @param directory - The base directory to serve files from.
+     * @param mode - Per-origin S3 behavior (project manifests); falls back to the request-level mode (2.x `-m`).
      */
-    constructor(private directory: string) {}
+    constructor(private directory: string, private mode?: 'rest' | 'website') {}
 
     public async fetch(req: any, res: any, options: any, body?: Buffer): Promise<void> {
+        const mode = this.mode ?? options.mode;
         // If we have a mutated or captured body buffer, we must ensure the provider
         // (and its sub-handlers like serve-handler) can read it as a stream.
         if (body) {
@@ -52,7 +54,7 @@ export class LocalProvider implements OriginProvider {
         }
 
         // S3 Website Fidelity: Handle trailing slash redirects and index documents
-        if (options.mode === 'website' && isActuallyDir) {
+        if (mode === 'website' && isActuallyDir) {
             if (!cleanPath.endsWith('/')) {
                 // Redirect /folder to /folder/
                 res.statusCode = 301;
@@ -66,7 +68,7 @@ export class LocalProvider implements OriginProvider {
         }
 
         // CloudFront (REST) Fidelity: Non-root directories always 404 (object not found)
-        if (options.mode === 'rest' && isActuallyDir && cleanPath !== '/') {
+        if (mode === 'rest' && isActuallyDir && cleanPath !== '/') {
             res.statusCode = 404;
             res.end();
             return;

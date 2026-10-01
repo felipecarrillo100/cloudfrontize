@@ -3,7 +3,10 @@ import * as chokidar from 'chokidar';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { HookType, RunnerOptions, Registry } from './types';
+import { FileOverride, HookType, RunnerOptions, Registry } from './types';
+import { defaultLogger, style } from './Logger';
+
+const log = defaultLogger.child('runner');
 
 /**
  * Abstract base class for hot-reloading Lambda@Edge and CFF handlers.
@@ -62,18 +65,17 @@ export abstract class HotRunner extends EventEmitter {
             // Professional Fidelity: Use a persistent WriteStream for non-blocking asynchronous I/O
             this.logStream = fs.createWriteStream(logPath, { flags: 'a' });
         } catch (err: any) {
-            console.warn(`\x1b[33m⚠️  [HotRunner] Failed to initialize log stream: ${err.message}\x1b[0m`);
+            log.warn(style.yellow(`⚠️  [HotRunner] Failed to initialize log stream: ${err.message}`));
         }
     }
 
     /**
-     * Bootstraps the runner, performs initial load, and starts the watcher if enabled.
+     * Starts the file watcher if enabled, and resolves once it's ready: changes made after that are
+     * guaranteed to trigger a reload (earlier ones could be missed during the watcher's initial scan).
      */
     public async init(): Promise<void> {
-        // load() is now called synchronously in the subclass constructor
-
         if (this.options.watch !== false) {
-            this._watch();
+            await this._watch();
         }
     }
 
@@ -85,34 +87,41 @@ export abstract class HotRunner extends EventEmitter {
     /**
      * Subclasses implement specific sandbox/validation logic for individual files.
      */
-    protected abstract _loadFile(filePath: string, registry: Registry): void;
+    protected abstract _loadFile(filePath: string, registry: Registry, override?: FileOverride): void;
 
     /**
      * Sets up the chokidar watcher for the runner path and config files.
      */
-    protected _watch(): void {
+    protected _watch(): Promise<void> {
         const targets: string[] = [];
         if (this.runnerPath && fs.existsSync(this.runnerPath)) targets.push(this.runnerPath);
+        for (const file of this.options.files || []) {
+            if (fs.existsSync(file.path)) targets.push(file.path);
+        }
         if (this.options.envPath && fs.existsSync(this.options.envPath)) targets.push(this.options.envPath);
         if (this.options.bakePath && fs.existsSync(this.options.bakePath)) targets.push(this.options.bakePath);
 
-        if (targets.length === 0) return;
+        if (targets.length === 0) return Promise.resolve();
 
-        this.watcher = chokidar.watch(targets, {
+        const watcher = chokidar.watch(targets, {
             ignoreInitial: true,
             awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 10 }
         });
 
-        this.watcher.on('all', (event, filePath) => {
+        this.watcher = watcher;
+        const ready = new Promise<void>(resolve => watcher.once('ready', () => resolve()));
+
+        watcher.on('all', (event, filePath) => {
             if (this.options.verbose) {
-                console.log(`\x1b[36m🔄 [HotRunner] ${event} detected: ${filePath}\x1b[0m`);
+                log.info(style.cyan(`🔄 [HotRunner] ${event} detected: ${filePath}`));
             }
             try {
                 this.load(filePath);
             } catch (err: any) {
-                console.error(`\x1b[31m🛑 [Watcher Error] ${err.message}\x1b[0m`);
+                log.error(style.red(`🛑 [Watcher Error] ${err.message}`));
             }
         });
+        return ready;
     }
 
     /**
@@ -144,7 +153,7 @@ export abstract class HotRunner extends EventEmitter {
             }
             return parsed;
         } catch (err: any) {
-            console.error(`\x1b[31m🛑 [HotRunner] Env Load Error: ${err.message}\x1b[0m`);
+            log.error(style.red(`🛑 [HotRunner] Env Load Error: ${err.message}`));
             if (err.message.includes('Restricted Variable')) throw err;
             return {};
         }
@@ -158,7 +167,7 @@ export abstract class HotRunner extends EventEmitter {
         try {
             return dotenv.parse(fs.readFileSync(bakePath));
         } catch (err: any) {
-            console.error(`\x1b[31m🛑 [HotRunner] Bake Load Error: ${err.message}\x1b[0m`);
+            log.error(style.red(`🛑 [HotRunner] Bake Load Error: ${err.message}`));
             return {};
         }
     }

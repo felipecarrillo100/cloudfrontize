@@ -29,13 +29,18 @@ export class S3Provider implements OriginProvider {
             s3Options.forcePathStyle = config.forcePathStyle !== undefined ? config.forcePathStyle : true; 
         }
 
-        if (config.credentials) {
+        if (config.credentials?.profile) {
+            // Named profile from the AWS shared config/credentials files
+            s3Options.profile = config.credentials.profile;
+        } else if (config.credentials?.accessKeyId) {
+            // Literal keys (2.x --origins files only; project manifests can't contain them)
             s3Options.credentials = {
                 accessKeyId: config.credentials.accessKeyId,
                 secretAccessKey: config.credentials.secretAccessKey,
                 sessionToken: config.credentials.sessionToken
             };
         }
+        // { fromEnv: true } or nothing: the SDK's default credential chain
 
         this.client = new S3Client(s3Options);
     }

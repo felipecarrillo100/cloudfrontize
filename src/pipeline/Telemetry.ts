@@ -5,7 +5,7 @@ import { IHistoryStore } from './HistoryStore';
 export interface TelemetryEvent {
     id: string;
     timestamp: string;
-    type: 'request' | 'hook' | 'response' | 'error' | 'rewrite' | 'stage' | 'success';
+    type: 'request' | 'hook' | 'response' | 'error' | 'rewrite' | 'stage' | 'success' | 'project';
     hookType?: string;
     durationMs?: number;
     details: any;

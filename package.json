@@ -8,7 +8,8 @@
     "cloudfrontize": "dist/bin/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "schema"
   ],
   "scripts": {
     "dev": "tsx bin/cli.ts ./www",
@@ -20,7 +21,9 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
     "test:local": "tsx ./bin/cli.ts ./www -e ./samples/medium/lambda-edge-authorization.js",
     "test:dist": "node ./dist/bin/cli.js ./www -e ./samples/medium/lambda-edge-authorization.js",
-    "docs": "typedoc --plugin typedoc-material-theme"
+    "docs": "typedoc --plugin typedoc-material-theme",
+    "tutorials": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit tutorials_v3 intro_tutorial tutorial_solutions lae_tutorial_solutions cff_tutorial_solutions aws_tutorial aws_tutorial_fidelity",
+    "schema": "tsx scripts/generate-schema.ts"
   },
   "dependencies": {
     "@aws-sdk/client-appconfig": "^3.0.0",
@@ -36,7 +39,8 @@
     "compression": "^1.7.4",
     "dotenv": "^17.3.1",
     "serve-handler": "^6.1.6",
-    "terser": "^5.46.1"
+    "terser": "^5.46.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
@@ -77,6 +81,6 @@
   },
   "homepage": "https://github.com/felipecarrillo100/cloudfrontize#readme",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }

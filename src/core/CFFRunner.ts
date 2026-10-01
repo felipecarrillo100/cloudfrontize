@@ -3,7 +3,7 @@ import path from 'path';
 import vm from 'vm';
 import * as acorn from 'acorn';
 import { HotRunner } from './HotRunner';
-import { Registry, RunnerOptions, HookType } from './types';
+import { FileOverride, Registry, RunnerOptions, HookType } from './types';
 import { CFFValidator } from './CFFValidator';
 import { EdgeError } from './EdgeError';
 import { HeaderManager } from './HeaderManager';
@@ -85,6 +85,16 @@ export class CFFRunner extends HotRunner {
         }
 
         const stagedRegistry = this._createEmptyRegistry();
+
+        // Manifest mode: the project decides which files run and at which stage
+        if (this.options.files) {
+            for (const file of this.options.files) {
+                this._loadFile(file.path, stagedRegistry, { stage: file.stage, id: file.id });
+            }
+            this.modules = stagedRegistry;
+            return;
+        }
+
         if (!this.runnerPath || !fs.existsSync(this.runnerPath)) {
             if (this.runnerPath) {
                 console.error(`\n\x1b[31m🛑 [CFFRunner] Hook file or directory not found: ${this.runnerPath}\x1b[0m`);
@@ -114,11 +124,11 @@ export class CFFRunner extends HotRunner {
         }
     }
 
-    protected _loadFile(filePath: string, registry: Registry): void {
+    protected _loadFile(filePath: string, registry: Registry, override?: FileOverride): void {
         const filename = path.basename(filePath);
         try {
             let fileCode = fs.readFileSync(filePath, 'utf8');
-            const type = HookUtility.detectStage(fileCode, filename);
+            const type = override?.stage ?? HookUtility.detectStage(fileCode, filename);
             
             fileCode = CodeProcessor.bake(fileCode, this.bakeVars);
 
@@ -197,7 +207,7 @@ export class CFFRunner extends HotRunner {
             }
 
             const mod = { 
-                id: `${type}-cff-${registry[type].length}`, 
+                id: override?.id ?? `${type}-cff-${registry[type].length}`, 
                 handler: fileCode, 
                 filePath: filePath,
                 script: new vm.Script(`${fileCode}\nhandler(event);`, { filename: path.basename(filePath) })

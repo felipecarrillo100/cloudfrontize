@@ -3,7 +3,7 @@ import path from 'path';
 import { AsyncLocalStorage } from 'async_hooks';
 import vm from 'vm';
 import { HotRunner } from './HotRunner';
-import { HookType, Registry } from './types';
+import { FileOverride, HookType, Registry } from './types';
 import { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME } from '../constants';
 import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
@@ -37,7 +37,7 @@ export class EdgeRunner extends HotRunner {
      * @param runnerPath - Absolute path to the edge function(s).
      * @param options - Execution options (strict mode, env paths, etc).
      */
-    constructor(runnerPath: string, public options: any = {}) {
+    constructor(runnerPath: string | null, public options: any = {}) {
         super(runnerPath, options);
         EdgeRunner._calculateOverhead();
     }
@@ -60,6 +60,18 @@ export class EdgeRunner extends HotRunner {
 
     public load(changedFile?: string): void {
         const newModules = this._createEmptyRegistry();
+
+        // Manifest mode: the project decides which files run and at which stage
+        if (this.options.files) {
+            this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._loadEnv(this.options.envPath) };
+            this.bakeVars = this._loadBake(this.options.bakePath);
+            this.compileError = null;
+            for (const file of this.options.files) {
+                this._loadFile(file.path, newModules, { stage: file.stage, id: file.id });
+            }
+            this.modules = newModules;
+            return;
+        }
         
         if (!this.runnerPath || !fs.existsSync(this.runnerPath)) {
             if (this.runnerPath) {
@@ -94,9 +106,10 @@ export class EdgeRunner extends HotRunner {
         this.modules = newModules;
     }
 
-    protected _loadFile(filePath: string, registry: Registry): void {
+    protected _loadFile(filePath: string, registry: Registry, override?: FileOverride): void {
         try {
             let content = fs.readFileSync(filePath, 'utf8');
+            const stage = override?.stage ?? HookUtility.detectStage(content, filePath);
 
             // Production Baking (Strata-Fidelity)
             content = CodeProcessor.bake(content, this.bakeVars);
@@ -126,7 +139,7 @@ export class EdgeRunner extends HotRunner {
                     info: (...args: any[]) => this._log('info', args),
                 },
                 require: (id: string) => {
-                    const type = HookUtility.detectStage(content, filePath);
+                    const type = stage;
                     
                     for (const forbidden of AWS_RUNTIME.FORBIDDEN_MODULES) {
                         if (id === forbidden || id.startsWith(forbidden + '/')) {
@@ -162,7 +175,7 @@ export class EdgeRunner extends HotRunner {
             script.runInNewContext(sandbox);
 
             const mod = sandbox.exports;
-            const finalType = HookUtility.detectStage(content, filePath);
+            const finalType = stage;
 
             if (mod.handler && finalType && registry[finalType]) {
                 // Fidelity Check: AWS only allows one hook per type.
@@ -171,7 +184,7 @@ export class EdgeRunner extends HotRunner {
                     return;
                 }
                 registry[finalType].push({ 
-                    id: `${finalType}-le-${registry[finalType].length}`, 
+                    id: override?.id ?? `${finalType}-le-${registry[finalType].length}`, 
                     handler: mod.handler, 
                     filePath: filePath 
                 });

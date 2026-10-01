@@ -53,6 +53,7 @@ export class Orchestrator {
     private telemetry: Telemetry;
     private origins: MultiOriginConfig;
     private logStream: fs.WriteStream | null;
+    private watchdog: NodeJS.Timeout | null = null;
 
     /**
      * Initializes the CloudFrontize Orchestrator.
@@ -82,7 +83,7 @@ export class Orchestrator {
         // High Fidelity Safety: Monitor main thread health without adding per-request VM taxes.
         // If a CFF or L@E hook hangs in an infinite loop, this will detect the block and log a diagnostic warning.
         let lastTick = Date.now();
-        setInterval(() => {
+        this.watchdog = setInterval(() => {
             const now = Date.now();
             const drift = now - lastTick - 1000;
             if (drift > 2000) {
@@ -92,6 +93,13 @@ export class Orchestrator {
             }
             lastTick = now;
         }, 1000).unref();
+    }
+
+    /** Stops the watchdog and detaches from the runners (the runners themselves are closed by their owner). */
+    public dispose(): void {
+        if (this.watchdog) clearInterval(this.watchdog);
+        this.watchdog = null;
+        this.hookRegistry.dispose();
     }
 
     // Hook registry discovery and state management extracted to HookRegistry.ts

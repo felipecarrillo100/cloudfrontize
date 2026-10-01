@@ -8,6 +8,12 @@ This document provides technical onboarding for engineers contributing to the Cl
 
 - **Root**: Backend core (Node.js/TypeScript).
 - **`src/`**: The "Hook Highway" engines.
+  - **`src/project/`**: projects: the `cloudfrontize.json` zod schema (`schema.ts`), AWS association rules (`validate.ts`), `loadProject()`, diagnostics and errors, and the tutorial `checks.json` schema.
+  - **`src/runtime/`**: `ProjectRuntime` (one loaded distribution: runners, watchers, providers, pipeline; `start()`/`dispose()`) and the specs that build it from a project (`fromProject`) or from 2.x options (`fromLegacyOptions`).
+  - **`src/server/`**: the long-lived server (`createServer`, `buildServer`): HTTP and WebUI servers, telemetry, and the current runtime, which `openProject()` swaps without a restart.
+  - **`src/core/Logger.ts`**: structured logger with console and file sinks.
+- **`schema/`**: generated JSON Schemas for editors (`npm run schema`).
+- **`tutorial/`**: tutorials; `tutorial/v3/` holds project-based tutorials run by `npm run tutorials`.
 - **`ui-src/`**: The "Forensic Dashboard" (React/Vite).
 - **`dist/`**: Unified production bundle.
 

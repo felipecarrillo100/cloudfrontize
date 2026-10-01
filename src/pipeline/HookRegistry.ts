@@ -10,6 +10,7 @@ export class HookRegistry {
     private hooks: any[] = [];
     private disabledHookIds: Set<string> = new Set();
     private buildErrors: Map<string, any> = new Map();
+    private detachListeners: Array<() => void> = [];
 
     constructor(private edgeRunner: EdgeRunner | null, private cffRunner: CFFRunner | null, private telemetry: Telemetry) {
         this._initialize();
@@ -18,6 +19,16 @@ export class HookRegistry {
 
     private _initialize() {
         const hooks: any[] = [];
+
+        // Manifest mode: the project lists the files, their stages and ids
+        const edgeFiles = this.edgeRunner?.options?.files;
+        const cffFiles = this.cffRunner?.options?.files;
+        if (edgeFiles || cffFiles) {
+            for (const f of edgeFiles || []) hooks.push({ id: f.id, type: 'Lambda@Edge', path: f.path, stage: f.stage });
+            for (const f of cffFiles || []) hooks.push({ id: f.id, type: 'CloudFront Function', path: f.path, stage: f.stage });
+            this.hooks = hooks;
+            return;
+        }
         
         // 1. Lambda@Edge Discovery
         const edgePath = this.edgeRunner?.getRunnerPath?.();
@@ -67,24 +78,35 @@ export class HookRegistry {
     private _setupListeners() {
         const runners = [this.edgeRunner, this.cffRunner].filter(Boolean);
         for (const runner of runners) {
-            runner!.on('build_error', (data) => {
+            const onError = (data: any) => {
                 this.buildErrors.set(data.path, data);
                 this.telemetry.broadcast({
                     id: 'SYSTEM_BUILD',
                     type: 'error',
                     details: data
                 });
-            });
-
-            runner!.on('build_success', (data) => {
+            };
+            const onSuccess = (data: any) => {
                 this.buildErrors.delete(data.file);
                 this.telemetry.broadcast({
                     id: 'SYSTEM_BUILD',
                     type: 'success',
                     details: { name: 'Build Success', ...data }
                 });
+            };
+            runner!.on('build_error', onError);
+            runner!.on('build_success', onSuccess);
+            this.detachListeners.push(() => {
+                runner!.off('build_error', onError);
+                runner!.off('build_success', onSuccess);
             });
         }
+    }
+
+    /** Detaches from the runners so a disposed project stops reporting builds. */
+    public dispose(): void {
+        for (const detach of this.detachListeners) detach();
+        this.detachListeners = [];
     }
 
     public getAllHooks() {

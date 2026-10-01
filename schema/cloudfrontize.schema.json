@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "distribution": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "port": {
+          "default": 3000,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "strict": {
+          "default": false,
+          "description": "Fail requests that break AWS rules (headers, sizes, function combinations). Timing only warns.",
+          "type": "boolean"
+        },
+        "cors": {
+          "default": false,
+          "type": "boolean"
+        },
+        "spa": {
+          "default": false,
+          "description": "Serve index.html (200) when the origin returns 404 or 403",
+          "type": "boolean"
+        },
+        "compression": {
+          "default": true,
+          "type": "boolean"
+        },
+        "etag": {
+          "default": true,
+          "type": "boolean"
+        },
+        "requestLogging": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "origins": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "type": {
+                "type": "string",
+                "const": "local"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Path relative to the project folder"
+              },
+              "mode": {
+                "default": "rest",
+                "type": "string",
+                "enum": [
+                  "rest",
+                  "website"
+                ],
+                "description": "S3 REST/OAC (default) or S3 website-hosting behavior"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "type": {
+                "type": "string",
+                "const": "s3"
+              },
+              "bucket": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 63
+              },
+              "region": {
+                "type": "string",
+                "minLength": 1
+              },
+              "endpoint": {
+                "description": "Custom S3 endpoint, e.g. MinIO or LocalStack",
+                "type": "string",
+                "format": "uri"
+              },
+              "forcePathStyle": {
+                "type": "boolean"
+              },
+              "mode": {
+                "default": "rest",
+                "type": "string",
+                "enum": [
+                  "rest",
+                  "website"
+                ],
+                "description": "S3 REST/OAC (default) or S3 website-hosting behavior"
+              },
+              "credentials": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "profile": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "AWS shared-config profile name"
+                      }
+                    },
+                    "required": [
+                      "profile"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "fromEnv": {
+                        "type": "boolean",
+                        "const": true,
+                        "description": "Use the default AWS credential chain"
+                      }
+                    },
+                    "required": [
+                      "fromEnv"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "bucket"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "functions": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "cloudfront-function"
+              },
+              "runtime": {
+                "default": "cloudfront-js-2.0",
+                "type": "string",
+                "enum": [
+                  "cloudfront-js-1.0",
+                  "cloudfront-js-2.0"
+                ]
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Path relative to the project folder"
+              }
+            },
+            "required": [
+              "type",
+              "file"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "lambda-edge"
+              },
+              "runtime": {
+                "default": "nodejs22.x",
+                "type": "string",
+                "pattern": "^nodejs\\d+\\.x$"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Path relative to the project folder"
+              }
+            },
+            "required": [
+              "type",
+              "file"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "defaultBehavior": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "functions": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "viewer-request": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "origin-request": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "origin-response": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "viewer-response": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "behaviors": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pathPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "origin": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+          },
+          "functions": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "viewer-request": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "origin-request": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "origin-response": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              },
+              "viewer-response": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "pathPattern",
+          "origin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "viewer": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "headers": {
+          "description": "Viewer simulation headers (JSON)",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Reserved AWS variables for Lambda@Edge (.env)",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "bake": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "__VAR__ values for production builds (.env format)",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version",
+    "name",
+    "origins",
+    "defaultBehavior"
+  ],
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "title": "CloudFrontize project manifest"
+}

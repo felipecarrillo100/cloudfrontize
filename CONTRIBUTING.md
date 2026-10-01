@@ -42,8 +42,16 @@ Now you can run `cloudfrontize` globally, and it will use your local modified co
 We aim for high fidelity with AWS behavior. If you add a feature (like a new header restriction), please include a test case.
 
 * **Run existing tests**: `npm test`
+* **Run every tutorial**: `npm run tutorials`. Tutorials are real-world scenarios and our main end-to-end check; a failing tutorial is a real regression.
 * **Typecheck**: `npm run typecheck` (this is what CI runs on every pull request)
 * **Manual Verification**: Use the `./samples` directory to verify that your changes don't break the Lambda@Edge execution flow.
+* **Changed the manifest schema?** Run `npm run schema` to regenerate `schema/*.schema.json`; a test fails if they drift.
+
+---
+
+## 🎓 Adding a Tutorial
+
+New tutorials are small projects under `tutorial/v3/<module>/<exercise>/`, and they are checked automatically. See [`tutorial/v3/README.md`](tutorial/v3/README.md) for the folder layout and the `checks.json` format. A new feature should come with a tutorial that shows it.
 
 ---
 

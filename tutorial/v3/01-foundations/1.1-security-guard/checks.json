@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "adds HSTS to the page",
+      "request": { "path": "/" },
+      "expect": {
+        "status": 200,
+        "headers": { "strict-transport-security": "max-age=63072000; includeSubDomains; preload" },
+        "bodyContains": "Paws &amp; Pixels"
+      }
+    },
+    {
+      "name": "stops MIME sniffing",
+      "request": { "path": "/index.html" },
+      "expect": { "headers": { "x-content-type-options": "nosniff" } }
+    },
+    {
+      "name": "doesn't run for origin errors (AWS skips viewer-response on 4xx/5xx)",
+      "request": { "path": "/missing-page.html" },
+      "expect": { "status": 404, "headersAbsent": ["strict-transport-security"] }
+    }
+  ]
+}
