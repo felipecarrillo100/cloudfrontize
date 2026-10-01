@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "1.12 The Redirect Map",
+  "origins": [
+    { "id": "website", "type": "local", "path": "origins/www" }
+  ],
+  "functions": {
+    "redirect-map": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.redirect-map.js",
+      "keyValueStore": "redirects"
+    }
+  },
+  "keyValueStores": {
+    "redirects": { "file": "kvs/redirects.json" }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": { "viewer-request": "redirect-map" }
+  }
+}

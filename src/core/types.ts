@@ -6,12 +6,18 @@ export interface RunnerFile {
     stage: HookType;
     /** Stable id (the manifest function id); used for enable/disable and telemetry. */
     id: string;
+    /** CloudFront Functions runtime ('cloudfront-js-1.0' by default). */
+    runtime?: string;
+    /** CloudFront Functions: the associated KeyValueStore file (runtime 2.0). */
+    kvsFile?: string;
 }
 
 /** Stage and id a manifest assigns to a file, bypassing HookUtility.detectStage. */
 export interface FileOverride {
     stage: HookType;
     id: string;
+    runtime?: string;
+    kvsFile?: string;
 }
 
 export interface RunnerOptions {

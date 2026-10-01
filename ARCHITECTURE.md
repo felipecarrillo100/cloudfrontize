@@ -32,7 +32,7 @@ graph LR
 | **Orchestrator** | `src/pipeline/Orchestrator.ts` | **The Brain.** Manages the Hook Highway and State Roll-Forward. |
 | **HeaderManager** | `src/core/HeaderManager.ts` | **The Fidelity Layer.** Preserves casing and multi-value headers. |
 | **EdgeRunner** | `src/core/EdgeRunner.ts` | **Lambda@Edge Sandbox.** Simulates the Node.js L@E runtime. |
-| **CFFRunner** | `src/core/CFFRunner.ts` | **CFF Sandbox.** Strict ES5.1 sandbox for CloudFront Functions. |
+| **CFFRunner** | `src/core/CFFRunner.ts` | **CFF Sandbox.** CloudFront Functions runtimes 1.0 (ES 5.1) and 2.0, with KeyValueStore. |
 | **OriginSelector** | `src/pipeline/OriginSelector.ts` | **The Router.** Maps path patterns to specific providers. |
 | **Telemetry** | `src/pipeline/Telemetry.ts` | **The Black Box.** Captures and broadcasts stage-by-stage snapshots. |
 
@@ -103,7 +103,7 @@ This format bypasses Node.js normalization (which would lowercase `x-custom-id`)
 ### C. The Runners (Execution Engines)
 Runners execute user-provided code within isolated environments using the Node.js `vm` module:
 - **`EdgeRunner.ts`:** Implements a high-fidelity Node.js `vm` sandbox for Lambda@Edge. It maps human-friendly Node responses to the complex AWS `event` structure and back.
-- **`CFFRunner.ts`**: Executes the high-performance **CloudFront Function** logic, enforcing strict ES5.1 compliance and CloudFront-global object availability.
+- **`CFFRunner.ts`**: Executes **CloudFront Functions**. Runtime 1.0 is checked as ES 5.1; runtime 2.0 (`src/core/cff2/runtime2.ts`) is validated against AWS's feature list, runs with `microtaskMode: 'afterEvaluate'` so async handlers settle inside one guarded evaluation, gets the documented globals and a `require` limited to `crypto`/`querystring`/`buffer`, and reads key value stores (`src/core/KeyValueStore.ts`, AWS import format). Both runtimes freeze `Date` at the function's start time. Runaway loops in runtime 2.0 are stopped by an injected loop guard, because the VM timeout can't safely interrupt code that runs after an `await`.
 
 #### Errors, Limits & Timing (`src/core/EdgeError.ts`, `src/constants.ts`)
 Limits and rules follow the CloudFront Developer Guide (quotas and edge-function restrictions pages). Hook failures surface with the status CloudFront would return:

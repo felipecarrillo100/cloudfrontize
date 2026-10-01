@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { CFF_LIMITS } from '../constants';
+import { KeyValueStore } from '../core/KeyValueStore';
 import { Diagnostic } from './errors';
 import { AssociationMap, EVENT_TYPES, Manifest, VIEWER_EVENTS } from './schema';
 
@@ -60,6 +61,23 @@ export function validateManifest(manifest: Manifest, projectDir: string): Diagno
                 }
             } catch { /* reported by checkFile */ }
         }
+    }
+
+    // Key value stores: AWS import format and quotas; CloudFront Functions runtime 2.0 only
+    for (const [id, store] of Object.entries(manifest.keyValueStores)) {
+        const p = `/keyValueStores/${id}/file`;
+        const before = diagnostics.length;
+        checkFile(p, store.file, 'file');
+        if (diagnostics.length !== before) continue;
+        for (const problem of KeyValueStore.check(path.resolve(projectDir, store.file), manifest.distribution.strict).problems) {
+            add(problem.severity, p, 'kvs-file', problem.message);
+        }
+    }
+    for (const [id, fn] of Object.entries(manifest.functions)) {
+        if (fn.type !== 'cloudfront-function' || !fn.keyValueStore) continue;
+        const p = `/functions/${id}/keyValueStore`;
+        if (!manifest.keyValueStores[fn.keyValueStore]) add('error', p, 'unknown-kvs', `No key value store with id "${fn.keyValueStore}"`);
+        if (fn.runtime !== 'cloudfront-js-2.0') add('error', p, 'kvs-runtime', 'Key value stores require CloudFront Functions runtime 2.0 ("cloudfront-js-2.0")');
     }
 
     // Behaviors: origin and function references, AWS association rules

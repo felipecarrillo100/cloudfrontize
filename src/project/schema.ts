@@ -59,7 +59,8 @@ const Origin = z.discriminatedUnion('type', [LocalOrigin, S3Origin]);
 const CloudFrontFunction = z.strictObject({
     type: z.literal('cloudfront-function'),
     runtime: z.enum(['cloudfront-js-1.0', 'cloudfront-js-2.0']).default('cloudfront-js-2.0'),
-    file: RelativePath
+    file: RelativePath,
+    keyValueStore: Id.optional().describe('Id of the key value store this function reads (runtime 2.0; at most one per function)')
 });
 
 const LambdaEdgeFunction = z.strictObject({
@@ -96,6 +97,9 @@ export const ManifestSchema = z.strictObject({
     distribution: Distribution.prefault({}),
     origins: z.array(Origin).min(1, { error: 'Add at least one origin' }),
     functions: z.record(Id, FunctionDefinition).prefault({}),
+    keyValueStores: z.record(Id, z.strictObject({
+        file: RelativePath.describe('Key-value pairs in the AWS import format: { "data": [ { "key": "…", "value": "…" } ] }')
+    })).prefault({}),
     defaultBehavior: DefaultBehavior,
     behaviors: z.array(Behavior).prefault([]),
     viewer: z.strictObject({ headers: RelativePath.optional().describe('Viewer simulation headers (JSON)') }).prefault({}),

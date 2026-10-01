@@ -227,7 +227,7 @@ CloudFront Functions provide a lightweight, high-performance environment for hig
 * **Filename Prefix:** Use a strict naming convention starting with the hook name (e.g., `viewer-request.security.js`).
 * **Lexicographical Order:** If pointing to a directory, files are executed in alphabetical order.
 
-> **Note:** CloudFrontize simulates the CFF environment with strict fidelity to AWS limits, including the **1ms CPU limit** and restricted module access (JavaScript ES5.1 only, no `require`, `fs`, or `path`).
+> **Note:** CloudFrontize simulates both CloudFront Functions runtimes with AWS's limits. **Runtime 1.0** is JavaScript ES 5.1; **runtime 2.0** adds `const`/`let`, arrow functions, template literals, `async`/`await`, the `crypto`, `querystring` and `buffer` modules, and **CloudFront KeyValueStore** (`import cf from 'cloudfront'`). In both, functions have no network, file system, environment variables or timers, `Date` stays at the function's start time, and the 1 ms compute limit is reported as a warning. Code is checked against the runtime you choose (`"runtime"` in `cloudfrontize.json`; 2.x `--cff` files use runtime 1.0).
 
 ### 2. Available Hooks
 | Hook Type | Execution Timing | Common Use Case |

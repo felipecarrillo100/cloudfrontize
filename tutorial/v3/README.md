@@ -8,6 +8,8 @@ The original modules in the parent folder use the 2.x command-line style (`cloud
 |---|---|
 | [1.1 The Security Guard](01-foundations/1.1-security-guard/README.md) | Adding security headers in a Lambda@Edge viewer-response function |
 | [3.1 The Bouncer](03-edge/3.1-bouncer/README.md) | Basic Auth on `/admin/*` only, with a cache behavior and a short-circuit response |
+| [1.4 The Query Normalizer](05-cff/1.4-query-normalizer/README.md) | Removing tracking parameters with a CloudFront Function on runtime 2.0 |
+| [1.12 The Redirect Map](05-cff/1.12-redirect-map/README.md) | Redirects driven by a CloudFront KeyValueStore |
 
 ## Run a tutorial
 ```bash

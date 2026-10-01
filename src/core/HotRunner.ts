@@ -97,6 +97,7 @@ export abstract class HotRunner extends EventEmitter {
         if (this.runnerPath && fs.existsSync(this.runnerPath)) targets.push(this.runnerPath);
         for (const file of this.options.files || []) {
             if (fs.existsSync(file.path)) targets.push(file.path);
+            if (file.kvsFile && fs.existsSync(file.kvsFile)) targets.push(file.kvsFile);
         }
         if (this.options.envPath && fs.existsSync(this.options.envPath)) targets.push(this.options.envPath);
         if (this.options.bakePath && fs.existsSync(this.options.bakePath)) targets.push(this.options.bakePath);

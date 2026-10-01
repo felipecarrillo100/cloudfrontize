@@ -4,7 +4,6 @@ import { EdgeRunner } from '../core/EdgeRunner';
 import { CFFRunner } from '../core/CFFRunner';
 import { CacheBehavior, CloudFrontizeOptions, OriginConfig, RunnerFile } from '../core/types';
 import { ConfigLoader, MultiOriginConfig } from '../pipeline/ConfigLoader';
-import { Diagnostic, ManifestError } from '../project/errors';
 import type { Project } from '../project/loadProject';
 import { EVENT_TYPES } from '../project/schema';
 import { RuntimeSpec } from './ProjectRuntime';
@@ -69,15 +68,6 @@ export type ProjectOverrides = Partial<Pick<CloudFrontizeOptions,
 export function fromProject(project: Project, overrides: ProjectOverrides = {}): RuntimeSpec {
     const { manifest } = project;
 
-    const unsupported: Diagnostic[] = [];
-    for (const [id, fn] of Object.entries(project.functions)) {
-        if (fn.type === 'cloudfront-function' && fn.runtime === 'cloudfront-js-2.0') {
-            unsupported.push({ severity: 'error', path: `/functions/${id}/runtime`, rule: 'not-supported-yet',
-                message: 'CloudFront Functions runtime 2.0 isn\'t supported yet; use "cloudfront-js-1.0" for now' });
-        }
-    }
-    if (unsupported.length) throw new ManifestError(project.manifestPath, unsupported);
-
     const defined = Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined));
     const d = manifest.distribution;
     const options: CloudFrontizeOptions = {
@@ -119,7 +109,12 @@ export function fromProject(project: Project, overrides: ProjectOverrides = {}):
             if (!fnId || pooled.has(fnId)) continue;
             pooled.add(fnId);
             const fn = project.functions[fnId];
-            (fn.type === 'lambda-edge' ? edgeFiles : cffFiles).push({ path: fn.absoluteFile, stage: event, id: fnId });
+            if (fn.type === 'lambda-edge') {
+                edgeFiles.push({ path: fn.absoluteFile, stage: event, id: fnId });
+            } else {
+                const store = fn.keyValueStore ? project.manifest.keyValueStores[fn.keyValueStore] : undefined;
+                cffFiles.push({ path: fn.absoluteFile, stage: event, id: fnId, runtime: fn.runtime, kvsFile: store ? path.resolve(project.dir, store.file) : undefined });
+            }
         }
     }
 

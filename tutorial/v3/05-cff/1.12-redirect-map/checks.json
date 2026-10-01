@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a campaign link redirects temporarily",
+      "request": { "path": "/summer" },
+      "expect": { "status": 302, "headers": { "location": "/promo/summer-sale.html", "cache-control": "no-store" } }
+    },
+    {
+      "name": "a retired page redirects permanently",
+      "request": { "path": "/Gallery-2023" },
+      "expect": { "status": 301, "headers": { "location": "/index.html" } }
+    },
+    {
+      "name": "redirects can point to another site",
+      "request": { "path": "/docs" },
+      "expect": { "status": 302, "headers": { "location": "https://docs.example.com/" } }
+    },
+    {
+      "name": "other paths reach the origin",
+      "request": { "path": "/promo/summer-sale.html" },
+      "expect": { "status": 200, "bodyContains": "Summer Sale" }
+    }
+  ]
+}

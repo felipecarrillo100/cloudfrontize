@@ -199,6 +199,11 @@
                 "type": "string",
                 "minLength": 1,
                 "description": "Path relative to the project folder"
+              },
+              "keyValueStore": {
+                "description": "Id of the key value store this function reads (runtime 2.0; at most one per function)",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
               }
             },
             "required": [
@@ -232,6 +237,28 @@
             "additionalProperties": false
           }
         ]
+      }
+    },
+    "keyValueStores": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Key-value pairs in the AWS import format: { \"data\": [ { \"key\": \"…\", \"value\": \"…\" } ] }"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
       }
     },
     "defaultBehavior": {

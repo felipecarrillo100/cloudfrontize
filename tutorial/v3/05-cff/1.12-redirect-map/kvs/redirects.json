@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "key": "/summer", "value": "{\"location\":\"/promo/summer-sale.html\",\"status\":302}" },
+    { "key": "/gallery-2023", "value": "{\"location\":\"/index.html\",\"status\":301}" },
+    { "key": "/docs", "value": "{\"location\":\"https://docs.example.com/\",\"status\":302}" }
+  ]
+}
