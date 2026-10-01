@@ -9,6 +9,9 @@ import { formatDiagnostics } from '../project/format';
 import { checkManifest, loadProject } from '../project/loadProject';
 import { formatManifest, readRevisioned, writeFileAtomic } from '../project/revision';
 import { ProjectWatcher } from './ProjectWatcher';
+import { recordRecent } from '../project/recent';
+import { INVOKE_HEADER, INVOKE_ID } from './invoke';
+const isLoopback = (address?: string) => !!address && (address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1');
 import { ProjectRuntime, RuntimeSpec } from '../runtime/ProjectRuntime';
 import { fromProject, ProjectOverrides } from '../runtime/spec';
 import { printBottomBanner, printTopBanner } from './banner';
@@ -44,6 +47,8 @@ export interface ServerSettings {
     logger?: Logger;
     /** Settings applied on top of every project's manifest (e.g. from CLI flags). */
     overrides?: ProjectOverrides;
+    /** Remember opened projects in ~/.cloudfrontize/recent.json (the CLI does; the library doesn't by default). */
+    recentProjects?: boolean;
 }
 
 /**
@@ -79,6 +84,15 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
         // Each request is served by the runtime current when it arrived, even if a project swap happens mid-flight
         const runtime = current;
         const requestOptions = runtime.options;
+
+        // A test request sent by the WebUI API: adopt its id, and remove the header
+        const invokeId = req.headers[INVOKE_HEADER];
+        if (invokeId !== undefined) {
+            if (typeof invokeId === 'string' && INVOKE_ID.test(invokeId) && isLoopback(req.socket.remoteAddress)) (req as any).presetRequestId = invokeId;
+            delete req.headers[INVOKE_HEADER];
+            const raw = req.rawHeaders;
+            for (let i = raw.length - 2; i >= 0; i -= 2) if (raw[i].toLowerCase() === INVOKE_HEADER) raw.splice(i, 2);
+        }
 
         // Drain body FIRST (before compression middleware touches the stream)
         const drainAndHandle = async () => {
@@ -220,7 +234,10 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
         });
     }
 
-    mainServer.ready = Promise.all([mainReady, uiReady]).then(() => watchCurrent());
+    mainServer.ready = Promise.all([mainReady, uiReady]).then(() => {
+        if (settings.recentProjects && current.project) recordRecent({ dir: current.project.dir, name: current.project.manifest.name });
+        return watchCurrent();
+    });
     // Don't turn an un-awaited startup failure into an unhandled rejection; callers opt in via `ready`
     mainServer.ready.catch(() => {});
 
@@ -295,6 +312,7 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
             logger.warn(`\x1b[33m⚠️  ${project.manifest.name} asks for port ${project.manifest.distribution.port}; it keeps running on ${options.port} until the server restarts\x1b[0m`);
         }
         const sameProject = previous.project?.dir === project.dir;
+        if (settings.recentProjects) recordRecent({ dir: project.dir, name: project.manifest.name });
         await watchCurrent();
         broadcastProject({ action: sameProject ? 'changed' : 'opened', source, name: project.manifest.name, dir: project.dir, revision: project.revision, diagnostics });
         return { diagnostics };
@@ -347,6 +365,8 @@ export interface CreateServerOptions extends ProjectOverrides {
     /** Project folder or path to its cloudfrontize.json. */
     project: string;
     logger?: Logger;
+    /** Remember opened projects for the WebUI's start screen (default false). */
+    recentProjects?: boolean;
 }
 
 /**
@@ -354,7 +374,7 @@ export interface CreateServerOptions extends ProjectOverrides {
  * @throws {ManifestError} for an invalid project; {PortInUseError} / {ServerStartError} when it can't listen.
  */
 export async function createServer(opts: CreateServerOptions): Promise<CloudFrontizeServer> {
-    const { project: target, logger, ...overrides } = opts;
+    const { project: target, logger, recentProjects, ...overrides } = opts;
 
     const { project } = loadProject(target);
     const spec = fromProject(project, overrides);
@@ -362,7 +382,7 @@ export async function createServer(opts: CreateServerOptions): Promise<CloudFron
     if (spec.options.webui === true) {
         spec.options.webui = Number(spec.options.port) > 0 ? Number(spec.options.port) + 1 : 0;
     }
-    const server = buildServer(spec, { logger, overrides });
+    const server = buildServer(spec, { logger, overrides, recentProjects });
     try {
         await server.current.start();
         await server.ready;

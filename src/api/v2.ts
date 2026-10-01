@@ -6,6 +6,7 @@ import { ApiHost, baseRevisionOf, etag, mapErrors, objectBody, requireProject } 
 import { ApiError } from './errors';
 import { EVENTS_VERSION, toApiEvent } from './events';
 import { registerFileRoutes } from './files';
+import { registerWorkspaceRoutes } from './workspace';
 import { Router, STREAMING } from './router';
 
 export type { ApiHost, ProjectControl } from './context';
@@ -118,6 +119,8 @@ export function createApiV2(host: ApiHost): Router {
 
     // Functions, key value stores and the viewer simulation file
     registerFileRoutes(router, host);
+    // Folder browsing, recent projects, new projects, test requests
+    registerWorkspaceRoutes(router, host);
 
     // Live events (Server-Sent Events). Reconnect with Last-Event-ID (or ?since=<seq>) to resume.
     router.get('/events', ({ req, res }) => {

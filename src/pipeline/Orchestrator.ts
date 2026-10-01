@@ -321,7 +321,8 @@ export class Orchestrator {
      * @throws {Error} If no provider is found for the matching origin.
      */
     public async handleRequest(req: any, res: any, options: CloudFrontizeOptions, reqBody?: Buffer): Promise<void> {
-        const requestId = require('crypto').randomBytes(4).toString('hex');
+        // A test request from the WebUI API comes with its id (see INVOKE_HEADER in createServer)
+        const requestId: string = req.presetRequestId ?? require('crypto').randomBytes(4).toString('hex');
         const startTime = Date.now();
         const originalUrl = req.url;
         req.requestID = requestId;

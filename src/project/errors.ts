@@ -57,3 +57,11 @@ export class NoProjectError extends Error {
         this.name = 'NoProjectError';
     }
 }
+
+/** A new project can't be created in a folder that already has content. */
+export class ProjectExistsError extends Error {
+    constructor(public readonly dir: string, reason: string) {
+        super(`${dir} ${reason}`);
+        this.name = 'ProjectExistsError';
+    }
+}

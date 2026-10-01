@@ -12,6 +12,8 @@ module.exports = {
         '^.+\\.(t|j)sx?$': 'babel-jest',
     },
     testEnvironment: 'node',
+    // Keep tests away from the real ~/.cloudfrontize
+    globalSetup: '<rootDir>/__tests__/helpers/isolateHome.js',
     verbose: true,
     forceExit: true,
     detectOpenHandles: true

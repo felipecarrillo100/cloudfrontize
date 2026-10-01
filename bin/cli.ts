@@ -73,7 +73,7 @@ async function runProject(target: string, options: any, command: Command) {
 
     let server: CloudFrontizeServer;
     try {
-        server = await createServer({ project: target, ...overrides });
+        server = await createServer({ project: target, recentProjects: true, ...overrides });
     } catch (err) {
         reportManifestError(err); // other startup errors were already reported by the server
         process.exit(1);

@@ -239,6 +239,12 @@ The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api
   - `GET /api/v2/kvs`, `GET /api/v2/kvs/:id`, `PUT /api/v2/kvs/:id` (`422 invalid-kvs` for content AWS wouldn't import), `POST /api/v2/kvs` `{ id }` (creates `kvs/<id>.json`).
   - `GET` / `PUT /api/v2/viewer/headers`: the viewer simulation file, validated like the server reads it. A project without one gets `config/headers.json`.
 
+- **`workspace.ts`**: what the start screen and the Viewer node need.
+  - `GET /api/v2/fs/roots`, `GET /api/v2/fs/list?path=&hidden=`: folder browsing for the Open and New project dialogs. Only folders are listed (`isProject` marks those with a `cloudfrontize.json`). Browsing is confined to your home folder, the folder CloudFrontize was started in and the open project's folder, never a whole drive; paths are resolved with `realpath`, so a symlink can't lead outside (`403 outside-roots`).
+  - `GET /api/v2/projects/recent`, `DELETE /api/v2/projects/recent?dir=`: recent projects (`exists: false` for moved ones), stored in `~/.cloudfrontize/recent.json` (`$CLOUDFRONTIZE_HOME` overrides the folder). The CLI records opened projects; the library does when `createServer({ recentProjects: true })`.
+  - `POST /api/v2/projects` `{ dir, name, origin?, open? }`: creates a project (`src/project/create.ts`: manifest, `origins/www` with a starter page, `.gitignore` for the env file) in an empty or new folder whose parent is inside the browse roots (`409` for a folder with content), then opens it.
+  - `POST /api/v2/invoke` `{ method?, path, headers?, body?, bodyEncoding? }`: sends a real request to the main port and answers with the response (text, or base64 for binary bodies; up to 1 MB) and its journey as v2 events. The request carries `X-Cloudfrontize-Invoke: <request id>` (`src/server/invoke.ts`); the server adopts that id for loopback clients and removes the header before anything else sees the request, so functions never get it.
+
 ### 6.2 Project lifecycle and external edits
 
 - **Revisions** (`src/project/revision.ts`): a file's revision is a short SHA-256 of its exact bytes. Saves name the revision they edited, so an edit made meanwhile in an editor, git or another tab is never overwritten.
