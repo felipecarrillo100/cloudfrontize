@@ -8,6 +8,7 @@ import { EVENTS_VERSION, toApiEvent } from './events';
 import { registerFileRoutes } from './files';
 import { registerWorkspaceRoutes } from './workspace';
 import { registerDistributionRoutes } from './distribution';
+import { registerToolRoutes } from './tools';
 import { Router, STREAMING } from './router';
 import type { RequestSummary } from './contract';
 
@@ -114,6 +115,8 @@ export function createApiV2(host: ApiHost): Router {
     registerFileRoutes(router, host);
     // Distribution overview and function switches (projects and 2.x setups)
     registerDistributionRoutes(router, host);
+    // Open in editor, production build, origin connection test
+    registerToolRoutes(router, host);
     // Folder browsing, recent projects, new projects, test requests
     registerWorkspaceRoutes(router, host);
 

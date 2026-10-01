@@ -48,16 +48,17 @@ describe('App', () => {
   test('with a project open, shows the workbench: behaviors, slots, functions and build state', async () => {
     renderWithQuery(<App />)
     expect(await screen.findByRole('button', { name: /Shop/ })).toBeInTheDocument()
-    const slots = await screen.findByRole('table', { name: 'Functions by cache behavior and event' })
-    expect(within(slots).getByText('/admin/*')).toBeInTheDocument()
-    expect(within(slots).getByText('Default (*)')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /\/admin\/\*/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Default/ })).toBeInTheDocument()
+    // The default behavior's viewer-request runs idx, whose build failed
+    expect(screen.getByRole('button', { name: 'CloudFront Function idx on viewer-request, build error' })).toBeInTheDocument()
     expect(screen.getByText('build error · line 4')).toBeInTheDocument()
-    expect(screen.getByText('The project follows every AWS rule CloudFrontize checks.')).toBeInTheDocument()
+    expect(await screen.findByText('The project follows every AWS rule CloudFrontize checks.')).toBeInTheDocument()
   })
 
   test('live events appear in the traffic list', async () => {
     renderWithQuery(<App />)
-    await screen.findByRole('table', { name: 'Functions by cache behavior and event' })
+    await screen.findByRole('tab', { name: /Default/ })
     const es = FakeEventSource.last!
     act(() => {
       es.push({ v: 2, seq: 0, time: 't', type: 'stream.hello', data: { apiVersion: 2, version: '3', seq: 0, resumed: true } })
@@ -71,7 +72,7 @@ describe('App', () => {
 
   test('an invalid manifest edit on disk is shown with its diagnostics', async () => {
     renderWithQuery(<App />)
-    await screen.findByRole('table', { name: 'Functions by cache behavior and event' })
+    await screen.findByRole('tab', { name: /Default/ })
     act(() => FakeEventSource.last!.push({
       v: 2, seq: 3, time: 't', type: 'project.invalid',
       data: { name: 'Shop', dir: '/p/shop', revision: 'r2', diagnostics: [{ severity: 'error', path: '', rule: 'invalid-json', message: 'Not valid JSON' }] },

@@ -15,7 +15,7 @@ interface Props {
 /** Choose a project folder (one with a cloudfrontize.json) and open it. */
 export function OpenProjectDialog({ open, onOpenChange, onOpened }: Props) {
   const [path, setPath] = useState<string | null>(null)
-  const listing = useFolder(path)
+  const listing = useFolder(path, false, open)
   const openProject = useOpenProject()
   const current = listing.data
 

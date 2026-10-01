@@ -18,6 +18,16 @@ export class LocalProvider implements OriginProvider {
      */
     constructor(private directory: string, private mode?: 'rest' | 'website') {}
 
+    public async check(): Promise<{ ok: boolean; message: string }> {
+        try {
+            if (!fs.statSync(this.directory).isDirectory()) return { ok: false, message: `${this.directory} isn't a folder` };
+            const count = fs.readdirSync(this.directory).length;
+            return { ok: true, message: `${this.directory} (${count} ${count === 1 ? 'entry' : 'entries'})` };
+        } catch {
+            return { ok: false, message: `${this.directory} doesn't exist` };
+        }
+    }
+
     public async fetch(req: any, res: any, options: any, body?: Buffer): Promise<void> {
         const mode = this.mode ?? options.mode;
         // If we have a mutated or captured body buffer, we must ensure the provider

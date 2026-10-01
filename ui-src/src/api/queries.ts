@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  FunctionDetail,
   ControlAction, Distribution, FolderListing, ProjectInfo, RecentProject, RequestDetail, RequestSummary, ServerInfo,
 } from '@contract'
 import { api } from './client'
@@ -28,13 +29,17 @@ export const useRecentProjects = () =>
   useQuery({ queryKey: keys.recent, queryFn: async () => (await api<{ items: RecentProject[] }>('GET', '/projects/recent')).items })
 
 /** A folder listing; `null` lists the first browse root. */
-export const useFolder = (path: string | null, hidden = false) =>
+export const useFolder = (path: string | null, hidden = false, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: [...keys.folder(path), hidden],
     queryFn: () => api<FolderListing>('GET', `/fs/list?${new URLSearchParams({ ...(path ? { path } : {}), ...(hidden ? { hidden: 'true' } : {}) })}`),
     placeholderData: prev => prev,
     retry: false,
   })
+
+export const useFunctionDetail = (id: string, enabled: boolean) =>
+  useQuery({ queryKey: ['function', id], queryFn: () => api<FunctionDetail>('GET', `/functions/${encodeURIComponent(id)}`), enabled })
 
 export const useRequestHistory = () =>
   useQuery({ queryKey: keys.requests, queryFn: () => api<{ items: RequestSummary[]; seq: number }>('GET', '/requests?limit=500'), staleTime: Infinity })

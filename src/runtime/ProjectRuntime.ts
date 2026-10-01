@@ -35,6 +35,8 @@ export class ProjectRuntime {
     readonly orchestrator: Orchestrator;
     readonly options: CloudFrontizeOptions;
     readonly project?: Project;
+    /** Origin providers by origin id. */
+    readonly providers: Record<string, OriginProvider>;
     private disposed = false;
 
     constructor(private spec: RuntimeSpec, telemetry: Telemetry) {
@@ -47,6 +49,7 @@ export class ProjectRuntime {
                 ? new S3Provider(o as any)
                 : new LocalProvider(o.directory || spec.options.directory || './www', spec.project ? o.mode : undefined);
         }
+        this.providers = providers;
 
         this.orchestrator = new Orchestrator({
             edgeRunner: spec.edgeRunner,

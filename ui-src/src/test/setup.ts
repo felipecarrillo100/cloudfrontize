@@ -11,6 +11,12 @@ if (!window.matchMedia) {
   }) as MediaQueryList
 }
 
+// Radix menus and popovers use these browser APIs, which jsdom doesn't implement
+Element.prototype.hasPointerCapture ??= () => false
+Element.prototype.releasePointerCapture ??= () => {}
+Element.prototype.scrollIntoView ??= () => {}
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => { cleanup(); server.resetHandlers() })
 afterAll(() => server.close())

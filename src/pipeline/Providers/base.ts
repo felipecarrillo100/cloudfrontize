@@ -15,4 +15,7 @@ export interface OriginProvider {
      * @param body - Optional request body Buffer (post-L@E mutation).
      */
     fetch(req: any, res: any, options: any, body?: Buffer): Promise<void>;
+
+    /** Checks that the origin can be reached (the WebUI's "Test connection"). */
+    check(): Promise<{ ok: boolean; message: string }>;
 }

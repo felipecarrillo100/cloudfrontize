@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { useServerInfo } from '@/api/queries'
+import { errorMessage } from '@/api/client'
+import { useDistribution, useServerInfo } from '@/api/queries'
+import { Spinner } from '@/components/ui/Spinner'
+import { Inspector } from '@/inspector/Inspector'
+import { DialogHost } from './DialogHost'
 import { DiagnosticsList } from '@/components/DiagnosticsList'
 import { TopBar } from '@/components/TopBar'
 import { useLive } from '@/live/store'
@@ -16,7 +20,9 @@ export function Workbench() {
   const invalid = useLive(s => s.invalidManifest)
   const showWorkbench = useUI(s => s.showWorkbench)
   const [dialog, setDialog] = useState<'open' | 'new' | null>(null)
+  const dist = useDistribution()
   const legacy = server.data?.legacy
+  const editable = !legacy && dist.data?.mode === 'project'
 
   return (
     <div className="flex h-full flex-col">
@@ -38,14 +44,22 @@ export function Workbench() {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-[3] overflow-y-auto">
-          <ProjectOverview hasProject={!legacy} />
+        <div className="grid min-h-0 flex-[3] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-h-0 overflow-y-auto">
+            {dist.isLoading && <div className="p-6"><Spinner label="Loading the distribution" /></div>}
+            {dist.error && <p role="alert" className="p-6 text-danger">{errorMessage(dist.error)}</p>}
+            {dist.data && <ProjectOverview dist={dist.data} editable={editable} />}
+          </div>
+          <div className="hidden min-h-0 border-l border-line bg-surface lg:block">
+            {dist.data && <Inspector dist={dist.data} editable={editable} />}
+          </div>
         </div>
         <div className="flex min-h-0 flex-[2] flex-col">
           <TrafficList />
         </div>
       </div>
 
+      {dist.data && <DialogHost dist={dist.data} />}
       <OpenProjectDialog open={dialog === 'open'} onOpenChange={o => setDialog(o ? 'open' : null)} onOpened={showWorkbench} />
       <NewProjectDialog open={dialog === 'new'} onOpenChange={o => setDialog(o ? 'new' : null)} onCreated={showWorkbench} />
     </div>

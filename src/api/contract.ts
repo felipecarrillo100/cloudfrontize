@@ -8,6 +8,27 @@
 
 // ---------- Shared ----------
 
+/**
+ * Headers CloudFront adds to requests (source: "Add CloudFront request headers"). Lambda@Edge sees
+ * them only in origin events; CloudFront Functions see them on viewer events too.
+ */
+export const CLOUDFRONT_ADDED_HEADERS = [
+    // Device type
+    'cloudfront-is-android-viewer', 'cloudfront-is-desktop-viewer', 'cloudfront-is-ios-viewer',
+    'cloudfront-is-mobile-viewer', 'cloudfront-is-smarttv-viewer', 'cloudfront-is-tablet-viewer',
+    // Viewer location
+    'cloudfront-viewer-address', 'cloudfront-viewer-asn', 'cloudfront-viewer-country', 'cloudfront-viewer-city',
+    'cloudfront-viewer-country-name', 'cloudfront-viewer-country-region', 'cloudfront-viewer-country-region-name',
+    'cloudfront-viewer-latitude', 'cloudfront-viewer-longitude', 'cloudfront-viewer-metro-code',
+    'cloudfront-viewer-postal-code', 'cloudfront-viewer-time-zone',
+    // Viewer header structure
+    'cloudfront-viewer-header-order', 'cloudfront-viewer-header-count',
+    // TLS
+    'cloudfront-viewer-ja3-fingerprint', 'cloudfront-viewer-ja4-fingerprint', 'cloudfront-viewer-tls',
+    // Other
+    'cloudfront-error-uri', 'cloudfront-error-args', 'cloudfront-forwarded-proto', 'cloudfront-viewer-http-version'
+] as const;
+
 export type EdgeEvent = 'viewer-request' | 'origin-request' | 'origin-response' | 'viewer-response';
 export type FunctionRuntime = 'cloudfront-function' | 'lambda-edge';
 export type FunctionType = FunctionRuntime;
@@ -176,6 +197,18 @@ export interface ViewerHeadersFile {
     file: string | null;
     content: string | null;
     revision: string | null;
+}
+
+export type ProductionLevel = 'baked' | 'minified' | 'uglified';
+
+export interface ProductionCode {
+    level: ProductionLevel;
+    code: string;
+}
+
+export interface OriginCheck {
+    ok: boolean;
+    message: string;
 }
 
 // ---------- Workspace ----------

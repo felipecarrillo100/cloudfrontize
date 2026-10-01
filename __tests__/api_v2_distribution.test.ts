@@ -106,3 +106,74 @@ describe('GET /api/v2/distribution for a 2.x setup', () => {
         }
     });
 });
+
+describe('WebUI API v2: function and origin tools', () => {
+    const { EditorUtility } = require('../src/core/EditorUtility');
+    let dir: string;
+    let server: any;
+    let ui: number;
+    const api = (method: string, p: string, body?: any) => call(ui, method, `/api/v2${p}`, body !== undefined ? { body } : {});
+
+    beforeAll(async () => {
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        dir = makeProject(baseManifest({
+            name: 'tools',
+            bake: { file: 'bake.env' },
+            origins: [{ id: 'web', type: 'local', path: 'origins/www' }, { id: 'gone', type: 'local', path: 'origins/missing' }],
+            functions: { greet: { type: 'lambda-edge', file: 'functions/greet.js' } },
+            defaultBehavior: { origin: 'web', functions: { 'viewer-request': 'greet' } }
+        }), {
+            ...WWW,
+            'origins/missing/.keep': '',
+            'bake.env': 'GREETING=hello-prod\n',
+            'functions/greet.js': `// a comment\nexports.handler = async (e) => { const greeting = '__GREETING__'; return e.Records[0].cf.request; };\n`
+        });
+        server = await createServer({ project: dir, port: 0, webui: true, noBanner: true });
+        ui = server.webuiPort;
+    });
+
+    afterAll(async () => {
+        await server.closeGracefully();
+        removeProject(dir);
+        jest.restoreAllMocks();
+    });
+
+    test('production build: baked values, minified, unknown level refused', async () => {
+        const baked = await api('GET', '/functions/greet/production');
+        expect(baked.body.level).toBe('baked');
+        expect(baked.body.code).toContain("'hello-prod'");
+        const min = await api('GET', '/functions/greet/production?level=minified');
+        expect(min.body.code).not.toContain('// a comment');
+        expect((await api('GET', '/functions/greet/production?level=gzip')).status).toBe(400);
+        expect((await api('GET', '/functions/nope/production')).status).toBe(404);
+    });
+
+    test('open in editor launches the editor on the function file', async () => {
+        const open = jest.spyOn(EditorUtility, 'open').mockImplementation(() => {});
+        expect((await api('POST', '/functions/greet/open-in-editor', {})).status).toBe(204);
+        expect(open).toHaveBeenCalledWith(path.join(dir, 'functions/greet.js'));
+        open.mockRestore();
+    });
+
+    test('adding a local origin creates its folder; an invalid origin leaves nothing behind', async () => {
+        const res = await api('POST', '/origins', { id: 'docs', type: 'local' });
+        expect(res.status).toBe(201);
+        expect(fs.existsSync(path.join(dir, 'origins/docs/index.html'))).toBe(true);
+        const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'cloudfrontize.json'), 'utf8'));
+        expect(manifest.origins[manifest.origins.length - 1]).toEqual({ id: 'docs', type: 'local', path: 'origins/docs' });
+        expect((await api('POST', '/origins/docs/check', {})).body.ok).toBe(true);
+
+        expect((await api('POST', '/origins', { id: 'docs', type: 'local' })).status).toBe(409);
+        const bad = await api('POST', '/origins', { id: 'other', type: 'local', path: '../outside' });
+        expect(bad.status).toBe(422);
+        expect(fs.existsSync(path.join(dir, '../outside'))).toBe(false);
+    });
+
+    test('origin check: a local folder that exists, one that doesn\'t, an unknown origin', async () => {
+        expect((await api('POST', '/origins/web/check', {})).body).toMatchObject({ ok: true });
+        fs.rmSync(path.join(dir, 'origins/missing'), { recursive: true });
+        expect((await api('POST', '/origins/gone/check', {})).body).toMatchObject({ ok: false, message: expect.stringContaining("doesn't exist") });
+        expect((await api('POST', '/origins/nope/check', {})).status).toBe(404);
+    });
+});
