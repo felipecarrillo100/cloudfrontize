@@ -186,6 +186,19 @@ describe('WebUI API v2: workspace', () => {
             expect((await api('GET', '/projects/recent')).body.items[0].dir).toBe(target);
         });
 
+        test('templates are listed, and a project can start from one', async () => {
+            const list = await api('GET', '/templates');
+            expect(list.body.items[0]).toMatchObject({ id: 'empty', name: 'Empty' });
+            expect(list.body.items.map((t: any) => t.id)).toContain('basic-auth');
+
+            const target = path.join(parent, 'from-template');
+            const res = await api('POST', '/projects', { dir: target, name: 'Guarded', template: 'basic-auth' });
+            expect(res.status).toBe(201);
+            expect(JSON.parse(fs.readFileSync(path.join(target, 'cloudfrontize.json'), 'utf8'))).toMatchObject({ name: 'Guarded', behaviors: [{ pathPattern: '/admin/*' }] });
+            expect((await call(server.address().port, 'GET', '/admin/index.html')).status).toBe(401);
+            expect((await api('POST', '/projects', { dir: path.join(parent, 'x2'), name: 'x', template: 'nope' })).status).toBe(400);
+        });
+
         test('a folder with content, a parent outside the roots, or an invalid origin is refused', async () => {
             const existing = await api('POST', '/projects', { dir: path.join(parent, 'plain-folder-with-file'), name: 'x', open: false });
             expect(existing.status).toBe(201); // an empty or missing folder is fine...

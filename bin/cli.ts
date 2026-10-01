@@ -18,6 +18,10 @@ import { EdgeRunner } from '../src/core/EdgeRunner';
 import { CFFRunner } from '../src/core/CFFRunner';
 import { VERSION } from '../src/version';
 import { createServer, CloudFrontizeServer } from '../src/server/createServer';
+import { runChecks } from '../src/project/runChecks';
+import { createProject } from '../src/project/create';
+import { listTemplates } from '../src/project/templates';
+import { ProjectExistsError } from '../src/project/errors';
 import { isProject, loadProject } from '../src/project/loadProject';
 import { ManifestError } from '../src/project/errors';
 import { formatDiagnostics } from '../src/project/format';
@@ -213,6 +217,72 @@ program
         } catch (err) {
             reportManifestError(err);
         }
+    });
+
+program
+    .command('init')
+    .description('create a project from a template (see `cloudfrontize templates`)')
+    .argument('[dir]', 'folder for the project (created if missing; must be empty)', '.')
+    .option('-t, --template <id>', 'starter template', 'empty')
+    .option('-n, --name <name>', 'project name (default: the folder name)')
+    .action((dir: string, options: { template: string; name?: string }) => {
+        const target = path.resolve(dir);
+        const name = options.name ?? path.basename(target);
+        try {
+            createProject({ dir: target, name, template: options.template });
+        } catch (err: any) {
+            if (err instanceof ManifestError) reportManifestError(err);
+            console.error(`🛑 ${err instanceof ProjectExistsError ? `${err.message}: choose an empty or new folder` : err.message}`);
+            process.exit(1);
+        }
+        const template = listTemplates().find(t => t.id === options.template);
+        // Inside the current folder: a short relative path; elsewhere: the absolute one
+        const rel = path.relative(process.cwd(), target);
+        const relative = rel === '' ? '.' : rel.startsWith('..') || path.isAbsolute(rel) ? target : rel;
+        console.log(`✅ Created "${name}" from the ${template?.name ?? options.template} template in ${relative}`);
+        if (template?.requires) console.log(`   Needs ${template.requires}: see README.md`);
+        console.log(`\n   ${relative === '.' ? '' : `cd ${relative}\n   `}cloudfrontize --webui     # serve it, with the workbench\n   cloudfrontize check       # run its checks.json`);
+    });
+
+program
+    .command('templates')
+    .description('list the starter templates for `cloudfrontize init`')
+    .action(() => {
+        const items = listTemplates();
+        const width = Math.max(...items.map(t => t.id.length));
+        for (const t of items) console.log(`  ${t.id.padEnd(width)}  ${t.name}${t.requires ? ` (needs ${t.requires})` : ''}\n  ${' '.repeat(width)}  \x1b[90m${t.description}\x1b[0m`);
+    });
+
+program
+    .command('check')
+    .description("run a project's checks.json against it (requests and the responses they must get)")
+    .argument('[project]', 'project folder or cloudfrontize.json', '.')
+    .option('-d, --debug', 'show the request log and function output')
+    .action(async (target: string, options: { debug?: boolean }) => {
+        let results;
+        try {
+            loadProject(target);
+            // Functions' own console output is shown only with --debug
+            const quiet = !options.debug;
+            const original = { log: console.log, warn: console.warn };
+            if (quiet) { console.log = () => {}; console.warn = () => {}; }
+            try {
+                results = await runChecks(target, { verbose: options.debug });
+            } finally {
+                Object.assign(console, original);
+            }
+        } catch (err: any) {
+            if (err instanceof ManifestError) reportManifestError(err);
+            console.error(`🛑 ${err.message}`);
+            process.exit(1);
+        }
+        for (const r of results) {
+            console.log(`${r.passed ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${r.name}`);
+            for (const f of r.failures) console.log(`    \x1b[31m${f}\x1b[0m`);
+        }
+        const failed = results.filter(r => !r.passed).length;
+        console.log(`\n${failed ? `\x1b[31m${failed} of ${results.length} checks failed\x1b[0m` : `\x1b[32mAll ${results.length} checks passed\x1b[0m`}`);
+        process.exit(failed ? 1 : 0);
     });
 
 program.parse(process.argv);

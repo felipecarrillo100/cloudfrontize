@@ -3,7 +3,8 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ApiRequestError, errorMessage } from '@/api/client'
-import { useCreateProject } from '@/api/queries'
+import { useCreateProject, useTemplates } from '@/api/queries'
+import { cn } from '@/lib/cn'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Field, Input, Select } from '@/components/ui/Field'
@@ -15,6 +16,7 @@ import { joinPath, slugify } from '@/lib/paths'
 const schema = z.object({
   name: z.string().trim().min(1, 'Give the project a name').max(128, 'Use at most 128 characters'),
   folder: z.string().trim().min(1, 'Choose a folder name').regex(/^[^\\/:*?"<>|]+$/, 'A folder name can\'t contain / \\ : * ? " < > |'),
+  template: z.string(),
   originType: z.enum(['local', 's3']),
   bucket: z.string().trim().optional(),
   region: z.string().trim().optional(),
@@ -22,7 +24,7 @@ const schema = z.object({
   mode: z.enum(['rest', 'website']),
   profile: z.string().trim().optional(),
 }).superRefine((v, ctx) => {
-  if (v.originType !== 's3') return
+  if (v.template !== 'empty' || v.originType !== 's3') return
   if (!v.bucket || !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(v.bucket)) {
     ctx.addIssue({ code: 'custom', path: ['bucket'], message: 'Use a valid bucket name: 3–63 lowercase letters, digits, dots or hyphens' })
   }
@@ -44,13 +46,15 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
   const [location, setLocation] = useState<string | null>(null)
   const [folderEdited, setFolderEdited] = useState(false)
   const create = useCreateProject()
+  const templates = useTemplates(open)
   const { register, handleSubmit, setValue, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', folder: '', originType: 'local', mode: 'rest' },
+    defaultValues: { name: '', folder: '', template: 'empty', originType: 'local', mode: 'rest' },
   })
   const name = useWatch({ control, name: 'name' })
   const originType = useWatch({ control, name: 'originType' })
   const folder = useWatch({ control, name: 'folder' })
+  const template = useWatch({ control, name: 'template' })
 
   // The folder name follows the project name until edited by hand
   useEffect(() => {
@@ -59,7 +63,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
 
   const onSubmit = handleSubmit(values => {
     if (!location) return
-    const origin = values.originType === 'local'
+    const origin = values.template !== 'empty' || values.originType === 'local'
       ? undefined
       : {
         id: 'bucket', type: 's3', bucket: values.bucket, mode: values.mode,
@@ -67,7 +71,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
         ...(values.endpoint ? { endpoint: values.endpoint, forcePathStyle: true } : {}),
         ...(values.profile ? { credentials: { profile: values.profile } } : {}),
       }
-    create.mutate({ dir: joinPath(location, values.folder), name: values.name, origin }, {
+    create.mutate({ dir: joinPath(location, values.folder), name: values.name, origin, ...(values.template !== 'empty' ? { template: values.template } : {}) }, {
       onSuccess: () => { onOpenChange(false); onCreated() },
     })
   })
@@ -103,7 +107,23 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
           {p => <Input {...p} {...register('folder', { onChange: () => setFolderEdited(true) })} />}
         </Field>
 
-        <fieldset className="flex flex-col gap-3">
+        <fieldset>
+          <legend className="mb-1.5 text-xs font-medium text-muted">Start from</legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {(templates.data ?? [{ id: 'empty', name: 'Empty', description: 'One origin and a starter page, no functions.', order: 0 }]).map(t => (
+              <label key={t.id} className={cn('flex cursor-pointer gap-2 rounded-md border p-2.5 text-sm', template === t.id ? 'border-accent bg-surface-2' : 'border-line hover:bg-surface-2')}>
+                <input type="radio" value={t.id} {...register('template')} className="mt-0.5" />
+                <span>
+                  <span className="block font-medium">{t.name}</span>
+                  <span className="block text-xs text-muted">{t.description}</span>
+                  {t.requires && <span className="mt-1 block text-xs text-warn">Needs {t.requires}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {template === 'empty' && <fieldset className="flex flex-col gap-3">
           <legend className="mb-1.5 text-xs font-medium text-muted">Origin</legend>
           <div className="flex gap-4 text-sm">
             <label className="flex items-center gap-2"><input type="radio" value="local" {...register('originType')} /> Local folder (origins/www)</label>
@@ -120,7 +140,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreated }: Props) {
               <Field label="AWS profile" hint="From your AWS config; keys are never stored in the project">{p => <Input {...p} {...register('profile')} placeholder="default" />}</Field>
             </div>
           )}
-        </fieldset>
+        </fieldset>}
 
         {failure && !conflict && (
           <div role="alert" className="rounded-md border border-danger/40 p-3">

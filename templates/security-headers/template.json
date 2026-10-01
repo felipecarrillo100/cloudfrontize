@@ -1,0 +1,5 @@
+{
+  "name": "Security headers",
+  "description": "Adds HSTS, a Content-Security-Policy and the other recommended security headers to every response.",
+  "order": 2
+}

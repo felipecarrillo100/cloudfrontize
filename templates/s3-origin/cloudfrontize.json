@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "Template",
+  "origins": [
+    {
+      "id": "bucket",
+      "type": "s3",
+      "bucket": "my-site",
+      "region": "us-east-1",
+      "endpoint": "http://localhost:9000",
+      "forcePathStyle": true,
+      "mode": "rest",
+      "credentials": {
+        "fromEnv": true
+      }
+    }
+  ],
+  "functions": {
+    "cache-headers": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/origin-response.cache-headers.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "bucket",
+    "functions": {
+      "origin-response": "cache-headers"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the public site needs no password",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Public site"
+      }
+    },
+    {
+      "name": "the admin area asks for credentials",
+      "request": {
+        "path": "/admin/index.html"
+      },
+      "expect": {
+        "status": 401,
+        "headersContain": {
+          "www-authenticate": "Basic"
+        },
+        "bodyNotContains": "Admin dashboard"
+      }
+    },
+    {
+      "name": "wrong credentials are refused",
+      "request": {
+        "path": "/admin/index.html",
+        "headers": {
+          "authorization": "Basic YWRtaW46d3Jvbmc="
+        }
+      },
+      "expect": {
+        "status": 401
+      }
+    },
+    {
+      "name": "the right credentials open it",
+      "request": {
+        "path": "/admin/index.html",
+        "headers": {
+          "authorization": "Basic YWRtaW46Y2hhbmdlLW1l"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Admin dashboard"
+      }
+    }
+  ]
+}

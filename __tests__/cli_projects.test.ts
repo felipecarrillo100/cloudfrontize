@@ -78,4 +78,47 @@ describe('CLI: projects', () => {
         expect(code).toBe(1);
         expect(stderr).toContain("--edge doesn't apply to projects");
     });
+
+    test('`templates` lists the starter templates', async () => {
+        const { code, stdout } = await run('templates');
+        expect(code).toBe(0);
+        for (const id of ['empty', 'spa', 'basic-auth', 's3-origin']) expect(stdout).toContain(id);
+        expect(stdout).toContain('needs Docker (MinIO)');
+    });
+
+    test('`init` creates a project from a template; `check` runs its checks', async () => {
+        const parent = makeProject(baseManifest(), WWW);
+        dirs.push(parent);
+        const target = path.join(parent, 'guarded');
+        const init = await run(`init ${target} --template basic-auth --name Guarded`);
+        expect(init.code).toBe(0);
+        expect(init.stdout).toContain('Created "Guarded" from the Basic auth template');
+
+        const check = await run(`check ${target}`);
+        expect(check.code).toBe(0);
+        expect(check.stdout).toContain('All 4 checks passed');
+
+        // A folder that's already a project is refused
+        const again = await run(`init ${target}`);
+        expect(again.code).toBe(1);
+        expect(again.stderr).toContain('already a project');
+    });
+
+    test('`check` exits 1 when a check fails, saying why', async () => {
+        const dir = makeProject(baseManifest(), WWW);
+        dirs.push(dir);
+        require('fs').writeFileSync(path.join(dir, 'checks.json'), JSON.stringify({ checks: [{ name: 'expects a teapot', request: { path: '/index.html' }, expect: { status: 418 } }] }));
+        const { code, stdout } = await run(`check ${dir}`);
+        expect(code).toBe(1);
+        expect(stdout).toContain('status 200, expected 418');
+        expect(stdout).toContain('1 of 1 checks failed');
+    });
+
+    test('`init` with an unknown template lists the available ones', async () => {
+        const parent = makeProject(baseManifest(), WWW);
+        dirs.push(parent);
+        const { code, stderr } = await run(`init ${path.join(parent, 'x')} --template nope`);
+        expect(code).toBe(1);
+        expect(stderr).toContain('Unknown template "nope". Available: empty, spa');
+    });
 });

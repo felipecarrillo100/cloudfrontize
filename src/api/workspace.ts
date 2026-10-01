@@ -7,6 +7,7 @@ import { createProject } from '../project/create';
 import { ProjectExistsError } from '../project/errors';
 import { MANIFEST_FILE } from '../project/loadProject';
 import { forgetRecent, listRecent } from '../project/recent';
+import { listTemplates } from '../project/templates';
 import { INVOKE_HEADER } from '../server/invoke';
 import { ApiHost, mapErrors, objectBody } from './context';
 import { ApiError } from './errors';
@@ -111,18 +112,22 @@ export function registerWorkspaceRoutes(router: Router, host: ApiHost): void {
 
     // ---------- New project ----------
 
+    router.get('/templates', () => ({ body: { items: listTemplates() } }));
+
     // Creates a project folder with a manifest, a local origin and a starter page, then opens it
     router.post('/projects', async ({ body }) => {
         const input = objectBody(body, 'Send { "dir": "<absolute folder>", "name": "<project name>", "origin"?: {...}, "open"?: true }');
         if (typeof input.dir !== 'string' || !path.isAbsolute(input.dir)) throw ApiError.badRequest('"dir" must be an absolute path');
         if (typeof input.name !== 'string' || !input.name.trim()) throw ApiError.badRequest('"name" is required');
         if (input.origin !== undefined && (typeof input.origin !== 'object' || Array.isArray(input.origin))) throw ApiError.badRequest('"origin" must be an object');
+        const template = typeof input.template === 'string' ? input.template : 'empty';
+        if (!listTemplates().some(t => t.id === template)) throw ApiError.badRequest(`Unknown template "${template}"`);
 
         // The folder may not exist yet; its parent must, inside the browse roots
         allowedFolder(host, path.dirname(path.resolve(input.dir)));
         let created;
         try {
-            created = await mapErrors(async () => createProject({ dir: input.dir, name: input.name.trim(), origin: input.origin }));
+            created = await mapErrors(async () => createProject({ dir: input.dir, name: input.name.trim(), origin: input.origin, template }));
         } catch (err) {
             if (err instanceof ProjectExistsError) throw ApiError.conflict(err.message, { dir: err.dir });
             throw err;

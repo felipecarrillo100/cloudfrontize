@@ -274,3 +274,8 @@ A React app built with Vite into `ui/` (shipped as `dist/ui`, served by the WebU
 - **Edits** go through `useManifestEdit` (`src/api/mutations.ts`): it applies a change to the manifest as written and saves it with the revision it was based on. A `409` (changed meanwhile) reloads instead of overwriting; a `422` shows the AWS rules that would break.
 - **Design tokens** (light and dark) are CSS variables in `src/index.css`, exposed as Tailwind utilities (`bg-surface`, `text-muted`, `text-cff`...).
 
+## 8. Templates and checks 🧩
+
+- **Templates** (`templates/<id>/`, shipped with the package): each is a complete project (manifest, functions, origin content, `README.md`, `checks.json`) plus a `template.json` (`name`, `description`, `order`, optional `requires`). `src/project/templates.ts` lists them (the built-in **Empty** first); `createProject({ template })` copies one (without its `template.json`), names it, and validates the result, removing everything again if it's invalid. `cloudfrontize init --template <id>`, `cloudfrontize templates`, `GET /api/v2/templates` and the WebUI's New project dialog use it.
+- **Checks** (`checks.json`): requests and what their responses must contain. `src/project/runChecks.ts` serves a project on a free port and runs them (`cloudfrontize check`, non-zero exit on failure, for CI). `__tests__/templates.test.ts` creates every template and runs its checks (templates with `requires`, which need Docker services, are only validated); `npm run tutorials` includes it.
+

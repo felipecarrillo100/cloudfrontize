@@ -236,6 +236,15 @@ export interface FolderListing {
     roots: string[];
 }
 
+export interface TemplateInfo {
+    id: string;
+    name: string;
+    description: string;
+    /** What it needs besides CloudFrontize (e.g. "Docker (MinIO)"). */
+    requires?: string;
+    order: number;
+}
+
 export interface RecentProject {
     dir: string;
     name: string;

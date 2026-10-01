@@ -1,0 +1,5 @@
+{
+  "name": "Basic auth",
+  "description": "Password-protects /admin/* with HTTP Basic authentication, through a cache behavior; the rest of the site stays public.",
+  "order": 3
+}

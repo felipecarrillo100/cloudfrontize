@@ -1,0 +1,5 @@
+{
+  "name": "A/B testing",
+  "description": "Splits visitors between two versions of the home page with a cookie, so each visitor keeps seeing the same version.",
+  "order": 6
+}

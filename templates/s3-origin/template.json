@@ -1,0 +1,6 @@
+{
+  "name": "S3 origin (MinIO)",
+  "description": "Serves the site from an S3 bucket: MinIO in Docker locally, the same configuration pointed at AWS later.",
+  "order": 7,
+  "requires": "Docker (MinIO)"
+}

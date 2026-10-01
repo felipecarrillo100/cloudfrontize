@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the home page is public",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "the members area asks for credentials",
+      "request": {
+        "path": "/members/index.html"
+      },
+      "expect": {
+        "status": 401
+      }
+    },
+    {
+      "name": "a member signs in",
+      "request": {
+        "path": "/members/index.html",
+        "headers": {
+          "authorization": "Basic YWxpY2U6d29uZGVybGFuZA=="
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Members area"
+      }
+    }
+  ]
+}

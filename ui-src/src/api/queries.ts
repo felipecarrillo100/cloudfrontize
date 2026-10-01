@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  TemplateInfo,
   KvsDetail,
   KvsInfo,
   FunctionDetail,
@@ -49,6 +50,9 @@ export const useKvsList = (enabled: boolean) =>
 export const useKvsDetail = (id: string, enabled: boolean) =>
   useQuery({ queryKey: ['kvs', id], queryFn: () => api<KvsDetail>('GET', `/kvs/${encodeURIComponent(id)}`), enabled })
 
+export const useTemplates = (enabled = true) =>
+  useQuery({ queryKey: ['templates'], queryFn: async () => (await api<{ items: TemplateInfo[] }>('GET', '/templates')).items, staleTime: Infinity, enabled })
+
 export const useRequestHistory = () =>
   useQuery({ queryKey: keys.requests, queryFn: () => api<{ items: RequestSummary[]; seq: number }>('GET', '/requests?limit=500'), staleTime: Infinity })
 
@@ -73,6 +77,7 @@ export interface CreateProjectInput {
   dir: string
   name: string
   origin?: Record<string, unknown>
+  template?: string
 }
 
 export function useCreateProject() {
