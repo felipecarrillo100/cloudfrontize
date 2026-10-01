@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, ExternalLink, FileOutput, Pencil, Trash2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ExternalLink, FileOutput, FilePen, KeyRound, Pencil, Trash2 } from 'lucide-react'
 import type { DistributionFunction } from '@contract'
 import { useControl, useFunctionDetail, useProject } from '@/api/queries'
 import { reportEditError, useOpenInEditor, useUpdateFunction } from '@/api/mutations'
@@ -9,6 +9,7 @@ import { CFF_RUNTIMES, LAE_RUNTIMES } from '@/functions/ids'
 import { typeName } from '@/schematic/rules'
 import { useDialogs } from '@/state/dialogs'
 import { useUI } from '@/state/ui'
+import { useEditor } from '@/editor/store'
 import { cn } from '@/lib/cn'
 import { Panel, Section } from './Panel'
 
@@ -62,6 +63,7 @@ export function FunctionInspector({ fn, editable }: { fn: DistributionFunction; 
         <p className="mb-2 break-all font-mono text-xs text-muted">{fn.file ?? fn.path}</p>
         {isCff && detail.data?.size != null && <div className="mb-3"><SizeMeter size={detail.data.size} /></div>}
         <div className="flex flex-wrap gap-2">
+          {editable && <Button size="sm" variant="primary" onClick={() => useEditor.getState().open('function', fn.id)}><FilePen size={13} /> Edit code</Button>}
           <Button size="sm" onClick={() => openInEditor.mutate(fn.id)}><ExternalLink size={13} /> Open in VS Code</Button>
           <Button size="sm" onClick={() => dialogs.open('production', fn.id)}><FileOutput size={13} /> Production build</Button>
         </div>
@@ -83,6 +85,9 @@ export function FunctionInspector({ fn, editable }: { fn: DistributionFunction; 
                   {stores.map(s => <option key={s} value={s}>{s}</option>)}
                 </Select>
                 {runtime !== 'cloudfront-js-2.0' && <span>Key value stores need runtime 2.0.</span>}
+                {detail.data?.keyValueStore && (
+                  <Button size="sm" className="self-start" onClick={() => useEditor.getState().open('kvs', detail.data!.keyValueStore!)}><KeyRound size={13} /> Edit {detail.data.keyValueStore}</Button>
+                )}
               </label>
             )}
           </div>

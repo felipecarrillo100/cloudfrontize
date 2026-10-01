@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  KvsDetail,
+  KvsInfo,
   FunctionDetail,
   ControlAction, Distribution, FolderListing, ProjectInfo, RecentProject, RequestDetail, RequestSummary, ServerInfo,
 } from '@contract'
@@ -40,6 +42,12 @@ export const useFolder = (path: string | null, hidden = false, enabled = true) =
 
 export const useFunctionDetail = (id: string, enabled: boolean) =>
   useQuery({ queryKey: ['function', id], queryFn: () => api<FunctionDetail>('GET', `/functions/${encodeURIComponent(id)}`), enabled })
+
+export const useKvsList = (enabled: boolean) =>
+  useQuery({ queryKey: ['kvs'], queryFn: async () => (await api<{ items: KvsInfo[] }>('GET', '/kvs')).items, enabled })
+
+export const useKvsDetail = (id: string, enabled: boolean) =>
+  useQuery({ queryKey: ['kvs', id], queryFn: () => api<KvsDetail>('GET', `/kvs/${encodeURIComponent(id)}`), enabled })
 
 export const useRequestHistory = () =>
   useQuery({ queryKey: keys.requests, queryFn: () => api<{ items: RequestSummary[]; seq: number }>('GET', '/requests?limit=500'), staleTime: Infinity })

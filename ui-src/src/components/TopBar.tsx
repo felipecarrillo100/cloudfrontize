@@ -7,6 +7,7 @@ import { useLive } from '@/live/store'
 import { useUI, type Theme } from '@/state/ui'
 import { cn } from '@/lib/cn'
 import { Logo } from './Logo'
+import { useEditor } from '@/editor/store'
 
 const connectionLabel = { open: 'Live', connecting: 'Connecting', reconnecting: 'Reconnecting' } as const
 
@@ -39,6 +40,7 @@ export function TopBar({ onOpen, onNew }: { onOpen(): void; onNew(): void }) {
             <Menu.Item className={menuItem} onSelect={onOpen}>Open project…</Menu.Item>
             <Menu.Item className={menuItem} onSelect={showStart}>Recent projects</Menu.Item>
             <Menu.Separator className="my-1 h-px bg-line" />
+            <Menu.Item className={menuItem} disabled={!project} onSelect={() => useEditor.getState().open('manifest', 'manifest')}>Edit cloudfrontize.json</Menu.Item>
             <Menu.Item className={menuItem} disabled={!project} onSelect={() => reload.mutate(undefined, {
               onSuccess: () => toast.success('Project reloaded'),
               onError: err => toast.error(errorMessage(err)),

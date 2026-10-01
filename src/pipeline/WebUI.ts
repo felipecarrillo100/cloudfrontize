@@ -228,7 +228,10 @@ export class WebUI {
 
         if (insideUiRoot && fs.existsSync(uiAssetPath) && fs.lstatSync(uiAssetPath).isFile()) {
             const ext = path.extname(uiAssetPath);
-            const types: any = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.svg': 'image/svg+xml' };
+            const types: any = {
+                '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.map': 'application/json',
+                '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2'
+            };
             res.writeHead(200, { 'Content-Type': types[ext] || 'text/plain' });
             fs.createReadStream(uiAssetPath).pipe(res);
         } else {

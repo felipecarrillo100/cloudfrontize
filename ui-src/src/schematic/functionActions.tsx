@@ -1,10 +1,11 @@
-import { Code2, Crosshair, ExternalLink, FileOutput, Pencil, Power, PowerOff, Trash2, Unplug } from 'lucide-react'
+import { Code2, Crosshair, FilePen, ExternalLink, FileOutput, Pencil, Power, PowerOff, Trash2, Unplug } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { DistributionFunction, EdgeEvent } from '@contract'
 import { useControl } from '@/api/queries'
 import { reportEditError, useDetachFunction, useOpenInEditor } from '@/api/mutations'
 import { useDialogs } from '@/state/dialogs'
 import { useUI } from '@/state/ui'
+import { useEditor } from '@/editor/store'
 
 export interface MenuAction {
   label: string
@@ -23,6 +24,7 @@ export function useFunctionActions(fn: DistributionFunction, slot: { behavior: s
   const select = useUI(s => s.select)
 
   const actions: MenuAction[] = [
+    ...(editable ? [{ label: 'Edit code', icon: <FilePen size={14} />, onSelect: () => useEditor.getState().open('function', fn.id) }] : []),
     { label: 'Inspect', icon: <Code2 size={14} />, onSelect: () => select({ kind: 'function', id: fn.id }) },
     { label: 'Open in VS Code', icon: <ExternalLink size={14} />, onSelect: () => openInEditor.mutate(fn.id) },
     { label: 'View production build', icon: <FileOutput size={14} />, onSelect: () => dialogs.open('production', fn.id) },

@@ -30,6 +30,8 @@ export default defineConfig({
     },
   },
   server: {
+    // The contract and the manifest schema live in the package, one folder up
+    fs: { allow: ['..'] },
     proxy: {
       '/api': {
         target: webui,

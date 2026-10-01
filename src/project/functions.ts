@@ -22,6 +22,8 @@ export function starterCode(type: FunctionType, runtime: string, event: EventTyp
         if (runtime === 'cloudfront-js-1.0') {
             return `// CloudFront Function (runtime 1.0, ES 5.1) on ${event}
 // https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/functions-event-structure.html
+
+/** @param {CloudFrontFunctionEvent} event (types for the WebUI editor; ignored by CloudFront) */
 function handler(event) {
     var ${target} = event.${target};
     return ${target};
@@ -30,6 +32,8 @@ function handler(event) {
         }
         return `// CloudFront Function (runtime 2.0) on ${event}
 // https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/functions-event-structure.html
+
+/** @param {CloudFrontFunctionEvent} event (types for the WebUI editor; ignored by CloudFront) */
 async function handler(event) {
     const ${target} = event.${target};
     return ${target};

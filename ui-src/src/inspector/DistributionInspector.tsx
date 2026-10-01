@@ -6,6 +6,7 @@ import { reportEditError, useManifestEdit } from '@/api/mutations'
 import { Button } from '@/components/ui/Button'
 import { useDialogs } from '@/state/dialogs'
 import { useUI } from '@/state/ui'
+import { useEditor } from '@/editor/store'
 import { Panel, Section } from './Panel'
 
 const SETTINGS: { key: string; label: string; hint: string; fallback: boolean }[] = [
@@ -86,6 +87,7 @@ export function DistributionInspector({ dist, editable }: { dist: Distribution; 
         </ol>
       </Section>
 
+      {editable && <Button size="sm" className="mb-3" onClick={() => useEditor.getState().open('manifest', 'manifest')}>Edit cloudfrontize.json</Button>}
       {typeof settings.port === 'number' && <p className="text-xs text-muted">Port {String(settings.port)} (applies when CloudFrontize starts).</p>}
     </Panel>
   )

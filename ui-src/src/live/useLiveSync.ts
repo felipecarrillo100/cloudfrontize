@@ -5,6 +5,7 @@ import type { ApiEvent, RequestSummary } from '@contract'
 import { API_BASE, api } from '../api/client'
 import { keys } from '../api/queries'
 import { useLive } from './store'
+import { useEditor } from '@/editor/store'
 
 /**
  * Keeps the UI in sync with the server: opens the event stream (the browser resumes it with
@@ -52,12 +53,17 @@ export function useLiveSync(): void {
         case 'build.failed':
           toast.error(`Build failed: ${event.data.file.split(/[\\/]/).pop()}`, { description: event.data.message })
           void qc.invalidateQueries({ queryKey: keys.distribution })
+          void qc.invalidateQueries({ queryKey: ['function'] })
           break
         case 'build.succeeded':
+          // A rebuild means a file changed (in the editor, or on disk): refresh what shows it
           void qc.invalidateQueries({ queryKey: keys.distribution })
+          void qc.invalidateQueries({ queryKey: ['function'] })
+          void qc.invalidateQueries({ queryKey: ['kvs'] })
           break
         case 'project.opened':
           store.setInvalidManifest(null)
+          useEditor.getState().reset()
           void qc.invalidateQueries()
           break
         case 'project.changed':

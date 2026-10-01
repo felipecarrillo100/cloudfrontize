@@ -5,6 +5,7 @@ import { reportEditError, useAttachFunction } from '@/api/mutations'
 import { cn } from '@/lib/cn'
 import { useDialogs } from '@/state/dialogs'
 import { useUI } from '@/state/ui'
+import { useEditor } from '@/editor/store'
 import { FunctionContextMenu, FunctionDropdown } from './FunctionMenu'
 import { useFunctionActions } from './functionActions'
 import { slotOptions, typeName } from './rules'
@@ -27,7 +28,8 @@ function FilledSlot({ fn, behavior, event, editable }: { fn: DistributionFunctio
   return (
     <FunctionContextMenu actions={actions}>
       <div className={cn('flex w-full items-center gap-1.5 rounded-md border bg-surface px-2 py-1.5 shadow-sm', selected ? 'border-accent ring-1 ring-accent' : 'border-line', fn.disabled && 'opacity-60')}>
-        <button type="button" onClick={() => select({ kind: 'function', id: fn.id })} className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        <button type="button" onClick={() => select({ kind: 'function', id: fn.id })} onDoubleClick={() => editable && useEditor.getState().open('function', fn.id)}
+          title={editable ? 'Double-click to edit the code' : undefined} className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
           aria-label={`${typeName[fn.type]} ${fn.id} on ${event}${fn.disabled ? ', disabled' : ''}${failed ? ', build error' : ''}`}>
           <span className={cn('rounded border px-1 font-mono text-[10px] leading-4', kindTone(fn.type))}>{kindShort(fn.type)}</span>
           <span className={cn('truncate text-sm font-medium', fn.disabled && 'line-through')}>{fn.id}</span>

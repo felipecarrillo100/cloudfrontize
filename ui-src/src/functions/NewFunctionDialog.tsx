@@ -10,6 +10,7 @@ import { Field, Input, Select } from '@/components/ui/Field'
 import { DiagnosticsList } from '@/components/DiagnosticsList'
 import { typeName } from '@/schematic/rules'
 import { useUI } from '@/state/ui'
+import { useEditor } from '@/editor/store'
 import { CFF_RUNTIMES, idSchema, LAE_RUNTIMES } from './ids'
 
 export interface NewFunctionTarget {
@@ -39,7 +40,7 @@ export function NewFunctionDialog({ target, onClose, takenIds }: { target: NewFu
     if (!target) return
     if (takenIds.includes(values.id)) { setError('id', { message: `A function "${values.id}" already exists` }); return }
     create.mutate({ ...target, id: values.id, runtime: values.runtime }, {
-      onSuccess: () => { select({ kind: 'function', id: values.id }); close() },
+      onSuccess: () => { select({ kind: 'function', id: values.id }); useEditor.getState().open('function', values.id); close() },
     })
   })
 

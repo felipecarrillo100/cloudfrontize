@@ -16,6 +16,7 @@ function useRefreshProject() {
     qc.invalidateQueries({ queryKey: keys.server }),
     qc.invalidateQueries({ queryKey: ['viewer-headers'] }),
     qc.invalidateQueries({ queryKey: ['function'] }),
+    qc.invalidateQueries({ queryKey: ['kvs'] }),
   ])
 }
 
@@ -134,6 +135,14 @@ export function useAddOrigin() {
   const refresh = useRefreshProject()
   return useMutation({
     mutationFn: (origin: Record<string, unknown>) => api<SaveResult>('POST', '/origins', origin),
+    onSettled: refresh,
+  })
+}
+
+export function useCreateKvs() {
+  const refresh = useRefreshProject()
+  return useMutation({
+    mutationFn: (id: string) => api('POST', '/kvs', { id }),
     onSettled: refresh,
   })
 }

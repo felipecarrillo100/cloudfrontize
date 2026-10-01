@@ -5,6 +5,7 @@ import { errorMessage } from '@/api/client'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { useUI } from '@/state/ui'
+import { tabKey, useEditor } from '@/editor/store'
 
 /** Removes a function from the project (detaching it everywhere), and optionally deletes its file. */
 export function DeleteFunctionDialog({ fn, onClose }: { fn: DistributionFunction | null; onClose(): void }) {
@@ -18,7 +19,7 @@ export function DeleteFunctionDialog({ fn, onClose }: { fn: DistributionFunction
       footer={<>
         <Button variant="ghost" onClick={close}>Cancel</Button>
         <Button variant="danger" disabled={remove.isPending} onClick={() => fn && remove.mutate({ id: fn.id, deleteFile }, {
-          onSuccess: () => { select(null); close() },
+          onSuccess: () => { useEditor.getState().close(tabKey('function', fn.id)); select(null); close() },
         })}>{deleteFile ? 'Delete function and file' : 'Delete function'}</Button>
       </>}>
       <label className="flex items-start gap-2 text-sm">

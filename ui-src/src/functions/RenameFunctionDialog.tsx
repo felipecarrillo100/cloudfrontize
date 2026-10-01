@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Field, Input } from '@/components/ui/Field'
 import { useUI } from '@/state/ui'
+import { useEditor } from '@/editor/store'
 import { idSchema } from './ids'
 
 const schema = z.object({ id: idSchema })
@@ -20,7 +21,7 @@ export function RenameFunctionDialog({ id, onClose, takenIds }: { id: string | n
   const onSubmit = handleSubmit(values => {
     if (!id || values.id === id) { close(); return }
     if (takenIds.includes(values.id)) { setError('id', { message: `A function "${values.id}" already exists` }); return }
-    update.mutate({ id, newId: values.id }, { onSuccess: () => { select({ kind: 'function', id: values.id }); close() } })
+    update.mutate({ id, newId: values.id }, { onSuccess: () => { useEditor.getState().renameFunction(id, values.id); select({ kind: 'function', id: values.id }); close() } })
   })
   return (
     <Dialog open={!!id} onOpenChange={o => { if (!o) close() }} title={`Rename ${id ?? ''}`}
