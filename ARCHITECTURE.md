@@ -212,5 +212,15 @@ This example demonstrates routing between LocalStack, MinIO, and a Local Folder 
 
 - **Atomic Journey**: Every request creates a forensic journey record, capturing the state of headers and bodies at every stage of the pipeline via `broadcastStage()`.
 - **Live Stream**: The WebUI receives live updates via Server-Sent Events (SSE).
-- **WebUI Security**: The WebUI exposes hook source and baked values, so it listens on `127.0.0.1` only, rejects requests whose `Host` or `Origin` isn't this machine's WebUI address, only opens loaded hook/config files in the editor, and never serves files outside its asset directory.
+- **WebUI Security**: The WebUI exposes hook source and baked values, so it listens on the loopback addresses only (`127.0.0.1`, and `::1` on the same port so `localhost` can't reach another program on IPv6), rejects requests whose `Host` or `Origin` isn't this machine's WebUI address, only opens loaded hook/config files in the editor, and never serves files outside its asset directory. API v2 also requires `Content-Type: application/json` on every `POST` and on any request with a body: a cross-site page can only send that after a CORS preflight, which the WebUI never answers.
 - **Snapshot Logic**: Forensics use a **1 MB cap** (configurable via `AWS_LIMITS`) for body previews to ensure the dashboard remains high-performance.
+
+### 6.1 WebUI API v2 (`src/api/`)
+
+The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api/*`, `/events`) stay until the current UI is replaced.
+
+- **`router.ts`**: a small JSON router. Handlers return `{ status, body, headers }` or throw an `ApiError` (`errors.ts`), which becomes `{ "error": { "code", "message", "details" } }` with a matching status (400 `bad-request`, 404 `not-found`, 405 `method-not-allowed`, 409 `conflict`, 413 `too-large`, 415 `unsupported-media-type`, 422 `invalid`, 500 `internal`). Responses are `Cache-Control: no-store`.
+- **`events.ts`**: the typed event model. Every event is `{ v: 2, seq, time, type, requestId?, data }`. Types: `stream.hello`, `stream.reset`, `request.started`, `request.stage`, `request.completed`, `request.failed`, `build.succeeded`, `build.failed`, `project.opened`, `distribution.changed`. A `request.stage` carries a structured `stage` (`function` / `short-circuit` with `event`, `runtime`, `functionIds`; `origin-fetch` with `origin`; `origin-response`; `final-response`), set by the Orchestrator's `broadcastStage`, so clients never parse display names.
+- **`EventHub.ts`**: numbers telemetry events (`seq` increases by one for the server's lifetime), keeps the last 2,000 for replay, and serves `GET /api/v2/events` as Server-Sent Events (`id: <seq>`, `data: <json>`). A client that reconnects with `Last-Event-ID` (or `?since=<seq>`) gets exactly the events it missed, or `stream.reset` when they're gone. A heartbeat comment every 15 s keeps idle streams open.
+- **`v2.ts`**: the routes. `GET /api/v2` (server, ports, open project, route list), `GET /api/v2/events`, `GET /api/v2/requests` (summaries, newest first), `GET /api/v2/requests/:id` (a request's journey as v2 events), `DELETE /api/v2/requests` (clear history).
+

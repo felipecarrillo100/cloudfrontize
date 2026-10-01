@@ -10,6 +10,7 @@ import { OriginSelector, ResolvedBehavior } from './OriginSelector';
 import { HeaderManager } from '../core/HeaderManager';
 import { CodeProcessor, TransformationLevel } from '../core/CodeProcessor';
 import { AWS_HEADERS, AWS_LIMITS } from '../constants';
+import type { StageInfo } from '../api/events';
 import { HookRegistry } from './HookRegistry';
 import { MultiOriginConfig } from './ConfigLoader';
 import { EdgeError } from '../core/EdgeError';
@@ -104,7 +105,8 @@ export class Orchestrator {
 
     // Hook registry discovery and state management extracted to HookRegistry.ts
 
-    private broadcastStage(name: string, details: any, headers?: any) {
+    private broadcastStage(name: string, details: any, headers?: any, stage?: StageInfo) {
+        if (stage) details.stage = stage;
         if (headers) {
             // Fidelity Fix: Use the standard flattener to ensure UI parity (arrays, unwrapping)
             details.headers = HeaderManager.telemetryFlatten(headers);
@@ -432,7 +434,7 @@ export class Orchestrator {
                         this._syncHeadersToRequest(req, this._withoutUnchangedCloudFrontHeaders(intermediateMutated.headers, simulated.cloudFront));
                     }
                     const filename = path.basename(mod.filePath);
-                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: mod.id, ...liveReqBodyState }, HeaderManager.telemetryFlatten(req.headers));
+                    this.broadcastStage(`[CFF: viewer-request] ${filename}`, { requestId, uri: req.url, fid: mod.id, ...liveReqBodyState }, HeaderManager.telemetryFlatten(req.headers), { kind: 'function', event: 'viewer-request', runtime: 'cloudfront-function', functionIds: [mod.id] });
                 });
 
                 const mutatedRequest = this.cffRunner.fromCFFEvent(cffResult);
@@ -440,7 +442,7 @@ export class Orchestrator {
                 if (options.verbose && cffLogs.length > 0) req._logBuffer.push(...cffLogs);
 
                 if (mutatedRequest?._isResponse) {
-                    this.broadcastStage('CFF Short-Circuit', { requestId, status: mutatedRequest.status, uri: req.url, fid: lastCffId }, HeaderManager.telemetryFlatten(mutatedRequest.headers));
+                    this.broadcastStage('CFF Short-Circuit', { requestId, status: mutatedRequest.status, uri: req.url, fid: lastCffId }, HeaderManager.telemetryFlatten(mutatedRequest.headers), { kind: 'short-circuit', event: 'viewer-request', runtime: 'cloudfront-function', functionIds: lastCffId ? [lastCffId] : [] });
                     if (options.verbose) req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[36m[CFF]\x1b[0m Generated Response`);
                     return this._sendResponse(res, mutatedRequest, requestId, startTime, req, options);
                 }
@@ -471,12 +473,13 @@ export class Orchestrator {
                     this.broadcastStage(
                         `[L@E: viewer-request] ${this._fileNames(this.edgeRunner, viewerRequestIds)}`,
                         { requestId, uri: req.url, fid: viewerRequestIds[0], ...liveReqBodyState },
-                        this._headerSnapshot(req)
+                        this._headerSnapshot(req),
+                        { kind: 'function', event: 'viewer-request', runtime: 'lambda-edge', functionIds: viewerRequestIds }
                     );
                 }
 
                 if (viewerResult?._isResponse) {
-                    this.broadcastStage('L@E Short-Circuit', { requestId, status: viewerResult.status, uri: req.url, fid: viewerResult.id }, HeaderManager.telemetryFlatten(viewerResult.headers));
+                    this.broadcastStage('L@E Short-Circuit', { requestId, status: viewerResult.status, uri: req.url, fid: viewerResult.id }, HeaderManager.telemetryFlatten(viewerResult.headers), { kind: 'short-circuit', event: 'viewer-request', runtime: 'lambda-edge', functionIds: [viewerResult.id] });
                     if (options.verbose) req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E: viewer-request]\x1b[0m Generated Response`);
                     return this._sendResponse(res, viewerResult, requestId, startTime, req, options);
                 }
@@ -510,12 +513,13 @@ export class Orchestrator {
                     this.broadcastStage(
                         `[L@E: origin-request] ${this._fileNames(this.edgeRunner, originRequestIds)}`,
                         { requestId, uri: req.url, fid: originRequestIds[0], ...liveReqBodyState },
-                        this._headerSnapshot(req)
+                        this._headerSnapshot(req),
+                        { kind: 'function', event: 'origin-request', runtime: 'lambda-edge', functionIds: originRequestIds }
                     );
                 }
 
                 if (originResult?._isResponse) {
-                    this.broadcastStage('L@E Short-Circuit', { requestId, status: originResult.status, uri: req.url, fid: originResult.id }, HeaderManager.telemetryFlatten(originResult.headers));
+                    this.broadcastStage('L@E Short-Circuit', { requestId, status: originResult.status, uri: req.url, fid: originResult.id }, HeaderManager.telemetryFlatten(originResult.headers), { kind: 'short-circuit', event: 'origin-request', runtime: 'lambda-edge', functionIds: [originResult.id] });
                     if (options.verbose) req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E: origin-request]\x1b[0m Generated Response`);
                     return this._sendResponse(res, originResult, requestId, startTime, req, options);
                 }
@@ -543,7 +547,7 @@ export class Orchestrator {
 
             // 4. Origin Fetch — body going to origin is the final post-L@E request body state
             // Fidelity Fix: Use rawHeaders for origin fetch snapshots, falling back to req.headers if empty
-            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request', ...liveReqBodyState }, this._headerSnapshot(req));
+            this.broadcastStage('Origin Fetch', { requestId, uri: req.url, origin: targetOriginId, fid: 'origin-request', ...liveReqBodyState }, this._headerSnapshot(req), { kind: 'origin-fetch', origin: targetOriginId });
             // High-Fidelity Origin Pulse (Body Re-injection)
             let { statusCode, headers, body, resolvedUri } = await this._fetchFromProvider(provider, req, options, reqBody);
 
@@ -589,7 +593,7 @@ export class Orchestrator {
             } : undefined;
             liveResBodyState = resBodyMeta; // Initialize: origin body is ground truth for response pipeline
 
-            this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response', ...resBodyMeta }, HeaderManager.telemetryFlatten(headers));
+            this.broadcastStage('Origin Response', { requestId, status: statusCode, uri: resolvedUri || req.url, fid: 'origin-response', ...resBodyMeta }, HeaderManager.telemetryFlatten(headers), { kind: 'origin-response' });
 
             // Diagnostic Capture: Store origin info for the Two-Row Access Summary
             req._originInfo = { id: targetOriginId, uri: resolvedUri || req.url };
@@ -627,7 +631,7 @@ export class Orchestrator {
 
                 liveResBodyState = Telemetry.captureLeResBody(originResResult, liveResBodyState);
                 originResponseIds.forEach(id => {
-                    this.broadcastStage(`[L@E: origin-response] ${this._fileNames(this.edgeRunner, [id])}`, { requestId, status: statusCode, uri: req.url, fid: id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
+                    this.broadcastStage(`[L@E: origin-response] ${this._fileNames(this.edgeRunner, [id])}`, { requestId, status: statusCode, uri: req.url, fid: id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers), { kind: 'function', event: 'origin-response', runtime: 'lambda-edge', functionIds: [id] });
                 });
 
                 // 4b. L@E Viewer Response (Atomic Phase) — not invoked for origin errors
@@ -653,7 +657,7 @@ export class Orchestrator {
 
                     liveResBodyState = Telemetry.captureLeResBody(viewerResResult, liveResBodyState);
                     viewerResponseIds.forEach(id => {
-                        this.broadcastStage(`[L@E: viewer-response] ${this._fileNames(this.edgeRunner, [id])}`, { requestId, status: statusCode, uri: req.url, fid: id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers));
+                        this.broadcastStage(`[L@E: viewer-response] ${this._fileNames(this.edgeRunner, [id])}`, { requestId, status: statusCode, uri: req.url, fid: id, ...liveResBodyState }, HeaderManager.telemetryFlatten(headers), { kind: 'function', event: 'viewer-response', runtime: 'lambda-edge', functionIds: [id] });
                     });
                 } else if (options.verbose) {
                     req._logBuffer.push(`\x1b[90m[${requestId}]\x1b[0m \x1b[90m├─\x1b[0m ◈ \x1b[35m[L@E: viewer-response]\x1b[0m Skipped (origin returned ${statusCode})`);
@@ -679,14 +683,14 @@ export class Orchestrator {
                         };
                     }
                     const stageName = `[CFF: viewer-response] ${path.basename(mod.filePath)}`;
-                    this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: mod.id, ...(liveResBodyState ? { bodyUnchanged: true } : {}) }, HeaderManager.telemetryFlatten(finalRes.headers));
+                    this.broadcastStage(stageName, { requestId, status: finalRes.status, uri: req.url, fid: mod.id, ...(liveResBodyState ? { bodyUnchanged: true } : {}) }, HeaderManager.telemetryFlatten(finalRes.headers), { kind: 'function', event: 'viewer-response', runtime: 'cloudfront-function', functionIds: [mod.id] });
                 });
 
                 if (options.verbose && cffResLogs.length > 0) req._logBuffer.push(...cffResLogs);
             }
 
             // Final Response: body the viewer receives — same as last response body state (possibly mutated by L@E)
-            this.broadcastStage('Final Response', { requestId, status: finalRes.status, uri: req.url, ...liveResBodyState }, HeaderManager.telemetryFlatten(finalRes.headers));
+            this.broadcastStage('Final Response', { requestId, status: finalRes.status, uri: req.url, ...liveResBodyState }, HeaderManager.telemetryFlatten(finalRes.headers), { kind: 'final-response' });
             this._sendResponse(res, finalRes, requestId, startTime, req, options, body);
 
         } catch (err: any) {

@@ -4,6 +4,8 @@ export interface IHistoryStore {
   add(event: TelemetryEvent): void;
   getAll(): TelemetryEvent[];
   getById(id: string): TelemetryEvent[];
+  /** Stored ids, oldest first. */
+  getIds(): string[];
   clear(): void;
 }
 
@@ -40,6 +42,10 @@ export class InMemoryHistoryStore implements IHistoryStore {
   public getById(id: string): TelemetryEvent[] {
     // O(1) Indexed Lookup
     return this.historyMap.get(id) || [];
+  }
+
+  public getIds(): string[] {
+    return [...this.requestOrder];
   }
 
   public clear(): void {

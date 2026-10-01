@@ -36,6 +36,11 @@ export class Telemetry extends EventEmitter {
         return this.store.getById(id);
     }
 
+    /** Stored ids (requests and SYSTEM_* streams), oldest first. */
+    public getIds(): string[] {
+        return this.store.getIds();
+    }
+
     public clearHistory(): void {
         this.store.clear();
     }

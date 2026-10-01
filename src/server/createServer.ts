@@ -16,6 +16,8 @@ export interface CloudFrontizeServer extends http.Server {
     ready: Promise<void>;
     /** The project runtime currently being served. */
     readonly current: ProjectRuntime;
+    /** The WebUI's port once listening (null without a WebUI). */
+    readonly webuiPort: number | null;
     /**
      * Loads and validates a project, then swaps it in without restarting the servers.
      * @throws {ManifestError} when the project is invalid (the current project keeps running).
@@ -43,8 +45,13 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
     let current = new ProjectRuntime(initialSpec, telemetry);
     const options = current.options; // server-level settings (port, webui, banner) come from the initial spec
 
+    const portOf = (server: http.Server | null, fallback: any) => {
+        const address = server?.address();
+        return address && typeof address === 'object' ? address.port : Number(fallback);
+    };
+    let uiServer: http.Server | null = null;
     const webui = options.webui !== undefined && options.webui !== false && options.webui !== ''
-        ? new WebUI(telemetry, () => current, options)
+        ? new WebUI(telemetry, () => current, options, { ports: () => ({ main: portOf(mainServer, options.port), webui: portOf(uiServer, options.webui) }) })
         : null;
 
     const compressionLib = require('compression');
@@ -171,15 +178,34 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
         });
     });
 
-    let uiServer: http.Server | null = null;
+    let uiServer6: http.Server | null = null;
+    const uiSockets = new Set<any>();
     let uiReady: Promise<void> = Promise.resolve();
     if (webui) {
-        uiServer = http.createServer((req, res) => webui.handleRequest(req, res));
+        const handler = (req: IncomingMessage, res: ServerResponse) => webui.handleRequest(req, res);
+        const track = (server: http.Server) => server.on('connection', (socket: any) => {
+            uiSockets.add(socket);
+            socket.on('close', () => uiSockets.delete(socket));
+        });
+        uiServer = track(http.createServer(handler));
         const ui = uiServer;
         uiReady = new Promise<void>((resolve, reject) => {
             ui.once('error', (err: any) => reject(startupError(err, 'webui', options.webui)));
             // Security: loopback only — the Developer UI exposes hook source and baked values
-            ui.listen(Number(options.webui), '127.0.0.1', () => resolve());
+            ui.listen(Number(options.webui), '127.0.0.1', () => {
+                // `localhost` often resolves to ::1 first: listen there too, on the same port, so the
+                // browser doesn't reach another program that holds that port on IPv6
+                const port = portOf(ui, options.webui);
+                const ui6 = track(http.createServer(handler));
+                ui6.once('error', (err: any) => {
+                    if (err.code === 'EADDRINUSE') {
+                        logger.warn(`\x1b[33m⚠️  Another program is using [::1]:${port}; http://localhost:${port} may reach it instead of the WebUI. Use http://127.0.0.1:${port}\x1b[0m`);
+                    }
+                    // EADDRNOTAVAIL / EAFNOSUPPORT: no IPv6 loopback on this machine, nothing to do
+                    resolve();
+                });
+                ui6.listen(port, '::1', () => { uiServer6 = ui6; resolve(); });
+            });
         });
     }
 
@@ -188,6 +214,7 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
     mainServer.ready.catch(() => {});
 
     Object.defineProperty(mainServer, 'current', { get: () => current, enumerable: true });
+    Object.defineProperty(mainServer, 'webuiPort', { get: () => (uiServer?.listening ? portOf(uiServer, options.webui) : null), enumerable: true });
 
     mainServer.openProject = async (target: string) => {
         const { project, diagnostics } = loadProject(target);
@@ -218,7 +245,11 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
 
     mainServer.closeGracefully = async () => {
         current.dispose();
+        webui?.close();
         if (uiServer) uiServer.close();
+        if (uiServer6) uiServer6.close();
+        for (const socket of uiSockets) { try { socket.destroy(); } catch { } }
+        uiSockets.clear();
         // Destroy all open sockets so the server closes immediately
         mainServer.closeAllConnections?.();
         for (const socket of openSockets) { try { socket.destroy(); } catch { } }

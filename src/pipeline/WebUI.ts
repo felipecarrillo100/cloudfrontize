@@ -6,10 +6,34 @@ import type { ProjectRuntime } from '../runtime/ProjectRuntime';
 import { TransformationLevel } from '../core/CodeProcessor';
 import { EditorUtility } from '../core/EditorUtility';
 import { VERSION } from '../version';
+import { EventHub } from '../api/EventHub';
+import { createApiV2 } from '../api/v2';
+import type { Router } from '../api/router';
+
+export interface WebUIHost {
+    /** The ports actually listened on (they differ from the options when 0 asked for an ephemeral port). */
+    ports?: () => { main: number; webui: number };
+}
 
 export class WebUI {
+    readonly events: EventHub;
+    private readonly api: Router;
+
     /** @param getRuntime - Returns the project runtime currently being served (it changes when a project is opened). */
-    constructor(private telemetry: Telemetry, private getRuntime: () => ProjectRuntime, private options: any) {}
+    constructor(private telemetry: Telemetry, private getRuntime: () => ProjectRuntime, private options: any, host: WebUIHost = {}) {
+        this.events = new EventHub(telemetry);
+        this.api = createApiV2({
+            telemetry,
+            events: this.events,
+            runtime: getRuntime,
+            ports: host.ports ?? (() => ({ main: Number(options.port), webui: Number(options.webui) }))
+        });
+    }
+
+    /** Ends open event streams and detaches from telemetry. */
+    close(): void {
+        this.events.close();
+    }
 
     private get orchestrator() {
         return this.getRuntime().orchestrator;
@@ -22,7 +46,7 @@ export class WebUI {
      */
     private _isAllowedRequest(req: http.IncomingMessage): boolean {
         const port = String(req.socket.localPort);
-        const allowedHosts = [`localhost:${port}`, `127.0.0.1:${port}`];
+        const allowedHosts = [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`];
         if (!allowedHosts.includes(String(req.headers.host || '').toLowerCase())) return false;
 
         const origin = req.headers.origin;
@@ -36,6 +60,12 @@ export class WebUI {
         if (!this._isAllowedRequest(req)) {
             res.writeHead(403, { 'Content-Type': 'text/plain' });
             res.end('Forbidden: the Developer UI only accepts requests from localhost');
+            return;
+        }
+
+        // WebUI API v2
+        if (this.api.matches(url)) {
+            void this.api.handle(req, res);
             return;
         }
 
