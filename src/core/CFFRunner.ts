@@ -188,7 +188,7 @@ export class CFFRunner extends HotRunner {
                     type: 'CloudFront Function', 
                     file: path.basename(filePath),
                     path: filePath,
-                    error: this.compileError,
+                    error: err.message,
                     line: line,
                     snippet: snippet
                 });
@@ -214,6 +214,11 @@ export class CFFRunner extends HotRunner {
                 }
                 console.warn(`⚠️  [CFF] ${filename}: ${sizeError}`);
             }
+            // Reported with the build, so editors can show them next to the code
+            const warnings = violations.filter(v => v.level !== 'error').map(v => ({ message: v.message, line: v.lineNum ?? null }));
+            if (codeSize > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
+                warnings.push({ message: `Function size ${codeSize} bytes exceeds the ${CFF_LIMITS.MAX_CODE_SIZE_BYTES}-byte (10 KB) CloudFront Functions limit`, line: null });
+            }
 
             if (this.options.outputPath) {
                 const outFilePath = path.join(this.options.outputPath, filename);
@@ -237,7 +242,7 @@ export class CFFRunner extends HotRunner {
             
             registry[type].push(mod);
             console.log(`\x1b[32m✅ [CFF] Build Success: ${path.basename(filePath)}\x1b[0m`);
-            this.emit('build_success', { type: 'cff', file: filePath });
+            this.emit('build_success', { type: 'cff', file: filePath, size: codeSize, warnings });
 
         } catch (err: any) {
             console.error(`🛑 [CFF] Load Error: ${err.message}`);

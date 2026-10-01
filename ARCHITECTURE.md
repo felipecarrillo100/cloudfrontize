@@ -230,6 +230,15 @@ The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api
   - `PUT /api/v2/project/manifest`: `{ manifest, revision }` (or `If-Match`). Refused with `428 revision-required` without a revision, `409 conflict` (details: the current `revision` and `manifest`) when the file changed since, and `422 invalid-manifest` (details: `diagnostics`) when invalid, in which case nothing is written. Otherwise it's written atomically and the project reloads.
   - `POST /api/v2/project/validate`: diagnostics for a manifest, without saving. `POST /api/v2/project/reload`. `POST /api/v2/projects/open` `{ path }` (absolute).
 
+- **`files.ts`**: functions and project files. Every manifest change goes through `editManifest` (`context.ts`): the edit is applied to the manifest as written and saved through the server, so it gets the same revision check, the same AWS rule validation (`422 invalid-manifest`) and the same reload as a manifest save. Files are written with `writeChecked`: a stale `revision` (`null`: the file must not exist yet) is a `409 conflict` with the current `revision` and `content`.
+  - `GET /api/v2/functions` and `GET /api/v2/functions/:id` (with `source: { content, revision }`): type, runtime, file, attachments (`{ behavior: "default" | pathPattern, event }`), disabled, size, and build state (`ok`, `error` with line/column, `unused` when no behavior uses it, `missing`).
+  - `PUT /api/v2/functions/:id/source` `{ content, revision }`: answers with the build result `{ status, checkedBy, size, sizeLimit, errors, warnings }`. For a function the emulator runs, it waits for the runner's rebuild (`checkedBy: "runtime"`); otherwise it's a static check (`src/project/functions.ts`: syntax, the CloudFront Functions runtime rules, the 10 KB limit).
+  - `POST /api/v2/functions` `{ id, type, event, behavior?, runtime?, code?, replace? }`: creates `functions/<cloudfront|lambda-edge>/<event>.<id>.js` with starter code, adds it to the manifest and optionally attaches it. If the manifest is refused, the file is removed again.
+  - `PATCH /api/v2/functions/:id` `{ id?, runtime?, keyValueStore? }`: a rename updates every attachment and renames a conventionally named file. `DELETE /api/v2/functions/:id` (`?deleteFile=true`) detaches the function everywhere.
+  - `PUT` / `DELETE /api/v2/behaviors/:behavior/functions/:event`: attach (`{ function }`) or detach; `:behavior` is `default` or the URL-encoded path pattern.
+  - `GET /api/v2/kvs`, `GET /api/v2/kvs/:id`, `PUT /api/v2/kvs/:id` (`422 invalid-kvs` for content AWS wouldn't import), `POST /api/v2/kvs` `{ id }` (creates `kvs/<id>.json`).
+  - `GET` / `PUT /api/v2/viewer/headers`: the viewer simulation file, validated like the server reads it. A project without one gets `config/headers.json`.
+
 ### 6.2 Project lifecycle and external edits
 
 - **Revisions** (`src/project/revision.ts`): a file's revision is a short SHA-256 of its exact bytes. Saves name the revision they edited, so an edit made meanwhile in an editor, git or another tab is never overwritten.

@@ -184,7 +184,10 @@ export class EdgeRunner extends HotRunner {
                     filePath: filePath 
                 });
                 console.log(`\x1b[32m✅ [L@E] Build Success: ${path.basename(filePath)}\x1b[0m`);
-                this.emit('build_success', { type: 'edge', file: filePath });
+                this.emit('build_success', { type: 'edge', file: filePath, size: Buffer.byteLength(content), warnings: [] });
+            } else if (typeof mod.handler !== 'function') {
+                // Lambda calls the exported handler; without one the function can't run
+                throw new Error('The function exports no handler: add exports.handler = async (event) => { ... }');
             }
         } catch (err: any) {
             this.compileError = err.message;

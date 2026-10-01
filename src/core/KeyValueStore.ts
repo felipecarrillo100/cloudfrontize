@@ -49,6 +49,14 @@ export class KeyValueStore {
             problems.push({ severity: 'error', message: `Key value store file not found: ${file}` });
             return { entries, problems };
         }
+        return KeyValueStore.checkContent(raw, strict);
+    }
+
+    /** Checks the content of a key value store file (AWS import format, size limits). */
+    static checkContent(raw: string, strict = false): { entries: Map<string, string>; problems: KvsProblem[] } {
+        const problems: KvsProblem[] = [];
+        const entries = new Map<string, string>();
+        const quota = (message: string) => problems.push({ severity: strict ? 'error' : 'warning', message });
         if (Buffer.byteLength(raw) > KVS_LIMITS.FILE_BYTES) quota(`The file is ${Buffer.byteLength(raw)} bytes; key value stores are limited to 5 MB`);
 
         let parsed: any;
