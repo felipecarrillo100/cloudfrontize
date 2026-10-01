@@ -50,7 +50,8 @@ describe('CLI: projects', () => {
     test('running a project folder serves it', async () => {
         const dir = validProject();
         const port = await freePort();
-        const child = spawn('node', [tsxPath, cliPath, dir, '--port', String(port), '--debug']);
+        // Loopback, like the other test servers: a wildcard socket can have its 127.0.0.1 traffic taken (see CloudFrontizeOptions.host)
+        const child = spawn('node', [tsxPath, cliPath, dir, '--port', String(port), '--host', '127.0.0.1', '--debug']);
         try {
             await new Promise<void>((resolve, reject) => {
                 let out = '';
@@ -95,8 +96,8 @@ describe('CLI: projects', () => {
         expect(init.stdout).toContain('Created "Guarded" from the Basic auth template');
 
         const check = await run(`check ${target}`);
-        expect(check.code).toBe(0);
-        expect(check.stdout).toContain('All 4 checks passed');
+        // On failure, show what the command printed
+        expect({ code: check.code, out: check.stdout + check.stderr }).toEqual({ code: 0, out: expect.stringContaining('All 4 checks passed') });
 
         // A folder that's already a project is refused
         const again = await run(`init ${target}`);

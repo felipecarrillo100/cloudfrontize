@@ -52,7 +52,7 @@ curl -sI -H "CloudFront-Is-Mobile-Viewer: true" "http://localhost:3000/products/
 # 302, Location: https://m.example.com/products/index.html?id=7
 curl -sI http://localhost:3000/products/index.html     # 200
 ```
-Here the header you send stands in for the one CloudFront would add. You can also pick the **Mobile** preset in the WebUI's device emulation, or add a `viewer-headers.json` with `{ "CloudFront-Is-Mobile-Viewer": "true" }` and reference it from `"viewer": { "headers": … }` in `cloudfrontize.json`. A simulated value is what CloudFront adds, so it overrides anything the client sends.
+Here the header you send stands in for the one CloudFront would add. You can also pick **Device → iPhone** in the workbench's **Viewer** inspector and save (it writes `config/headers.json`), or reference a headers file yourself with `"viewer": { "headers": … }` in `cloudfrontize.json`. A simulated value is what CloudFront adds, so it overrides anything the client sends.
 
 The `302` points to `m.example.com`, which doesn't exist, so a browser that follows it will fail. That's expected: this exercise is about the redirect.
 

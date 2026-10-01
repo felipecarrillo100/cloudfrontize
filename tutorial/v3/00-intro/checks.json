@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "visitors get the main site",
+      "request": { "path": "/" },
+      "expect": { "status": 200, "bodyContains": "<title>Main Site</title>" }
+    },
+    {
+      "name": "visitors from France get the French page, at the same URL",
+      "request": { "path": "/", "headers": { "cloudfront-viewer-country": "FR" } },
+      "expect": { "status": 200, "bodyContains": "<title>Plateforme France</title>" }
+    }
+  ]
+}

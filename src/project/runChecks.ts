@@ -64,7 +64,8 @@ export async function runChecks(target: string, options: { checks?: CheckDefinit
     const checks = options.checks ?? readChecks(dir);
     if (!checks) throw new Error(`${path.join(dir, CHECKS_FILE)} not found`);
 
-    const server = await createServer({ project: dir, port: 0, noBanner: true, requestLogging: !!options.verbose });
+    // Loopback only: the checks are this process's own requests
+    const server = await createServer({ project: dir, port: 0, host: '127.0.0.1', noBanner: true, requestLogging: !!options.verbose });
     try {
         const port = (server.address() as { port: number }).port;
         const results: CheckResult[] = [];

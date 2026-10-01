@@ -1,5 +1,8 @@
 # Exercise 1.2: The Librarian
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/01-foundations/1.2-librarian/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Your CloudFront cache hit ratio is terrible. You realized that `?id=123&ref=google` and `?ref=google&id=123` are being treated as two different objects by the cache, even though they return the same content.
 

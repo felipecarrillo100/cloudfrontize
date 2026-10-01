@@ -8,9 +8,9 @@
 
 ---
 
-#### A high-fidelity local development server for AWS Lambda@Edge and CloudFront Functions.
+#### A local CloudFront workbench for Lambda@Edge and CloudFront Functions.
 
-Test your Edge logic locally in milliseconds instead of waiting 15 minutes for CloudFront deployments.
+Build a distribution, write its functions and test them locally, with CloudFront's rules, in milliseconds instead of waiting 15 minutes for each deployment.
 
 | CloudFrontize Console                                                                                                    | CloudFrontize Web UI |
 |--------------------------------------------------------------------------------------------------------------------------|--------------------|
@@ -19,62 +19,114 @@ Test your Edge logic locally in milliseconds instead of waiting 15 minutes for C
 ---
 ## 📦 Getting started
 
-Run a local CloudFront simulation in seconds. No complex AWS IAM roles, no stack traces—just your code, running locally.
-
-### ⚡ Try instantly (no install)
-```bash
-npx --yes cloudfrontize ./www --edge ./viewer-request-rewrite.js
-```
-### 📦 Or install globally
+CloudFrontize needs **Node.js 22** or later.
 
 ```bash
 npm install -g cloudfrontize
+cloudfrontize init my-site --template spa     # a project from a starter template
+cd my-site
+cloudfrontize --webui                          # the site on :3000, the workbench on :3001
 ```
 
-Once installed, run CloudFrontize from any directory:
+Or without installing: `npx --yes cloudfrontize init my-site`.
 
-```bash
-cloudfrontize ./www --edge ./viewer-request-rewrite.js
-```
+Open [http://localhost:3001](http://localhost:3001): the **workbench** shows the distribution, its functions and every request going through them. Edit a function there (or in your own editor) and the change is live when you save.
 
-Point it at your static files folder (`./www`, `./dist`, or `./public`) and your Lambda@Edge `.js` file—CloudFrontize handles the rest.
-
-> 💡 Tip: Add `--webui` to open the **[workbench](docs/web-ui.md)** in your browser.
+> Already using CloudFrontize 2.x? Your command lines still work. `cloudfrontize import` turns one into a project: see the **[migration guide](docs/migrating-to-3.md)**.
 
 ---
-## ⚡ Quick Example
 
-1️⃣ Create a simple Lambda@Edge function, for instance: `viewer-request-rewrite.js`
+## 🗂️ Projects
 
-```javascript
-exports.hookType = 'viewer-request';
-
-exports.handler = (event, context, callback) => {
-    const request = event.Records[0].cf.request;
-    console.log("Original request", request.uri);
-    request.uri = "/index-alt.html";
-    callback(null, request);
-};
-```
-
-2️⃣ Run CloudFrontize
+A project is a folder with a `cloudfrontize.json`. It describes the distribution the way CloudFront does: origins, cache behaviors, and which function runs on which event. Everything else is ordinary files:
 
 ```
-cloudfrontize ./www --edge ./viewer-request-rewrite.js --debug
+my-site/
+├── cloudfrontize.json                                   the distribution
+├── functions/
+│   ├── cloudfront/viewer-request.spa-router.js          CloudFront Functions
+│   └── lambda-edge/origin-response.cache-headers.js     Lambda@Edge
+├── origins/www/                                         a local origin's content
+├── kvs/redirects.json                                   key value stores (AWS import format)
+├── config/headers.json                                  the viewer simulation (location, device…)
+└── checks.json                                          requests and the responses they must get
 ```
-For this sample, place two HTML files inside the `www` folder: `index.html` and `index-alt.html`.
 
-3️⃣ Open
-
-Open your browser and navigate to: http://localhost:3000
-
-Because the `viewer-request` hook is active, every request is rewritten to `/index-alt.html`. As a result, the browser will display the contents of that file regardless of the requested path.
-
-Check the CloudFrontize terminal output. You should see a log entry confirming the internal URI rewrite:
-```text
-2026-03-16T22:18:51.465Z  [44ff0e42] [viewer-request]  Original request /
-[Debug] Mode: rest, isRestMode: true, URL: /index-alt.html, FullPath: C:\tmp\www\index-alt.html
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "my-site",
+  "distribution": { "strict": true },
+  "origins": [
+    { "id": "website", "type": "local", "path": "origins/www" },
+    { "id": "media", "type": "s3", "bucket": "my-media", "region": "eu-west-1", "credentials": { "profile": "dev" } }
+  ],
+  "functions": {
+    "spa-router": { "type": "cloudfront-function", "runtime": "cloudfront-js-2.0", "file": "functions/cloudfront/viewer-request.spa-router.js" },
+    "cache-headers": { "type": "lambda-edge", "runtime": "nodejs22.x", "file": "functions/lambda-edge/origin-response.cache-headers.js" }
+  },
+  "behaviors": [
+    { "pathPattern": "/media/*", "origin": "media", "functions": { "origin-response": "cache-headers" } }
+  ],
+  "defaultBehavior": { "origin": "website", "functions": { "viewer-request": "spa-router" } }
+}
 ```
+
+- The `$schema` line gives your editor autocompletion and validation.
+- CloudFrontize checks every AWS rule it knows when the project loads: one function per event, CloudFront Functions only on viewer events, no CloudFront Functions and Lambda@Edge on the same behavior's viewer events, the 10 KB CloudFront Functions limit, key value store limits…
+- AWS keys never go in a project: S3 origins use an AWS profile or the environment.
+- Commit the folder: it runs the same way for everyone, in the workbench or headless.
+
+---
+
+## 🧰 Commands
+
+| Command | What it does |
+|---|---|
+| `cloudfrontize [project] [--webui]` | Serves a project (default: the current folder). `--webui [port]` adds the workbench (default port: main port + 1). |
+| `cloudfrontize init [dir] --template <id>` | Creates a project from a starter template. |
+| `cloudfrontize templates` | Lists the templates. |
+| `cloudfrontize validate [project]` | Checks the project against AWS rules; exits non-zero on errors. |
+| `cloudfrontize check [project]` | Serves the project and runs its `checks.json`; exits non-zero on failures. Made for CI. |
+| `cloudfrontize build [project] --out dist --level minified --bake config/production.env` | Writes deployable code: `__VAR__` values baked in, optionally minified, checked as AWS will see it (10 KB limit included), with a `build.json` describing where each function is attached. |
+| `cloudfrontize import [dir] --edge … --out my-project` | Turns a 2.x command line into a project. |
+
+Options that override a project's settings for one run: `--port`, `--host` (e.g. `127.0.0.1` to keep the server off your network), `--strict`, `--cors`, `--single`, `--no-compression`, `--no-etag`, `-L`, `--debug`, `--log`.
+
+---
+
+## 🖥️ The workbench
+
+`--webui` opens CloudFrontize in your browser:
+
+- **Start screen**: new project (from a template), open a project, recent projects.
+- **Schematic**: Viewer → Distribution → Origin, with each cache behavior's four event slots where CloudFront runs them. A slot only offers the functions AWS allows there, and says why the others aren't allowed.
+- **Inspectors**: the viewer simulation (location and device presets, test requests), distribution settings and behaviors, origins (with *Test connection*), and each function's build state, runtime and size.
+- **Editor**: function code, key value stores and `cloudfrontize.json`, with CloudFront's event types, build errors as you save, and a diff when a file changed on disk meanwhile.
+- **Traffic**: every request's journey step by step, with what each function changed in the headers and body.
+
+> **CloudFront-added headers follow AWS.** Simulated geolocation, device and other headers CloudFront adds (`CloudFront-Viewer-Country`, `CloudFront-Is-Mobile-Viewer`, …) are visible where AWS exposes them: to CloudFront Functions, and to Lambda@Edge only in **origin-request** and **origin-response** (*"CloudFront adds the headers after the viewer request event"*). A value CloudFront adds overwrites one the viewer sent for origin-facing functions, while viewer-facing functions see the viewer's own value. Functions on response events can read the query string but can't change it.
+
+**[👉 The workbench guide](docs/web-ui.md)**
+
+---
+
+## 🧩 Templates
+
+| Template | What it does |
+|---|---|
+| `empty` | One origin and a starter page |
+| `spa` | Single-page app: routes without a file extension get `index.html` (CloudFront Function) |
+| `security-headers` | HSTS, CSP and the other recommended security headers (CloudFront Function) |
+| `basic-auth` | Password-protects `/admin/*` through a cache behavior (CloudFront Function) |
+| `redirects` | Redirects driven by a CloudFront KeyValueStore |
+| `geo-routing` | Each country gets its language's site (Lambda@Edge, origin-request) |
+| `ab-testing` | Cookie-based A/B test of the home page (CloudFront Function) |
+| `s3-origin` | The site from an S3 bucket: MinIO in Docker locally |
+| `dynamodb-auth` | Members area checked against DynamoDB on LocalStack (Lambda@Edge) |
+
+Each one is a working project with a README, and its own `checks.json`.
 
 ---
 
@@ -102,7 +154,7 @@ The CloudFront/Lambda@Edge development loop is notoriously painful. Propagation 
 
 **CloudFrontize** eliminates the wait and the risk:
 
-* **Zero-Config Integration:** If you know how to use Vercel's [serve](https://www.npmjs.com/package/serve) package, you already know how to use `cloudfrontize`.
+* **Start in seconds:** `cloudfrontize init` creates a working project from a template; the 2.x style (`cloudfrontize ./www --edge hook.js`, like Vercel's [serve](https://www.npmjs.com/package/serve)) still works.
 * **Real-Time Hot Reloading:** Tweak your URI rewrites or security headers and see the results instantly on browser refresh. No packaging, no uploading, no waiting for the "In Progress" spinner.
 * **Debug directly to the console:** Stop hunting for logs in hidden CloudWatch streams across random regions. See your console.log outputs and execution errors live **in your terminal**. 
 * **Production Fidelity:** Emulates in detail CloudFront-specific features & quirks, like the **10MB auto-compression limit**, header blacklisting, and URI normalization.
@@ -128,7 +180,7 @@ Bring your Edge logic to life with scenarios you actually face in production:
   Inject and validate headers like CSP, HSTS, and CORS consistently across all responses.
 
 
-> 💡 All of these are covered step-by-step in the **[CloudFrontize Academy](./tutorial/README.md)**
+> 💡 All of these are covered step-by-step in the **[CloudFrontize Academy](./tutorial/v3/README.md)**, and most are a [template](#-templates) away.
 
 ---
 
@@ -141,17 +193,56 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **Edge Fidelity** | 🎯 Built specifically for the 4 CloudFront triggers. | ⚠️ Usually limited to generic API Gateway events. |
 | **Limits Enforcement** | ✅ Enforces 40KB body & 1MB response limits. | ❌ Generally ignores Edge-specific size limits. |
 | **Header Validation** | ✅ Warns/Fails on forbidden header mutations. | ❌ Allows illegal header modifications. |
-| **Config Overhead** | 🚀 **Zero.** No YAML or JSON config needed. | 📝 Requires complex template/config files. |
+| **Config Overhead** | 🚀 One JSON file, autocompleted and checked against AWS rules (or none, with 2.x flags). | 📝 Requires complex template/config files. |
 | **Dev Loop** | ⚡ Instant hot-reloading. | 🐢 Slow warm-up times or missing hot-reload. |
-| **Variable Baking** | ✅ Production-ready build step included. | ❌ Manual build scripts required. |
+| **Variable Baking** | ✅ `cloudfrontize build`: baked, minified, checked as AWS will see it. | ❌ Manual build scripts required. |
 
 **CloudFrontize** is not just a runner; it's a **Linter at the Edge**, ensuring your code is valid *before* the 15-minute propagation wait.
 
 ---
 
-## 🛠️ CLI Options & Configuration
+## 🛡️ Engineered for Fidelity
 
-`cloudfrontize` is designed to be a drop-in replacement for the popular [serve](https://www.npmjs.com/package/serve), we all know and love, but with "Edge Superpowers!"
+Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror the high-stakes environment of a live AWS PoP (Point of Presence).
+
+* **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
+* **🧩 Per-behavior functions:** Each cache behavior runs its own functions on its four events, matched on the viewer's path as CloudFront does (`*` and `?` wildcards, first match wins). A URI rewrite doesn't change the behavior or the origin, as in AWS.
+* **📦 RequestBody Access:** Use `event.Records[0].cf.request.body` to access base64 encoded payloads. We support the standard AWS buffering logic.
+* **🚫 Strict Header & Body Validation:** Use `--strict` to enforce AWS's documented rules for **both CloudFront Functions and Lambda@Edge**: disallowed headers (hidden from functions and never addable) and per-event read-only headers, generated responses (**40 KB** on viewer events, **1 MB** on origin events), replaced request bodies, the **10 KB** CloudFront Function size, and the rule that CloudFront Functions and Lambda@Edge can't share viewer events. Violations return **502** (`LambdaValidationError` / `FunctionValidationError`), and a function that throws returns **503** (`LambdaExecutionError` / `FunctionExecutionError`), just as in production. Timing limits (Lambda@Edge's **30 s**) only **warn**, in every mode, because local hardware isn't AWS hardware. Only runaway code is stopped: a Lambda@Edge handler still running after 60 s, or a CloudFront Function after 1 s, gets a 503.
+* **🌐 Lambda's real environment:** As in AWS, Lambda@Edge functions can use any module, the network and the file system in every event. CloudFrontize simulates Lambda's limits: the file system is read-only except `/tmp` (mapped to a per-project sandbox folder, so writes elsewhere fail with `EROFS`), reading files outside the project warns (they wouldn't be in the deployment package), connecting to localhost or a private network warns (AWS can't reach your machine), and only reserved environment variables (plus your `.env`) are visible, never the host's.
+* **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
+
+
+### The four events
+
+| Event | Runs | CloudFront Functions | Lambda@Edge | Typical use |
+| :--- | :--- | :---: | :---: | :--- |
+| **viewer-request** | Every request, before the cache | ✅ | ✅ | Auth, redirects, URL rewrites, cache key normalization |
+| **origin-request** | Cache misses, before the origin | | ✅ | Routing, rewrites, calls to AWS services |
+| **origin-response** | Cache misses, after the origin | | ✅ | Cleaning headers, `Cache-Control` |
+| **viewer-response** | Every response; not when the origin returns 400+ | ✅ | ✅ | Security headers |
+
+CloudFrontize runs both CloudFront Functions runtimes with AWS's limits. **Runtime 1.0** is JavaScript ES 5.1; **runtime 2.0** adds `const`/`let`, arrow functions, template literals, `async`/`await`, the `crypto`, `querystring` and `buffer` modules, and **CloudFront KeyValueStore** (`import cf from 'cloudfront'`). In both, functions have no network, file system, environment variables or timers, `Date` stays at the function's start time, and the 1 ms compute limit is reported as a warning.
+
+---
+
+## 🪣 S3 & Multi-Origin
+
+Origins can be local folders or **S3 buckets**: AWS S3, or S3-compatible storage like **MinIO**, **LocalStack** or **Cloudflare R2** (`endpoint` and `forcePathStyle`), in REST (Origin Access Control) or website-hosting mode. Cache behaviors route paths to different origins.
+
+**[👉 The S3 & Multi-Origin Guide](docs/s3-origin.md)** · `cloudfrontize init my-site --template s3-origin`
+
+---
+
+## ⌨️ The 2.x command line
+
+CloudFrontize 2.x commands keep working in 3.0: point it at a folder and your function files, like [serve](https://www.npmjs.com/package/serve) with edge superpowers. Functions run on every path, and the command prints the `cloudfrontize import` line that turns the setup into a project.
+
+```bash
+cloudfrontize ./www --edge ./viewer-request-rewrite.js --debug
+```
+
+Since there is no manifest, CloudFrontize finds each function's event from `exports.hookType = 'origin-request'` in the code, or from a file name starting with the event (`origin-request.auth.js`); otherwise it assumes `viewer-response`. A folder passed to `--edge` or `--cff` loads every `.js` file in it, in alphabetical order.
 
 | Flag | Description                                                                                                                                                                                                                                         | Default                                                                                            |
 | --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
@@ -164,6 +255,7 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **`-b, --bake <path>`** | Path to variables file for `__VAR__` string replacement                                                                                                                                                                                             | `null`                                                                                             |
 | **`-o, --output <path>`**| Output the baked `.js` file(s) for production deployment                                                                                                                                                                                            | `null`                                                                                             |
 | **`-p, --port <number>`** | Port to listen on                                                                                                                                                                                                                                   | `3000`                                                                                             |
+| **`--host <address>`** | Address to listen on (default: all interfaces; `127.0.0.1` keeps it on this machine) | all |
 | **`-l, --listen <uri>`** | Listen URI (overrides `--port`)                                                                                                                                                                                                                     | `3000`                                                                                             |
 | **`--webui [port]`**    | Open the workbench in your browser (listens on this machine only; port defaults to the main port + 1)                                                                                                       | `disabled` |
 | **`-s, --single`** | SPA mode — serve `index.html` (status 200) when the origin returns 404 or 403                                                                                                                                                                       | `off`                                                                                              |
@@ -179,78 +271,8 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **`--allow-networking`** | *Deprecated, no effect.* Lambda@Edge functions have network access in every event, as in AWS; connecting to localhost or a private address prints a fidelity warning | — |
 | **`-V, --version`** | Output the version number                                                                                                                                                                                                                           | `off`                                                                                              |
 
----
 
-## 🪣 S3 & Multi-Origin Support `New!`
-
-CloudFrontize can point to **AWS S3** or S3-compatible storage like **MinIO**, **LocalStack**, or **Cloudflare R2**. You can even simulate complex distributions with multiple origins (e.g., S3 for assets and a local API stub).
-
-**[👉 Read the S3 & Multi-Origin Guide](docs/s3-origin.md)**
-
----
-
-## 🖥️ The workbench (Web UI)
-
-`--webui` opens CloudFrontize in your browser: open or create projects, build the distribution on a schematic with CloudFront's four event slots (only the combinations AWS allows are offered), edit functions in a built-in code editor that shows build errors as you save, and follow every request through each function with what it changed.
-
-> **CloudFront-added headers follow AWS.** Simulated geolocation, device and other headers CloudFront adds (`CloudFront-Viewer-Country`, `CloudFront-Is-Mobile-Viewer`, …) are visible where AWS exposes them: to CloudFront Functions, and to Lambda@Edge only in **origin-request** and **origin-response** (*"CloudFront adds the headers after the viewer request event"*). A value CloudFront adds overwrites one the viewer sent for origin-facing functions, while viewer-facing functions see the viewer's own value. Other simulated headers are sent as viewer headers. Functions on response events can read the query string but can't change it.
-
-**[👉 The workbench guide](docs/web-ui.md)**
-
----
-
-
-## 🚀 Lambda@Edge Integration 
-
-Since there is no AWS Console locally, CloudFrontize uses two methods to identify the correct `hook` to simulate. Use the `--edge` flag to pass your file or directory:
-
-### 1. Detection Methods `New!`
-* **Filename Prefix:** Use a strict naming convention starting with the `hook` name (e.g., `origin-request.auth.js`).
-* **Explicit Export:** Include exports.hookType = HookType in your code (e.g exports.hookType = 'origin-request') 
-
-> **Note:** An explicit `exports.hookType` always overrides a filename prefix.  If unable to identify the hookType , CloudFrontize will default to `viewer-request`
-
-### 2. Available Hooks
-| Hook Type | Execution Timing | Common Use Case |
-| :--- | :--- | :--- |
-| **`viewer-request`** | Before Cache | Auth, Redirects, Bot Blocking |
-| **`origin-request`** | Before Origin | URI Rewrites, Secrets Manager |
-| **`origin-response`** | After Origin | Header Injection, `Cache-Control` |
-| **`viewer-response`** | Before Viewer | Security Headers (HSTS, CSP) |
-
----
-## ⚡ CloudFront Functions (CFF) `New!`
-
-CloudFront Functions provide a lightweight, high-performance environment for high-scale transformations. Use the **`--cff`** flag to pass your file or directory:
-
-### 1. Automatic Hook Detection
-* **Filename Prefix:** Use a strict naming convention starting with the hook name (e.g., `viewer-request.security.js`).
-* **Lexicographical Order:** If pointing to a directory, files are executed in alphabetical order.
-
-> **Note:** CloudFrontize simulates both CloudFront Functions runtimes with AWS's limits. **Runtime 1.0** is JavaScript ES 5.1; **runtime 2.0** adds `const`/`let`, arrow functions, template literals, `async`/`await`, the `crypto`, `querystring` and `buffer` modules, and **CloudFront KeyValueStore** (`import cf from 'cloudfront'`). In both, functions have no network, file system, environment variables or timers, `Date` stays at the function's start time, and the 1 ms compute limit is reported as a warning. Code is checked against the runtime you choose (`"runtime"` in `cloudfrontize.json`; 2.x `--cff` files use runtime 1.0).
-
-### 2. Available Hooks
-| Hook Type | Execution Timing | Common Use Case |
-| :--- | :--- | :--- |
-| **`viewer-request`** | Before Lambda@Edge `viewer-request` | URL Rewrites, Header Manipulation |
-| **`viewer-response`** | After Lambda@Edge `viewer-response` | Security Headers, Cache-Control |
-
----
-## 🛡️ Engineered for Fidelity
-
-Don't just simulate the Edge—**master it.** CloudFrontize is built to mirror the high-stakes environment of a live AWS PoP (Point of Presence).
-
-* **⚡ Native Async/Await Support:** Whether your middleware is a simple redirect or a complex, asynchronous database lookup, CloudFrontize handles `async` handlers and Promises with the same grace as the live Lambda@Edge runtime.
-* **🧩 Multi-Hook Testing:** Pass a directory to `--edge` and CloudFrontize will automatically mount every valid Lambda it finds. Orchestrate your **Viewer Request**, **Origin Request**, and **Response** hooks in one unified local environment.
-* **📦 RequestBody Access:** Use `event.Records[0].cf.request.body` to access base64 encoded payloads. We support the standard AWS buffering logic.
-* **🚫 Strict Header & Body Validation:** Use `--strict` to enforce AWS's documented rules for **both CloudFront Functions and Lambda@Edge**: disallowed headers (hidden from functions and never addable) and per-event read-only headers, generated responses (**40 KB** on viewer events, **1 MB** on origin events), replaced request bodies, the **10 KB** CloudFront Function size, and the rule that CloudFront Functions and Lambda@Edge can't share viewer events. Violations return **502** (`LambdaValidationError` / `FunctionValidationError`), and a function that throws returns **503** (`LambdaExecutionError` / `FunctionExecutionError`), just as in production. Timing limits (Lambda@Edge's **30 s**) only **warn**, in every mode, because local hardware isn't AWS hardware. Only runaway code is stopped: a Lambda@Edge handler still running after 60 s, or a CloudFront Function after 1 s, gets a 503.
-* **🌐 Lambda's real environment:** As in AWS, Lambda@Edge functions can use any module, the network and the file system in every event. CloudFrontize simulates Lambda's limits: the file system is read-only except `/tmp` (mapped to a per-project sandbox folder, so writes elsewhere fail with `EROFS`), reading files outside the project warns (they wouldn't be in the deployment package), connecting to localhost or a private network warns (AWS can't reach your machine), and only reserved environment variables (plus your `.env`) are visible, never the host's.
-* **🎭 Mocked Context & Events:** We provide a high-fidelity `event` and `context` object, ensuring your logging, metrics, and custom error-handling tools work exactly as they would in production.
-
----
-
-## 🐕 Featured Example
-### The "Paws & Pixels" Secure Gallery
+### Example: the "Paws & Pixels" Secure Gallery
 
 We’ve bundled a complete, interactive sample to show you the power of **CloudFrontize**. It protects a premium dog photography gallery using a `viewer-request` authentication gate.
 
@@ -348,16 +370,16 @@ cloudfrontize ./www --cff ./samples/cff/viewer-request-redirect.js -d --mode web
 
 ## 🎓 CloudFrontize Academy (Tutorial)
 
-New to Lambda@Edge? We've built a comprehensive, hands-on tutorial to take you from **Newbie to Production Pro**.
+New to Lambda@Edge and CloudFront Functions? The **[CloudFrontize Academy](./tutorial/v3/README.md)** takes you from your first function to production builds. Each tutorial is a project you open in the workbench, with a business scenario, the lesson, starter code, the solution, and checks that tell you it works:
 
-Our **[CloudFrontize Academy](./tutorial/README.md)** includes 20+ thematic exercises covering:
-* **Module 1: Foundations** (Security Headers, Redirects, Normalization)
-* **Module 2: Origin Intelligence** (A/B Testing, Geo-Localization, Header Cleaning)
-* **Module 3: Edge Computing** (Custom Auth, Maintenance Pages, Payload Inspection)
-* **Module 4: Production Workflows** (Variable Baking & Deployment)
-* **Module 5: CloudFront Functions** (CFF)
+* **Intro**: run, inspect and debug
+* **Module 1: Foundations**: security headers, query normalization, device redirects
+* **Module 2: Origin Intelligence**: A/B testing, geo-localization, header cleaning
+* **Module 3: Edge Computing**: authentication, maintenance pages, payload inspection
+* **Module 4: Production**: configuration per environment, baking, `cloudfrontize build`
+* **Module 5: CloudFront Functions**: runtime 2.0 and KeyValueStore
 
-Each exercise comes with a **Business Scenario**, **Starter Template**, and **Full Solution**.
+The [2.x versions](./tutorial/README.md) remain for command-line setups.
 
 ---
 

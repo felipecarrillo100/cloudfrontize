@@ -1,5 +1,8 @@
 # Exercise 2.3: The Cloaker
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/02-origin/2.3-cloaker/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Your origin is leaking version data. Since we are serving a static `www` folder, it doesn't naturally produce PHP or Apache headers. To simulate a real-world vulnerable server, we must tell the emulator to "inject" these headers using a headers file or using the WebUI `Header Intelligence`.
 

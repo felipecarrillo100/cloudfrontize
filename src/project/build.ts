@@ -85,13 +85,17 @@ const lineOf = (code: string, needle: string) => code.slice(0, code.indexOf(need
  *   <out>/lambda-edge/<id>/index.js     Lambda@Edge (zip the folder; handler "index.handler")
  *   <out>/kvs/<id>.json                 key value stores, in the AWS import format
  *   <out>/build.json                    what was built and where each function is attached
+ * `bakeFile` replaces the project's bake file for this build (values per environment).
  */
-export async function buildProject(target: string, options: { outDir?: string; level?: TransformationLevel } = {}): Promise<BuildReport> {
+export async function buildProject(target: string, options: { outDir?: string; level?: TransformationLevel; bakeFile?: string } = {}): Promise<BuildReport> {
     const { project } = loadProject(target);
     const level = options.level ?? 'baked';
     const outDir = path.resolve(options.outDir ?? path.join(project.dir, 'dist'));
     if (outDir === project.dir || project.dir.startsWith(outDir + path.sep)) throw new Error(`The output folder can't be the project folder or contain it: ${outDir}`);
-    const bakeVars = project.bakeFile && fs.existsSync(project.bakeFile) ? dotenv.parse(fs.readFileSync(project.bakeFile)) : {};
+    // The project's bake file, or another one for this build (one per environment: staging, production...)
+    const bakeFile = options.bakeFile ? path.resolve(options.bakeFile) : project.bakeFile;
+    if (options.bakeFile && !fs.existsSync(bakeFile!)) throw new Error(`Bake file not found: ${options.bakeFile}`);
+    const bakeVars = bakeFile && fs.existsSync(bakeFile) ? dotenv.parse(fs.readFileSync(bakeFile)) : {};
 
     fs.rmSync(outDir, { recursive: true, force: true });
     fs.mkdirSync(outDir, { recursive: true });

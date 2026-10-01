@@ -61,10 +61,10 @@ cloudfrontize --webui      # serves it on http://localhost:3000, with the WebUI 
 
 ## 🧪 How to Test
 
-### 1. In the WebUI
+### 1. In the workbench
 1. Open `http://localhost:3001` and refresh `http://localhost:3000` in another tab.
-2. In **Real-time Edge Traffic**, expand the request to see its **Execution Journey**.
-3. Select the **[L@E: viewer-response]** step and check that the headers include `strict-transport-security` and `x-content-type-options`.
+2. In **Traffic**, select the request to see its journey.
+3. Select the **viewer-response** step: the headers table marks `strict-transport-security` and `x-content-type-options` as *added*.
 
 ### 2. With `curl`
 ```bash

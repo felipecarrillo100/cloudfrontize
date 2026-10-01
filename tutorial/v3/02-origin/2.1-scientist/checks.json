@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "visitors without the cookie see the current site",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "The current design",
+        "bodyNotContains": "experimental design"
+      }
+    },
+    {
+      "name": "experiment visitors see the experimental site at the same URL",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "cookie": "theme=dark; experiment=true"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "The experimental design"
+      }
+    },
+    {
+      "name": "folder requests work too",
+      "request": {
+        "path": "/",
+        "headers": {
+          "cookie": "experiment=true"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "The experimental design"
+      }
+    },
+    {
+      "name": "a similar cookie name doesn't count",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "cookie": "experiment=false; not-experiment=true"
+        }
+      },
+      "expect": {
+        "bodyContains": "The current design"
+      }
+    }
+  ]
+}

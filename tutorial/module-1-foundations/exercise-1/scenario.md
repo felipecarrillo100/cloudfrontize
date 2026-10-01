@@ -1,5 +1,8 @@
 # Exercise 1.1: The Security Guard
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/01-foundations/1.1-security-guard/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Your company’s security audit just failed. Your backend servers are managed by another team and they refuse to add HSTS headers. You need to enforce security at the Edge.
 

@@ -186,7 +186,8 @@ export function buildServer(initialSpec: RuntimeSpec, settings: ServerSettings =
 
     const mainReady = new Promise<void>((resolve, reject) => {
         mainServer.once('error', (err: any) => reject(startupError(err, 'main', options.port)));
-        mainServer.listen(options.port, () => {
+        const host = options.host ?? (Number(options.port) === 0 ? '127.0.0.1' : undefined);
+        mainServer.listen({ port: Number(options.port), ...(host ? { host } : {}) }, () => {
             try {
                 current.applyHeaderConfig();
             } catch (err: any) {

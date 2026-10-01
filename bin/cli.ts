@@ -34,7 +34,7 @@ const LEGACY_SOURCE_FLAGS: Record<string, string> = {
     env: '--env', bake: '--bake', output: '--output', headers: '--headers', mode: '--mode'
 };
 // Flags that override a project's distribution settings for this run
-const PROJECT_OVERRIDE_FLAGS = ['strict', 'cors', 'single', 'compression', 'etag', 'requestLogging', 'debug', 'webui', 'log'];
+const PROJECT_OVERRIDE_FLAGS = ['host', 'strict', 'cors', 'single', 'compression', 'etag', 'requestLogging', 'debug', 'webui', 'log'];
 
 const onShutdown = (server: CloudFrontizeServer) => {
     const shutdown = async () => {
@@ -97,6 +97,7 @@ program
     .version(VERSION)
     .argument('[directory]', 'directory to serve')
     .option('-p, --port <number>', 'port to listen on', '3000')
+    .option('--host <address>', 'address to listen on (default: all interfaces; 127.0.0.1 keeps it on this machine)')
     .option('-l, --listen <uri>', 'listen URI', '3000')
     .option('-s, --single', 'SPA mode: rewrite all not-found to index.html')
     .option('-C, --cors', 'enable CORS')
@@ -305,14 +306,15 @@ program
     .argument('[project]', 'project folder or cloudfrontize.json', '.')
     .option('-o, --out <dir>', 'output folder (replaced; default: <project>/dist)')
     .option('-l, --level <level>', 'baked, minified or uglified', 'baked')
-    .action(async (target: string, options: { out?: string; level: string }) => {
+    .option('-b, --bake <file>', "bake file for this build, instead of the project's (e.g. config/production.env)")
+    .action(async (target: string, options: { out?: string; level: string; bake?: string }) => {
         if (!['baked', 'minified', 'uglified'].includes(options.level)) {
             console.error(`Error: --level must be baked, minified or uglified, got "${options.level}"`);
             process.exit(1);
         }
         let report;
         try {
-            report = await buildProject(target, { outDir: options.out, level: options.level as any });
+            report = await buildProject(target, { outDir: options.out, level: options.level as any, bakeFile: options.bake });
         } catch (err: any) {
             if (err instanceof ManifestError) reportManifestError(err);
             console.error(`🛑 ${err.message}`);

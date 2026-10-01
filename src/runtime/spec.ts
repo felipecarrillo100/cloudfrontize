@@ -58,7 +58,7 @@ export function fromLegacyOptions(options: CloudFrontizeOptions): RuntimeSpec {
 
 /** Settings a caller (usually the CLI) may override on top of the project's manifest. */
 export type ProjectOverrides = Partial<Pick<CloudFrontizeOptions,
-    'port' | 'webui' | 'debug' | 'verbose' | 'noBanner' | 'log' | 'strict' | 'cors' | 'single' | 'compression' | 'etag' | 'requestLogging' | 'uiDir'>>;
+    'port' | 'host' | 'webui' | 'debug' | 'verbose' | 'noBanner' | 'log' | 'strict' | 'cors' | 'single' | 'compression' | 'etag' | 'requestLogging' | 'uiDir'>>;
 
 /**
  * A validated project → a runtime spec. The manifest decides which files run at which stage; no

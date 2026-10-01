@@ -64,7 +64,7 @@ cloudfrontize --webui
 curl -sI "http://localhost:3000/?utm_source=google&id=123&utm_campaign=spring_sale" | grep -i x-origin-query
 # X-Origin-Query: id=123
 ```
-In the WebUI, the **[CFF: viewer-request]** step shows the request before and after the function.
+In the workbench's **Traffic**, select the request: its **viewer-request** step shows the query string after the function.
 
 ## 💡 Fidelity Tips
 - **Viewer-response can't change the query string.** AWS: *"A function can read a query string, but cannot create or update one, for origin response and viewer response events."* Normalizing belongs in viewer-request.

@@ -1,5 +1,8 @@
 # Exercise 2.2: The Diplomat
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/02-origin/2.2-diplomat/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Your marketing team wants a "localized" experience. Instead of one global `index.html`, they want users to automatically see content for their country (e.g., `/GB/index.html` for UK users).
 

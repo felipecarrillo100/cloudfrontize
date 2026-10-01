@@ -52,6 +52,13 @@ describe('build', () => {
             expect(code).toContain("'https://api.example.com'");
             expect(code).not.toContain('hookType');
             expect(report.functions[0].warnings).toEqual([expect.objectContaining({ message: expect.stringContaining("__MISSING_KEY__ isn't defined in the bake file"), line: 2 })]);
+
+            // Another bake file for this build (per environment)
+            fs.writeFileSync(path.join(dir, 'production.env'), 'API_URL=https://api.prod.example.com\nMISSING_KEY=k\n');
+            const prod = await buildProject(dir, { bakeFile: path.join(dir, 'production.env') });
+            expect(fs.readFileSync(path.join(dir, 'dist/lambda-edge/greet/index.js'), 'utf8')).toContain("'https://api.prod.example.com'");
+            expect(prod.functions[0].warnings).toEqual([]);
+            await expect(buildProject(dir, { bakeFile: path.join(dir, 'nope.env') })).rejects.toThrow(/Bake file not found/);
         } finally {
             removeProject(dir);
         }

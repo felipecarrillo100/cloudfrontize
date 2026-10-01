@@ -50,7 +50,7 @@ graph LR
 CloudFrontize processes incoming HTTP requests through a strict, sequential pipeline mimicking the internal hook structure of AWS.
 
 ### 1.1 The Network Simulation Layer
-Before the first hook runs, the Orchestrator injects **Sticky Headers** (Header Intelligence) into the request. This simulates the CloudFront Network Layer, providing hooks with realistic metadata such as Geo-location and Device type headers. Simulated headers on the CloudFront-added list (`AWS_HEADERS.CLOUDFRONT_ADDED`) are kept aside (`_splitSimulatedHeaders`): CloudFront Functions get them overlaid on their event, and they are added to the live request just before origin-request (`_addCloudFrontHeaders`), so Lambda@Edge sees them only on origin events and at the origin. Lambda@Edge viewer-response gets a viewer-facing copy of the request with the viewer's own values.
+Before the first hook runs, the Orchestrator injects the **viewer simulation** (sticky headers: the project's viewer headers file, `--headers`, or the workbench's Viewer inspector) into the request. This simulates the CloudFront Network Layer, providing hooks with realistic metadata such as Geo-location and Device type headers. Simulated headers on the CloudFront-added list (`AWS_HEADERS.CLOUDFRONT_ADDED`) are kept aside (`_splitSimulatedHeaders`): CloudFront Functions get them overlaid on their event, and they are added to the live request just before origin-request (`_addCloudFrontHeaders`), so Lambda@Edge sees them only on origin events and at the origin. Lambda@Edge viewer-response gets a viewer-facing copy of the request with the viewer's own values.
 
 ### 1.2 The Hook Chain (Execution Matrix)
 
@@ -212,6 +212,7 @@ This example demonstrates routing between LocalStack, MinIO, and a Local Folder 
 
 - **Atomic Journey**: Every request creates a forensic journey record, capturing the state of headers and bodies at every stage of the pipeline via `broadcastStage()`.
 - **Live Stream**: The WebUI receives live updates via Server-Sent Events (SSE).
+- **Listening addresses**: the main server listens on every interface (or `--host`). An ephemeral main server (port 0: `createServer` in code, `cloudfrontize check`, tests) listens on `127.0.0.1` only: with `SO_REUSEADDR` (which Node always sets), the kernel lets another program bind `127.0.0.1` on a port a wildcard socket holds, and that program then receives the `127.0.0.1` traffic. Two sockets on the same specific address can't share a port.
 - **WebUI Security**: The WebUI exposes hook source and baked values, so it listens on the loopback addresses only (`127.0.0.1`, and `::1` on the same port so `localhost` can't reach another program on IPv6), rejects requests whose `Host` or `Origin` isn't this machine's WebUI address, only opens loaded hook/config files in the editor, and never serves files outside its asset directory. API v2 also requires `Content-Type: application/json` on every `POST` and on any request with a body: a cross-site page can only send that after a CORS preflight, which the WebUI never answers.
 - **Snapshot Logic**: Forensics use a **1 MB cap** (configurable via `AWS_LIMITS`) for body previews to ensure the dashboard remains high-performance.
 

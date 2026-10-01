@@ -88,6 +88,13 @@ export interface CacheBehavior {
 
 export interface CloudFrontizeOptions {
     port: number;
+    /**
+     * Address the main server listens on. Default: every interface, except for an ephemeral port
+     * (port 0, used programmatically), which listens on 127.0.0.1 only: a wildcard socket on an
+     * ephemeral port can have its 127.0.0.1 traffic taken by another program bound to 127.0.0.1 on
+     * the same port (SO_REUSEADDR lets the kernel allow both).
+     */
+    host?: string;
     /** Developer UI port. `true` (a bare `--webui`) means the main port + 1; 0 picks an ephemeral port. */
     webui?: string | number | boolean;
     /** Overrides the directory the Developer UI assets are served from (defaults to the bundled `ui/`). */

@@ -61,7 +61,7 @@ cloudfrontize --webui
 curl -s http://localhost:3000/index.html | grep '<h1>'          # 🐶 Académie Paws
 curl -s -H "CloudFront-Viewer-Country: MX" http://localhost:3000/index.html | grep '<h1>'   # still French
 ```
-The second request is the "viewers can't fake it" rule in action. To be a visitor from Mexico, change the country the way CloudFront would: edit `viewer-headers.json` (it's applied when you save), or pick a **Geo preset** in the WebUI. In the WebUI's journey, the **[L@E: origin-request]** step shows the header and the rewritten URI.
+The second request is the "viewers can't fake it" rule in action. To be a visitor from Mexico, change the country the way CloudFront would: edit `viewer-headers.json` (it's applied when you save), or pick **Location → MX · Mexico City** in the workbench's **Viewer** inspector. In **Traffic**, the **origin-request** step of a request shows the header and the rewritten URI.
 
 ## 💡 Fidelity Tips
 - **Add the header to the cache key.** If content varies by country, include `CloudFront-Viewer-Country` in the **cache policy**. Otherwise the first visitor's country is cached and served to everyone.

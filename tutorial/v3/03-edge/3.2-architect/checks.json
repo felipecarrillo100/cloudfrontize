@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "every page gets the maintenance page, with 503",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 503,
+        "headers": {
+          "retry-after": "3600",
+          "cache-control": "no-store"
+        },
+        "headersContain": {
+          "content-type": "text/html"
+        },
+        "bodyContains": "We'll be back shortly",
+        "bodyNotContains": "The Shop"
+      }
+    },
+    {
+      "name": "any path, even one the origin doesn't have",
+      "request": {
+        "path": "/checkout/step-2"
+      },
+      "expect": {
+        "status": 503,
+        "bodyContains": "We'll be back shortly"
+      }
+    }
+  ]
+}

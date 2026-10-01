@@ -1,5 +1,8 @@
 # Exercise 3.2: The Architect
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/03-edge/3.2-architect/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 You are performing a massive database migration. You want to show a friendly "Maintenance" page to all users without having to stop your servers or change DNS.
 

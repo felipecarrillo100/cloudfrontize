@@ -1,5 +1,8 @@
 # Exercise 3.3: The Inspector
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/03-edge/3.3-inspector/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Your API is being targeted by a specific bot that always sends "SQL-INJECTION" in the POST body. You want to block these requests at the edge to save origin resources.
 

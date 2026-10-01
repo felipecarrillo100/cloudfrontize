@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "locally, the value comes from config/bake.env",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "x-api-endpoint": "http://localhost:8080"
+        }
+      }
+    }
+  ]
+}

@@ -11,12 +11,18 @@ import { ManifestSchema, Manifest } from './project/schema';
 import { Diagnostic, ManifestError, PortInUseError, ServerStartError, HeaderConfigError } from './project/errors';
 import { Logger, ConsoleSink, FileSink, defaultLogger } from './core/Logger';
 import { VERSION } from './version';
+import { createProject } from './project/create';
+import { listTemplates } from './project/templates';
+import { buildProject } from './project/build';
+import { importLegacySetup } from './project/importLegacy';
+import { runChecks } from './project/runChecks';
 
 export {
     // 3.x
     createServer, CreateServerOptions, loadProject, checkManifest, isProject, Project, ManifestSchema, Manifest,
     Diagnostic, ManifestError, PortInUseError, ServerStartError, HeaderConfigError,
     Logger, ConsoleSink, FileSink, defaultLogger, VERSION,
+    createProject, listTemplates, buildProject, importLegacySetup, runChecks,
     // 2.x (still supported)
     EdgeRunner, CFFRunner, AWS_HEADERS, AWS_LIMITS, HeaderParser, CloudFrontizeOptions, CloudFrontizeServer,
     printTopBanner, printBottomBanner

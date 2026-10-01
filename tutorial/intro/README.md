@@ -1,5 +1,8 @@
 # 🧪 Intro – Run & Debug
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../v3/00-intro/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ### The Forensic Advantage: Edge Development at Warp Speed
 As a CloudFront Architect, testing redirects and geo-routing in the real AWS environment is notoriously slow—often requiring 15+ minutes for CloudFront to propagate changes globally. CloudFrontize collapses this feedback loop to seconds. In this introduction, you’ll learn how to:
 * **Boot the Forensic Environment**: Run CloudFrontize locally with zero cold starts.

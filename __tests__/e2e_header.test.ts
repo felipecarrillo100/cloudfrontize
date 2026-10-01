@@ -51,7 +51,7 @@ describe('E2E: Header Validation and Server Lifecycle', () => {
         fs.writeFileSync(headers_file, JSON.stringify(headers_obj));
 
         // Use node + tsx directly for better stability on Windows. Add --debug for [Ready] signal.
-        const cmd = `node "${tsx_path}" "${cli_path}" "${www_dir}" --port ${port} --edge "${tmp_dir}" --headers "${headers_file}" --no-request-logging --debug`;
+        const cmd = `node "${tsx_path}" "${cli_path}" "${www_dir}" --port ${port} --host 127.0.0.1 --edge "${tmp_dir}" --headers "${headers_file}" --no-request-logging --debug`;
         
         let child: ChildProcess | undefined;
         let failTimer: any;

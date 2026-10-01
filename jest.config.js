@@ -8,6 +8,9 @@ module.exports = {
         '/dist/'
     ],
     clearMocks: true,
+    // Many tests start servers or spawn the CLI; with every suite running in parallel, a test's first
+    // server start can take longer than Jest's 5 s default even though it takes ~100 ms alone
+    testTimeout: 20000,
     transform: {
         '^.+\\.(t|j)sx?$': 'babel-jest',
     },
