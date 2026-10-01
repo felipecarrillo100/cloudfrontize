@@ -331,6 +331,28 @@ export function registerFileRoutes(router: Router, host: ApiHost): void {
 
     // ---------- Viewer simulation (headers CloudFront and the viewer send) ----------
 
+    // The simulation in effect. Projects keep it in their viewer headers file (GET/PUT /viewer/headers);
+    // 2.x setups (no project) set it here, in memory, as --headers or the 2.x UI did.
+    router.get('/viewer/simulation', () => {
+        const runtime = host.runtime();
+        const { request, response } = runtime.orchestrator.getStickyHeaders();
+        return { body: { source: runtime.project ? 'file' : 'session', requestHeaders: request ?? {}, responseHeaders: response ?? {} } };
+    });
+
+    router.put('/viewer/simulation', ({ body }) => {
+        const runtime = host.runtime();
+        if (runtime.project) throw new ApiError(409, 'use-file', 'Projects keep the viewer simulation in their viewer headers file: use PUT /api/v2/viewer/headers');
+        const input = objectBody(body, 'Send { "requestHeaders": {...}, "responseHeaders": {...} }');
+        const map = (value: unknown, name: string): Record<string, string> => {
+            if (value === undefined) return {};
+            if (!value || typeof value !== 'object' || Array.isArray(value)) throw ApiError.badRequest(`"${name}" must be an object of header names to string values`);
+            for (const [k, v] of Object.entries(value)) if (typeof v !== 'string') throw ApiError.badRequest(`Header "${k}" must be a string`);
+            return value as Record<string, string>;
+        };
+        runtime.orchestrator.setStickyHeaders({ requestHeaders: map(input.requestHeaders, 'requestHeaders'), responseHeaders: map(input.responseHeaders, 'responseHeaders') });
+        return {};
+    });
+
     router.get('/viewer/headers', () => {
         const project = requireProject(host);
         const file = project.manifest.viewer.headers ?? null;

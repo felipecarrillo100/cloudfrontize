@@ -37,7 +37,7 @@ function summarize(id: string, events: TelemetryEvent[]): RequestSummary | null 
 
 /**
  * The WebUI API v2 (`/api/v2`). JSON in and out, typed errors, and a sequenced event stream.
- * The 2.x endpoints (`/api/*`, `/events`) stay for the current UI until the 3.0 workbench replaces it.
+ * (The 2.x UI's endpoints, `/api/*` and `/events`, were removed with it in 3.0.)
  */
 export function createApiV2(host: ApiHost): Router {
     const router = new Router(API_PREFIX);

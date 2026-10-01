@@ -39,7 +39,7 @@ cloudfrontize ./www --edge ./viewer-request-rewrite.js
 
 Point it at your static files folder (`./www`, `./dist`, or `./public`) and your Lambda@Edge `.js` file—CloudFrontize handles the rest.
 
-> 💡 Tip: Add `--webui 3001` to enable the **[Visual Control Plane](docs/web-ui.md)** for live debugging in your browser.
+> 💡 Tip: Add `--webui` to open the **[workbench](docs/web-ui.md)** in your browser.
 
 ---
 ## ⚡ Quick Example
@@ -165,7 +165,7 @@ While tools like `serverless-offline` or `SAM CLI` are great for standard Lambda
 | **`-o, --output <path>`**| Output the baked `.js` file(s) for production deployment                                                                                                                                                                                            | `null`                                                                                             |
 | **`-p, --port <number>`** | Port to listen on                                                                                                                                                                                                                                   | `3000`                                                                                             |
 | **`-l, --listen <uri>`** | Listen URI (overrides `--port`)                                                                                                                                                                                                                     | `3000`                                                                                             |
-| **`--webui [port]`**    | Enable the visual control plane for traffic inspection and header debugging (listens on `127.0.0.1` only; port defaults to the main port + 1)                                                                                                       | `disabled` |
+| **`--webui [port]`**    | Open the workbench in your browser (listens on this machine only; port defaults to the main port + 1)                                                                                                       | `disabled` |
 | **`-s, --single`** | SPA mode — serve `index.html` (status 200) when the origin returns 404 or 403                                                                                                                                                                       | `off`                                                                                              |
 | **`-C, --cors`** | Enable `Access-Control-Allow-Origin: *` and answer CORS preflight requests                                                                                                                                                                          | `off`                                                                                              |
 | **`-d, --debug`** | Show Lambda execution logs and URI rewrites                                                                                                                                                                                                         | `off`                                                                                              |
@@ -189,15 +189,13 @@ CloudFrontize can point to **AWS S3** or S3-compatible storage like **MinIO**, *
 
 ---
 
-## 🖥️ Visual Control Plane (Web UI) `New!`
+## 🖥️ The workbench (Web UI)
 
-CloudFrontize includes a browser-based UI to help you visualize your edge logic in real-time. Inspect headers, track URI rewrites, and debug Lambda@Edge execution without leaving your browser.
-
-Using the **Header Intelligence** panel, you can inject or override headers on-the-fly to test Geo-routing, Auth tokens, or Security policies without changing a single line of code.
+`--webui` opens CloudFrontize in your browser: open or create projects, build the distribution on a schematic with CloudFront's four event slots (only the combinations AWS allows are offered), edit functions in a built-in code editor that shows build errors as you save, and follow every request through each function with what it changed.
 
 > **CloudFront-added headers follow AWS.** Simulated geolocation, device and other headers CloudFront adds (`CloudFront-Viewer-Country`, `CloudFront-Is-Mobile-Viewer`, …) are visible where AWS exposes them: to CloudFront Functions, and to Lambda@Edge only in **origin-request** and **origin-response** (*"CloudFront adds the headers after the viewer request event"*). A value CloudFront adds overwrites one the viewer sent for origin-facing functions, while viewer-facing functions see the viewer's own value. Other simulated headers are sent as viewer headers. Functions on response events can read the query string but can't change it.
 
-**[👉 Learn how to use the Web UI](docs/web-ui.md)**
+**[👉 The workbench guide](docs/web-ui.md)**
 
 ---
 

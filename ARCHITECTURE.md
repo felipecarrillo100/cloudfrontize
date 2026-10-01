@@ -217,7 +217,7 @@ This example demonstrates routing between LocalStack, MinIO, and a Local Folder 
 
 ### 6.1 WebUI API v2 (`src/api/`)
 
-The 3.0 workbench talks to `/api/v2` on the WebUI port. The 2.x endpoints (`/api/*`, `/events`) stay until the current UI is replaced.
+The 3.0 workbench talks to `/api/v2` on the WebUI port; it's the WebUI's only API (the 2.x UI's `/api/*` and `/events` endpoints were removed with it).
 
 - **`contract.ts`**: every request, response and event type of the API, with no imports, so the WebUI (`ui-src`, alias `@contract`) compiles against exactly what the server sends. Server modules use the same types.
 - **`router.ts`**: a small JSON router. Handlers return `{ status, body, headers }` or throw an `ApiError` (`errors.ts`), which becomes `{ "error": { "code", "message", "details" } }` with a matching status (400 `bad-request`, 404 `not-found`, 405 `method-not-allowed`, 409 `conflict`, 413 `too-large`, 415 `unsupported-media-type`, 422 `invalid`, 500 `internal`). Responses are `Cache-Control: no-store`.
@@ -269,6 +269,8 @@ A React app built with Vite into `ui/` (shipped as `dist/ui`, served by the WebU
   - **Conflicts**: a `409` opens a diff (disk on the left, your version on the right) with *Keep my version* (saves against the disk revision) or *Use the disk version*. A change on disk is followed silently while nothing is unsaved, and announced while something is.
   - **Types**: `edgeTypes.ts` declares CloudFront's event structures for the JavaScript language service. Lambda@Edge handlers get them through `exports.handler`; CloudFront Functions through the JSDoc `@param {CloudFrontFunctionEvent} event` the starter code includes. `cloudfrontize.json` is validated against `schema/cloudfrontize.schema.json`, key value stores against the AWS import format.
   - A live 10 KB meter for CloudFront Functions; unsaved changes are kept per tab and guarded on close and on leaving the page.
+- **Traffic** (`src/traffic/`): a virtualized list (TanStack Virtual) of the live journeys, with filters, search and keyboard navigation. Selecting a request shows its journey as steps (`journey.ts` labels them from the structured stages), each with its header snapshot compared to the previous step on the same side (request or response), so what each function changed stands out, and its body, decoded when textual. Copy as cURL and Resend (`POST /api/v2/invoke`). Requests from history are summaries until opened, then their journey is fetched.
+- **Viewer** inspector: test requests (`POST /api/v2/invoke`; the journey opens in Traffic) and the viewer simulation: the project's viewer headers file, or for 2.x setups the session simulation (`GET`/`PUT /api/v2/viewer/simulation`, in memory like `--headers`).
 - **Edits** go through `useManifestEdit` (`src/api/mutations.ts`): it applies a change to the manifest as written and saves it with the revision it was based on. A `409` (changed meanwhile) reloads instead of overwriting; a `422` shows the AWS rules that would break.
 - **Design tokens** (light and dark) are CSS variables in `src/index.css`, exposed as Tailwind utilities (`bg-surface`, `text-muted`, `text-cff`...).
 

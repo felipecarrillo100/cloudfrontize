@@ -211,6 +211,13 @@ export interface OriginCheck {
     message: string;
 }
 
+/** The viewer simulation in effect: from the project's file, or set for this session (2.x setups). */
+export interface ViewerSimulation {
+    source: 'file' | 'session';
+    requestHeaders: Record<string, string>;
+    responseHeaders: Record<string, string>;
+}
+
 // ---------- Workspace ----------
 
 export interface FolderEntry {

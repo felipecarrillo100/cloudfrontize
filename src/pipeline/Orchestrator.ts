@@ -155,16 +155,6 @@ export class Orchestrator {
         return [...seen.values()];
     }
 
-    /** Files the Developer UI may open in the editor: loaded hooks, failed builds and the origins config. */
-    public getEditablePaths(): string[] {
-        const paths = [
-            ...this.hookRegistry.getAllHooks().map((h: any) => h.path),
-            ...Object.keys(this.hookRegistry.getBuildErrors()),
-            ...(this.origins.origins || []).map((o: any) => o.configFile)
-        ];
-        return paths.filter(Boolean).map((p: string) => path.resolve(p));
-    }
-
     public getBuildErrors(): Record<string, any> {
         return this.hookRegistry.getBuildErrors();
     }

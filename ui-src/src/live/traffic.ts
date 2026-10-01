@@ -23,6 +23,8 @@ export interface Journey {
   method?: string
   url?: string
   requestHeaders?: HeaderMap
+  /** The request body as the viewer sent it (base64 snapshot, capped). */
+  requestBody?: { body?: string; bodySize?: number; bodyTruncated?: boolean; contentType?: string }
   status?: number
   responseHeaders?: HeaderMap
   durationMs?: number
@@ -55,6 +57,10 @@ export function applyEvent(state: TrafficState, event: RecordedEvent): TrafficSt
       journey.method = event.data.method
       journey.url = event.data.url
       journey.requestHeaders = event.data.headers
+      if (event.data.body !== undefined || event.data.bodySize !== undefined) {
+        const { body, bodySize, bodyTruncated, contentType } = event.data
+        journey.requestBody = { body, bodySize, bodyTruncated, contentType }
+      }
       break
     case 'request.stage':
       journey.stages = [...journey.stages, { ...event.data }]

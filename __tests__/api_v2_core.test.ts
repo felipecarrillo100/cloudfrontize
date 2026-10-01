@@ -148,10 +148,12 @@ describe('WebUI API v2: core', () => {
         expect((await call(ui, 'GET', '/api/v2/requests')).body.items).toEqual([]);
     });
 
-    test('the 2.x endpoints keep working for the current UI', async () => {
-        const res = await call(ui, 'GET', '/api/distribution');
-        expect(res.status).toBe(200);
-        expect(res.body.functions.map((f: any) => f.id).sort()).toEqual(['mark', 'tag']);
+    test('in a project, the viewer simulation lives in the file (no session override)', async () => {
+        const sim = await call(ui, 'GET', '/api/v2/viewer/simulation');
+        expect(sim.body.source).toBe('file');
+        const put = await call(ui, 'PUT', '/api/v2/viewer/simulation', { body: { requestHeaders: {} } });
+        expect(put.status).toBe(409);
+        expect(put.body.error.code).toBe('use-file');
     });
 });
 

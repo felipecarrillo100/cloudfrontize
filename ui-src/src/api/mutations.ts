@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
-  EdgeEvent, FunctionInfo, FunctionType, OriginCheck, ProductionCode, ProductionLevel, ProjectInfo, SaveResult, ViewerHeadersFile,
+  EdgeEvent, FunctionInfo, InvokeRequest, InvokeResult, ViewerSimulation, FunctionType, OriginCheck, ProductionCode, ProductionLevel, ProjectInfo, SaveResult, ViewerHeadersFile,
 } from '@contract'
 import { ApiRequestError, api, errorMessage } from './client'
 import { keys } from './queries'
@@ -145,6 +145,21 @@ export function useCreateKvs() {
     mutationFn: (id: string) => api('POST', '/kvs', { id }),
     onSettled: refresh,
   })
+}
+
+export const useViewerSimulation = (enabled: boolean) =>
+  useQuery({ queryKey: ['viewer-simulation'], queryFn: () => api<ViewerSimulation>('GET', '/viewer/simulation'), enabled })
+
+export function useSaveViewerSimulation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (sim: { requestHeaders: Record<string, string>; responseHeaders: Record<string, string> }) => api('PUT', '/viewer/simulation', sim),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['viewer-simulation'] }),
+  })
+}
+
+export function useInvoke() {
+  return useMutation({ mutationFn: (input: InvokeRequest) => api<InvokeResult>('POST', '/invoke', input) })
 }
 
 export const useViewerHeaders = (enabled: boolean) =>

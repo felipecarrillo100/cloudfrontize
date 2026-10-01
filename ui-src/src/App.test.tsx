@@ -41,7 +41,7 @@ describe('App', () => {
     vi.stubGlobal('EventSource', FakeEventSource)
     useUI.setState({ view: null })
     useLive.getState().clearTraffic()
-    server.use(apiV2.get('', info), apiV2.get('/distribution', dist), apiV2.get('/project', project), apiV2.get('/requests', { items: [], seq: 0 }))
+    server.use(apiV2.get('', info), apiV2.get('/distribution', dist), apiV2.get('/project', project), apiV2.get('/requests', { items: [], seq: 0 }), apiV2.get('/kvs', { items: [] }))
   })
   afterEach(() => vi.unstubAllGlobals())
 
@@ -65,7 +65,7 @@ describe('App', () => {
       es.push({ v: 2, seq: 1, time: '2026-10-01T10:00:00Z', type: 'request.started', requestId: 'r1', data: { method: 'GET', url: '/admin/', headers: {} } })
       es.push({ v: 2, seq: 2, time: '2026-10-01T10:00:00Z', type: 'request.completed', requestId: 'r1', data: { status: 401, headers: {}, durationMs: 4 } })
     })
-    const traffic = await screen.findByRole('table', { name: 'Recent requests' })
+    const traffic = await screen.findByRole('listbox', { name: 'Requests' })
     expect(within(traffic).getByText('/admin/')).toBeInTheDocument()
     expect(within(traffic).getByText('401')).toBeInTheDocument()
   })

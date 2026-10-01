@@ -14,7 +14,7 @@ import { useUI } from '@/state/ui'
 import { NewProjectDialog } from './NewProjectDialog'
 import { OpenProjectDialog } from './OpenProjectDialog'
 import { ProjectOverview } from './ProjectOverview'
-import { TrafficList } from './TrafficList'
+import { TrafficPanel } from '@/traffic/TrafficPanel'
 
 // The editor (and Monaco with it) loads the first time a file is opened
 const EditorPane = lazy(() => import('@/editor/EditorPane').then(m => ({ default: m.EditorPane })))
@@ -39,6 +39,7 @@ export function Workbench() {
 
   return (
     <div className="flex h-full flex-col">
+      <a href="#traffic" className="sr-only rounded bg-accent px-3 py-1 text-accent-fg focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50">Skip to traffic</a>
       <TopBar onOpen={() => setDialog('open')} onNew={() => setDialog('new')} />
 
       {legacy && (
@@ -56,7 +57,7 @@ export function Workbench() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <main className="flex min-h-0 flex-1 flex-col">
         <div className="grid min-h-0 flex-[3] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="flex min-h-0 flex-col">
             {editable && <EditorTabs />}
@@ -79,9 +80,9 @@ export function Workbench() {
           </div>
         </div>
         <div className="flex min-h-0 flex-[2] flex-col">
-          <TrafficList />
+          <TrafficPanel />
         </div>
-      </div>
+      </main>
 
       {dist.data && <DialogHost dist={dist.data} />}
       <OpenProjectDialog open={dialog === 'open'} onOpenChange={o => setDialog(o ? 'open' : null)} onOpened={showWorkbench} />

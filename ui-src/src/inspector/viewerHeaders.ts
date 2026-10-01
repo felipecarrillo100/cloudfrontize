@@ -59,3 +59,17 @@ export function applyPreset(rows: HeaderRow[], headers: Record<string, string>, 
   const kept = rows.filter(r => r.target !== 'request' || (!names.has(r.key.toLowerCase()) && !(clearPrefix && r.key.toLowerCase().startsWith(clearPrefix))))
   return [...kept, ...Object.entries(headers).map(([key, value]) => ({ key, value, target: 'request' as const }))]
 }
+
+/** Parses "Name: value" lines into headers (blank lines ignored). */
+export function parseHeaderLines(text: string): { headers: Record<string, string>; error: string | null } {
+  const headers: Record<string, string> = {}
+  for (const [i, raw] of text.split('\n').entries()) {
+    const line = raw.trim()
+    if (!line) continue
+    const at = line.indexOf(':')
+    if (at <= 0) return { headers, error: `Line ${i + 1}: use "Name: value"` }
+    headers[line.slice(0, at).trim()] = line.slice(at + 1).trim()
+  }
+  return { headers, error: null }
+}
+
