@@ -21,6 +21,8 @@ import { createServer, CloudFrontizeServer } from '../src/server/createServer';
 import { runChecks } from '../src/project/runChecks';
 import { createProject } from '../src/project/create';
 import { listTemplates } from '../src/project/templates';
+import { buildProject } from '../src/project/build';
+import { importLegacySetup } from '../src/project/importLegacy';
 import { ProjectExistsError } from '../src/project/errors';
 import { isProject, loadProject } from '../src/project/loadProject';
 import { ManifestError } from '../src/project/errors';
@@ -88,6 +90,8 @@ async function runProject(target: string, options: any, command: Command) {
 const program = new Command();
 
 program
+    // Options after a subcommand are the subcommand's (import has the same flags as 2.x)
+    .enablePositionalOptions()
     .name('cloudfrontize')
     .description('Static server with CloudFront Fidelity: Environments & Variable Baking')
     .version(VERSION)
@@ -119,6 +123,18 @@ program
         const legacySource = options.edge || options.cff || options.origins || options.s3Origin || options.output;
         if (isProject(directory) || (!directory && !legacySource && isProject(process.cwd()))) {
             return runProject(directory || process.cwd(), options, command);
+        }
+
+        // 2.x command lines keep working; 3.0 suggests turning them into a project
+        if (!options.output) {
+            const parts = ['cloudfrontize import'];
+            if (directory) parts.push(directory);
+            for (const [flag, key] of [['--edge', 'edge'], ['--cff', 'cff'], ['--origins', 'origins'], ['--headers', 'headers'], ['--env', 'env'], ['--bake', 'bake'], ['--s3-origin', 's3Origin'], ['--s3-endpoint', 's3Endpoint']]) {
+                if (options[key]) parts.push(flag, options[key]);
+            }
+            if (options.mode && options.mode !== 'rest') parts.push('--mode', options.mode);
+            parts.push('--out', 'my-project');
+            console.warn(`\x1b[90mℹ️  This is a 2.x command line. It keeps working; for cache behaviors, the workbench editor and AWS rule checks, turn it into a project:\n   ${parts.join(' ')}\x1b[0m`);
         }
 
         if ((options.output || options.bake) && (!options.edge && !options.cff)) {
@@ -251,6 +267,71 @@ program
         const items = listTemplates();
         const width = Math.max(...items.map(t => t.id.length));
         for (const t of items) console.log(`  ${t.id.padEnd(width)}  ${t.name}${t.requires ? ` (needs ${t.requires})` : ''}\n  ${' '.repeat(width)}  \x1b[90m${t.description}\x1b[0m`);
+    });
+
+program
+    .command('import')
+    .description('turn a 2.x setup into a project: same arguments as the 2.x command, plus --out')
+    .argument('[directory]', 'the folder 2.x served')
+    .requiredOption('--out <dir>', 'folder for the new project (created; must be empty)')
+    .option('-n, --name <name>', 'project name (default: the folder name)')
+    .option('-e, --edge <path>', 'Lambda@Edge module or folder')
+    .option('--cff <path>', 'CloudFront Functions module or folder')
+    .option('--origins <path>', 'S3 / multi-origin JSON')
+    .option('--headers <path>', 'viewer headers JSON')
+    .option('-E, --env <path>', 'environment file (reserved AWS variables)')
+    .option('-b, --bake <path>', 'bake file (__VAR__ values)')
+    .option('--s3-origin <bucket>', 'S3 bucket origin')
+    .option('--s3-endpoint <url>', 'S3 endpoint (MinIO, LocalStack)')
+    .option('-m, --mode <mode>', 'rest or website', 'rest')
+    .action((directory: string | undefined, options: any) => {
+        let result;
+        try {
+            result = importLegacySetup({ directory, edge: options.edge, cff: options.cff, origins: options.origins, headers: options.headers, env: options.env, bake: options.bake, s3Origin: options.s3Origin, s3Endpoint: options.s3Endpoint, mode: options.mode }, options.out, options.name);
+        } catch (err: any) {
+            if (err instanceof ManifestError) reportManifestError(err);
+            console.error(`🛑 ${err instanceof ProjectExistsError ? `${err.message}: choose an empty or new folder` : err.message}`);
+            process.exit(1);
+        }
+        console.log(`✅ Imported into ${result.dir}`);
+        for (const note of result.notes) console.log(`   \x1b[33m•\x1b[0m ${note}`);
+        const rel = path.relative(process.cwd(), result.dir);
+        console.log(`\n   cd ${rel.startsWith('..') ? result.dir : rel || '.'}\n   cloudfrontize validate\n   cloudfrontize --webui`);
+    });
+
+program
+    .command('build')
+    .description('write deployable function code: __VAR__ values baked in, optionally minified, checked as AWS will see it')
+    .argument('[project]', 'project folder or cloudfrontize.json', '.')
+    .option('-o, --out <dir>', 'output folder (replaced; default: <project>/dist)')
+    .option('-l, --level <level>', 'baked, minified or uglified', 'baked')
+    .action(async (target: string, options: { out?: string; level: string }) => {
+        if (!['baked', 'minified', 'uglified'].includes(options.level)) {
+            console.error(`Error: --level must be baked, minified or uglified, got "${options.level}"`);
+            process.exit(1);
+        }
+        let report;
+        try {
+            report = await buildProject(target, { outDir: options.out, level: options.level as any });
+        } catch (err: any) {
+            if (err instanceof ManifestError) reportManifestError(err);
+            console.error(`🛑 ${err.message}`);
+            process.exit(1);
+        }
+        const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+        for (const f of report.functions) {
+            const where = f.associations.map(a => `${a.behavior === 'default' ? '*' : a.behavior} ${a.event}`).join(', ') || 'not attached';
+            const mark = f.errors.length ? '\x1b[31m✗\x1b[0m' : '\x1b[32m✓\x1b[0m';
+            console.log(`${mark} ${f.output}  \x1b[90m${kb(f.size)}${f.type === 'cloudfront-function' ? ' of 10 KB' : ''} · ${where}\x1b[0m`);
+            for (const e of f.errors) console.log(`    \x1b[31m${e.message}${e.line ? ` (line ${e.line})` : ''}\x1b[0m`);
+            for (const w of f.warnings) console.log(`    \x1b[33m${w.message}${w.line ? ` (line ${w.line})` : ''}\x1b[0m`);
+        }
+        for (const k of report.keyValueStores) console.log(`\x1b[32m✓\x1b[0m ${k.output}  \x1b[90m${k.keyCount} keys\x1b[0m`);
+        const failed = report.functions.filter(f => f.errors.length).length;
+        console.log(failed
+            ? `\n\x1b[31m${failed} function${failed === 1 ? '' : 's'} wouldn't deploy\x1b[0m (output written to ${report.outDir})`
+            : `\n✅ Built ${report.functions.length} function${report.functions.length === 1 ? '' : 's'} (${report.level}) in ${report.outDir}; see build.json`);
+        process.exit(failed ? 1 : 0);
     });
 
 program

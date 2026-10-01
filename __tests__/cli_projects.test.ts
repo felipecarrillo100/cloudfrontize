@@ -121,4 +121,27 @@ describe('CLI: projects', () => {
         expect(code).toBe(1);
         expect(stderr).toContain('Unknown template "nope". Available: empty, spa');
     });
+
+    test('`import` takes a 2.x command line\'s arguments; `build` writes the deployable code', async () => {
+        const fs = require('fs');
+        const legacy = makeProject(baseManifest(), WWW);
+        dirs.push(legacy);
+        fs.mkdirSync(path.join(legacy, 'hooks'));
+        fs.writeFileSync(path.join(legacy, 'hooks', 'viewer-response.tag.js'), "exports.handler = async (e) => e.Records[0].cf.response;\n");
+        const out = path.join(legacy, 'imported');
+
+        const imp = await run(`import ${path.join(legacy, 'origins/www')} --edge ${path.join(legacy, 'hooks')} --out ${out} --name Imported`);
+        expect(imp.code).toBe(0);
+        expect(imp.stdout).toContain(`Imported into ${out}`);
+        expect(JSON.parse(fs.readFileSync(path.join(out, 'cloudfrontize.json'), 'utf8')).defaultBehavior.functions).toEqual({ 'viewer-response': 'tag' });
+
+        const build = await run(`build ${out} --level minified`);
+        expect(build.code).toBe(0);
+        expect(build.stdout).toContain('lambda-edge/tag/index.js');
+        expect(fs.existsSync(path.join(out, 'dist', 'build.json'))).toBe(true);
+
+        expect((await run(`build ${out} --level gzip`)).code).toBe(1);
+        expect((await run(`import --out ${out}`)).stderr).toContain("isn't empty");
+    });
 });
+

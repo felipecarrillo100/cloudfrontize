@@ -75,7 +75,7 @@ export function createProject(options: NewProjectOptions): { dir: string; manife
         const { manifest: valid, diagnostics } = checkManifest(manifest, dir);
         if (!valid || diagnostics.some(d => d.severity === 'error')) throw new ManifestError(path.join(dir, MANIFEST_FILE), diagnostics);
 
-        fs.writeFileSync(path.join(dir, '.gitignore'), 'config/.env\n.env\n', { flag: 'wx' });
+        fs.writeFileSync(path.join(dir, '.gitignore'), 'config/.env\n.env\ndist/\n', { flag: 'wx' });
         created.push(path.join(dir, '.gitignore'));
         const manifestPath = path.join(dir, MANIFEST_FILE);
         fs.writeFileSync(manifestPath, formatManifest(manifest), { flag: 'wx' });
@@ -99,7 +99,7 @@ function createFromTemplate(dir: string, existed: boolean, name: string, folder:
         if (!valid || diagnostics.some(d => d.severity === 'error')) throw new ManifestError(manifestPath, diagnostics);
         fs.writeFileSync(manifestPath, formatManifest({ $schema: SCHEMA_URL, ...manifest }));
         const gitignore = path.join(dir, '.gitignore');
-        if (!fs.existsSync(gitignore)) fs.writeFileSync(gitignore, 'config/.env\n.env\n');
+        if (!fs.existsSync(gitignore)) fs.writeFileSync(gitignore, 'config/.env\n.env\ndist/\n');
         return { dir, manifestPath };
     } catch (err) {
         if (!existed) fs.rmSync(dir, { recursive: true, force: true });
