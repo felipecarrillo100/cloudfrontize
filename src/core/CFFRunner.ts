@@ -544,7 +544,8 @@ export class CFFRunner extends HotRunner {
             // Fidelity Adjustment: Subtract simulator overhead (VM runInContext base cost)
             cpuTimeMs = Math.max(0.01, cpuTimeMs - CFFRunner.CFF_OVERHEAD_MS);
 
-            if (cpuTimeMs > CFF_LIMITS.MAX_CPU_TIME_MS) {
+            // Warm-up runs (cold, before any traffic) don't count against the reference limit
+            if (cpuTimeMs > CFF_LIMITS.MAX_CPU_TIME_MS && event.context?.requestId !== 'warmup') {
                 console.warn(`⚠️  [CFF] ${path.basename(mod.filePath)} exceeded 1ms CPU limit (${cpuTimeMs.toFixed(2)}ms).`);
             }
 

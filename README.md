@@ -12,16 +12,16 @@
 
 Build a distribution, write its functions and test them locally, with CloudFront's rules, in milliseconds instead of waiting 15 minutes for each deployment.
 
-| CloudFrontize Console                                                                                                    | CloudFrontize Web UI |
-|--------------------------------------------------------------------------------------------------------------------------|--------------------|
-| ![Cloudfrontize Banner](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![CloudFrontize Pro Dashboard](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-pro-ui.png) |
+> ✨ **CloudFrontize 3.0 is rebuilt from the ground up.** It keeps everything that made 2.x worth using: the real Lambda@Edge and CloudFront Functions runtimes on your machine, CloudFront's header rules, live reload, and a view of every request in your browser. Each of them was rebuilt to follow AWS more closely, and they now work together in **projects**: cache behaviors with their own functions, CloudFront Functions runtime 2.0 with KeyValueStore, a workbench with a schematic and a code editor, and every rule checked against the current AWS documentation. See [what changed](docs/migrating-to-3.md#at-a-glance).
+
+| The terminal | The workbench |
+|---|---|
+| ![CloudFrontize serving a project in the terminal: the functions it built, the URLs, and one line per request](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![The CloudFrontize workbench: a cache behavior's four events with their functions, a function's settings, and a request's journey through each function](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-pro-ui.png) |
 
 ---
 ## 📦 Getting started
 
 CloudFrontize needs **Node.js 22** or later.
-
-> 🧪 **3.0 is in beta.** Until 3.0.0 is released, `npm install -g cloudfrontize` installs 2.x: install the beta with `npm install -g cloudfrontize@next` (or `npx --yes cloudfrontize@next init my-site`). Feedback is welcome in [the issues](https://github.com/felipecarrillo100/cloudfrontize/issues).
 
 ```bash
 npm install -g cloudfrontize

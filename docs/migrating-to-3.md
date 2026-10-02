@@ -2,7 +2,7 @@
 
 CloudFrontize 3 works with **projects**: a folder with a `cloudfrontize.json` that describes the distribution (origins, cache behaviors, which function runs on which event), opened in the browser workbench or run from the command line. 2.x command lines keep working, so you can move when it suits you.
 
-> 🧪 During the beta, install 3.0 with `npm install -g cloudfrontize@next` (`npm install -g cloudfrontize` still installs 2.x), or try it without installing: `npx --yes cloudfrontize@next import …`.
+> Staying on 2.x for now? `npm install -g cloudfrontize@2` installs the latest 2.x release.
 
 ## At a glance
 

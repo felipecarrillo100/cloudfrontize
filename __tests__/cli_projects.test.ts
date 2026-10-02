@@ -47,6 +47,20 @@ describe('CLI: projects', () => {
         expect(stdout).toContain('cli-demo is valid');
     });
 
+    test('a busy port is reported in one message, without a stack trace', async () => {
+        const blocker = net.createServer().listen(0);
+        await new Promise(r => blocker.once('listening', r));
+        try {
+            const { code, stderr } = await run(`${validProject()} --port ${blocker.address().port}`);
+            expect(code).toBe(1);
+            expect(stderr).toContain(`Port ${blocker.address().port} is already in use`);
+            expect(stderr).not.toContain('PortInUseError');
+            expect(stderr).not.toMatch(/\n\s+at /);
+        } finally {
+            blocker.close();
+        }
+    });
+
     test('running a project folder serves it', async () => {
         const dir = validProject();
         const port = await freePort();

@@ -1,8 +1,11 @@
 # Releasing CloudFrontize
 
-Stable releases come from `main` through release-please (`.github/workflows/release.yml`): merging its release PR updates `package.json` and `CHANGELOG.md`, tags `vX.Y.Z` and creates the GitHub release. Publishing to npm is manual.
+Releases come from `main`, and two workflows do the work:
 
-Prereleases (`X.Y.Z-beta.N`) are cut by hand from their development branch (for 3.0: `v3`), because release-please runs only on `main`.
+- **Release Please** (`.github/workflows/release.yml`) keeps a release PR open with the next version and its changelog, computed from the Conventional Commits since the last release. Merging that PR tags `vX.Y.Z` and creates the GitHub release.
+- **Release & Publish** (`.github/workflows/npm-publish.yml`) runs when a GitHub release is published: it builds and publishes to npm. Stable versions become `latest` (and `next`); prereleases (`X.Y.Z-beta.N`) go to `next` only. A version already on npm is skipped.
+
+Nothing is published by hand.
 
 ## Verify (every release)
 
@@ -16,51 +19,55 @@ npm run build
 npm run docs                              # regenerates docs/html; commit it if it changed
 ```
 
-Then check the package as users get it:
+Then check the package as users get it, from a clean clone (files missing from git only show up there):
 
 ```bash
-npm pack --dry-run                        # dist/, schema/, templates/, README, LICENSE; no tests or .tmp
-npm pack && mkdir /tmp/cfz && cd /tmp/cfz && npm init -y && npm i <path>/cloudfrontize-<version>.tgz
-npx cloudfrontize --version
-npx cloudfrontize init smoke --template spa && cd smoke && npx cloudfrontize check
-node -e "console.log(Object.keys(require('cloudfrontize')))"
+git clone --branch <branch> <repo> /tmp/cfz-clean && cd /tmp/cfz-clean
+npm ci && npm --prefix ui-src ci && npm run build
+npm pack --pack-destination /tmp && npm install -g /tmp/cloudfrontize-<version>.tgz
+cloudfrontize --version
+cloudfrontize init /tmp/cfz-smoke --template spa && cd /tmp/cfz-smoke && cloudfrontize check
 ```
 
-And a manual pass through the workbench (`cloudfrontize --webui` in a project): create a project, add a behavior and a function, edit and save it, send a test request and read its journey.
+And a pass through the workbench in a browser (`cloudfrontize --webui` in a project): create a project, add a behavior and a function, edit and save it, send a test request and read its journey. Dialogs and menus should open over the page.
 
-## A prerelease (beta)
+## A stable release
 
-1. On the development branch: `npm version 3.0.0-beta.N --no-git-tag-version` (updates `package.json` and `package-lock.json`).
-2. Run **Verify**.
-3. Commit (`chore: 3.0.0-beta.N`), tag and push:
+1. Merge the work into `main` with Conventional Commits (`feat:`, `fix:`; `feat!:` or a `BREAKING CHANGE:` footer for a major).
+2. Release Please updates its PR (`chore(main): release X.Y.Z`). Edit the PR's `CHANGELOG.md` entry if needed, then merge it.
+3. The release is tagged and published to npm automatically. Check:
    ```bash
-   git tag v3.0.0-beta.N && git push origin v3 v3.0.0-beta.N
+   npm view cloudfrontize dist-tags        # latest and next: X.Y.Z
+   npx --yes cloudfrontize@latest --version
    ```
-4. Publish under the `next` tag, so `npm install cloudfrontize` keeps installing the stable release:
-   ```bash
-   npm publish --tag next
-   npm dist-tag ls cloudfrontize            # latest: 2.x, next: 3.0.0-beta.N
-   ```
-5. Create a GitHub release from the tag, marked **pre-release**, with the release notes.
 
-Never `npm publish` a prerelease without `--tag next`: it would become `latest`.
+To force a version (as for 3.0.0), push a commit to `main` whose body has `Release-As: X.Y.Z`:
+```bash
+git commit --allow-empty -m "chore: release X.Y.Z" -m "Release-As: X.Y.Z"
+```
+
+## A prerelease
+
+1. On the branch: `npm version X.Y.Z-beta.N --no-git-tag-version`, run **Verify**, commit and push.
+2. Create a GitHub release from a new tag `vX.Y.Z-beta.N` on that commit, marked **pre-release**. The workflow publishes it under `next`; `latest` doesn't change.
+
+## 2.x maintenance
+
+2.x lives on the `2.x` branch (created from `main` before 3.0 was merged). Release Please runs only on `main`, so a 2.x fix is released by hand: bump the version on `2.x`, then publish with a tag that doesn't take `latest` from 3.x:
+```bash
+npm publish --tag v2-latest
+```
+Users who stay on 2.x install it with `npm install -g cloudfrontize@2`.
 
 ## The 3.0.0 release
 
-1. **Keep 2.x maintainable:** before merging, branch it off `main`: `git branch 2.x main && git push origin 2.x`. 2.x fixes go there from then on (publish them with `npm publish --tag v2-latest`, so they don't take `latest` from 3.x).
-2. **Prepare `v3`:** remove the beta notes (README *Getting started*, top of `docs/migrating-to-3.md`), and update the screenshots in `assets/` (`cloudfrontize-pro-ui.png`) and in `docs/web-ui.md` if they still show the 2.x UI.
-3. **Merge `v3` into `main`** with a merge commit (keeps the milestone history, which release-please turns into the changelog). The PR description lists the breaking changes.
-4. **Pin the version.** Release-please computes versions from the commits since the last release; a commit with a `Release-As` footer overrides that:
+1. **GitHub tags for 2.x:** `v2.1.0`, `v2.2.0` and `v2.2.1` were published without tags, so Release Please would compute from v2.0.3. Tag them (`09b149e`, `ce81523`, `bfb2e3f`) and create the `v2.2.1` GitHub release (the publish workflow skips it, it's on npm).
+2. **Keep 2.x maintainable:** `git branch 2.x main && git push origin 2.x`.
+3. **Merge `v3` into `main`** by PR, with a merge commit (keeps the milestone commits for the changelog).
+4. **Pin the version:**
    ```bash
    git checkout main && git pull
    git commit --allow-empty -m "feat!: CloudFrontize 3.0" -m "BREAKING CHANGE: see docs/migrating-to-3.md" -m "Release-As: 3.0.0"
    git push
    ```
-5. **Release PR:** release-please opens `chore(main): release 3.0.0`. Edit its `CHANGELOG.md` entry if needed (a short summary at the top, the link to the migration guide), then merge it. It tags `v3.0.0` and creates the GitHub release.
-6. **Publish:**
-   ```bash
-   git pull && npm ci && npm --prefix ui-src ci && npm publish     # prepublishOnly typechecks and builds
-   npm dist-tag add cloudfrontize@3.0.0 next                       # `next` shouldn't stay on a beta
-   npm dist-tag ls cloudfrontize
-   ```
-7. Check the npm page (README, version and Node badges) and `npx --yes cloudfrontize@latest --version`.
+5. **Merge the release PR** (`chore(main): release 3.0.0`) after putting a short summary and the migration guide link at the top of its changelog entry. 3.0.0 is then tagged, released and published.

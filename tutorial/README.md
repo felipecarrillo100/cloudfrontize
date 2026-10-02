@@ -66,7 +66,7 @@ While you can always check your terminal logs, we highly recommend running your 
 ```bash
 cloudfrontize www --edge ./your-code.js --webui 3003
 ```
-![CloudFrontize Pro Dashboard](../assets/cloudfrontize-pro-ui.png)
+![The CloudFrontize 2.x Web UI](../assets/cloudfrontize-2x-ui.png)
 
 Using the **Header Intelligence** panel in the UI, you can simulate different countries, user-agents, or auth tokens without ever stopping the emulator.
 

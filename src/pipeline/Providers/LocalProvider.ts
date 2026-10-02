@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 // @ts-ignore - serve-handler doesn't have good types
 import serveHandler from 'serve-handler';
 import { OriginProvider } from './base';
@@ -56,7 +57,7 @@ export class LocalProvider implements OriginProvider {
         // High Fidelity Logging: Show the preserved query string in the console output
         const [, qs] = req.url.split('?');
         const displayQs = qs ? `?${qs}` : '';
-        res.resolvedUri = `file://${fullPath}${isActuallyDir ? '/index.html' : ''}${displayQs}`.replace(/(?<!:)\/\//g, '/');
+        res.resolvedUri = `${pathToFileURL(isActuallyDir ? path.join(fullPath, 'index.html') : fullPath).href}${displayQs}`;
 
         if (fs.existsSync(fullPath)) {
             if (fullPath.endsWith('.br')) res.setHeader('content-encoding', 'br');

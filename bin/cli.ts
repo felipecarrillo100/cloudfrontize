@@ -94,8 +94,8 @@ async function runProject(target: string, options: any, command: Command) {
     try {
         server = await createServer({ project: target, recentProjects: true, ...(options.set ? { set: options.set } : {}), ...overrides });
     } catch (err) {
-        reportManifestError(err); // other startup errors were already reported by the server
-        process.exit(1);
+        if (err instanceof ManifestError) reportManifestError(err);
+        process.exit(1); // other startup errors (a busy port) were already reported by the server
     }
     onShutdown(server!);
 }

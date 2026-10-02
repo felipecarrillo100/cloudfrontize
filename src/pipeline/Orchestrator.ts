@@ -315,6 +315,7 @@ export class Orchestrator {
         const requestId: string = req.presetRequestId ?? require('crypto').randomBytes(4).toString('hex');
         const startTime = Date.now();
         const originalUrl = req.url;
+        req._viewerUrl = originalUrl; // for the access log: what the viewer asked for, not the rewritten URI
         req.requestID = requestId;
         const logPrefix = `\x1b[90m[${requestId}]\x1b[0m`;
         req._logBuffer = [`${logPrefix} ${req.method} ${req.url} \x1b[90m(Host: ${req.headers.host || 'unknown'})\x1b[0m`];
@@ -881,7 +882,7 @@ export class Orchestrator {
             console.log(req._logBuffer.join('\n') + '\n');
         } else if (!options.noBanner && options.requestLogging !== false) {
             // Two-Row Access Summary for Baseline Visibility (when --debug is off)
-            console.log(`${logPrefix} ${req.method} ${req.url} \x1b[33m⟹\x1b[0m ${statusStr} [${duration}ms]`);
+            console.log(`${logPrefix} ${req.method} ${req._viewerUrl ?? req.url} \x1b[33m⟹\x1b[0m ${statusStr} [${duration}ms]`);
             if (req._originInfo) {
                 console.log(`${logPrefix} \x1b[90m╰─\x1b[0m \x1b[32m[Origin]\x1b[0m Fetch (${req._originInfo.id}) \x1b[33m⟹\x1b[0m ${req._originInfo.uri}\n`);
             } else {
