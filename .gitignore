@@ -97,9 +97,9 @@ out
 .nuxt
 dist
 
-# Gatsby files
+# Gatsby files (root only: ui-src/public holds the WebUI's static files)
 .cache/
-public
+/public
 
 # Serverless directories
 .serverless/
@@ -130,5 +130,5 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# UI Build Output
-ui/
+# UI build output (root only: ui-src/src/components/ui is source)
+/ui/
