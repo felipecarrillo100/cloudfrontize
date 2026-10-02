@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a new visitor is put in a group by a cookie",
+      "request": {
+        "path": "/"
+      },
+      "expect": {
+        "status": 302,
+        "headers": {
+          "location": "/"
+        },
+        "headersContain": {
+          "set-cookie": "ab_test_group="
+        }
+      }
+    },
+    {
+      "name": "group A sees the original page",
+      "request": {
+        "path": "/",
+        "headers": {
+          "cookie": "ab_test_group=A"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "group A"
+      }
+    },
+    {
+      "name": "group B sees the new design",
+      "request": {
+        "path": "/",
+        "headers": {
+          "cookie": "ab_test_group=B"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "group B"
+      }
+    },
+    {
+      "name": "an invalid group gets a new one",
+      "request": {
+        "path": "/",
+        "headers": {
+          "cookie": "ab_test_group=Z"
+        }
+      },
+      "expect": {
+        "status": 302
+      }
+    }
+  ]
+}

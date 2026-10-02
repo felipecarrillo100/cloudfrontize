@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a short link redirects (302, not cached)",
+      "request": {
+        "path": "/summer"
+      },
+      "expect": {
+        "status": 302,
+        "headers": {
+          "location": "/promo/summer-sale.html",
+          "cache-control": "no-store"
+        }
+      }
+    },
+    {
+      "name": "a moved page redirects permanently",
+      "request": {
+        "path": "/Old-Blog"
+      },
+      "expect": {
+        "status": 301,
+        "headers": {
+          "location": "/index.html"
+        }
+      }
+    },
+    {
+      "name": "other paths reach the origin",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Home"
+      }
+    }
+  ]
+}

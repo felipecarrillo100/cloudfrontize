@@ -42,6 +42,7 @@ describe('Response Truncation: 1MB Limit Fidelity', () => {
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port}/`);
         const body = await res.text();
@@ -64,6 +65,7 @@ runner.load();
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: false });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port}/`);
         const body = await res.text();
@@ -85,6 +87,7 @@ runner.load();
         runner = new EdgeRunner(testDir, { watch: false });
 runner.load();
         server = startServer({ port, directory: testDir, edgeRunner: runner, noBanner: true, strict: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port}/`);
         const body = await res.text();

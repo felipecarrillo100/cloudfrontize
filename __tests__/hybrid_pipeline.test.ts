@@ -70,6 +70,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
             noBanner: true,
             debug: true
         });
+        await server.ready;
     });
 
     afterAll(async () => {
@@ -116,6 +117,7 @@ describe('Hybrid Pipeline: CFF + Lambda@Edge', () => {
             cffRunner: cffRunnerShort,
             noBanner: true
         });
+        await serverShort.ready;
 
         const res = await request(serverShort).get('/redirect');
         expect(res.status).toBe(302);

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "5.1 The Traffic Director",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "traffic-director": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.traffic-director.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "viewer-request": "traffic-director"
+    }
+  }
+}

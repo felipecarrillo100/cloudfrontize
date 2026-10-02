@@ -3,14 +3,14 @@ import path from 'path';
 import { AsyncLocalStorage } from 'async_hooks';
 import vm from 'vm';
 import { HotRunner } from './HotRunner';
-import { HookType, Registry } from './types';
+import { FileOverride, HookModule, HookType, Registry } from './types';
 import { AWS_LIMITS, AWS_HEADERS, AWS_RUNTIME } from '../constants';
 import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
 import { HookUtility } from './HookUtility';
 import { EdgeError } from './EdgeError';
-const hostRequire = require;
+import { createLambdaProcess, createLambdaRequire, sandboxTmpDir, wrapFetch } from './lambda/sandbox';
 
 
 /**
@@ -29,6 +29,8 @@ export class EdgeRunner extends HotRunner {
     private logContext = new AsyncLocalStorage<{ requestId: string; hookType: string; filename: string; logs: string[] }>();
     public compileError: string | null = null;
     private static EDGE_OVERHEAD_MS: number = -1;
+    /** Variables from the env file (they win over the defaults, including AWS_EXECUTION_ENV). */
+    private _envFileVars: Record<string, string> = {};
 
     private headerManager = new HeaderManager();
 
@@ -37,7 +39,7 @@ export class EdgeRunner extends HotRunner {
      * @param runnerPath - Absolute path to the edge function(s).
      * @param options - Execution options (strict mode, env paths, etc).
      */
-    constructor(runnerPath: string, public options: any = {}) {
+    constructor(runnerPath: string | null, public options: any = {}) {
         super(runnerPath, options);
         EdgeRunner._calculateOverhead();
     }
@@ -60,6 +62,19 @@ export class EdgeRunner extends HotRunner {
 
     public load(changedFile?: string): void {
         const newModules = this._createEmptyRegistry();
+
+        // Manifest mode: the project decides which files run and at which stage
+        if (this.options.files) {
+            this._envFileVars = this._loadEnv(this.options.envPath);
+            this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._envFileVars };
+            this.bakeVars = this._loadBake(this.options.bakePath);
+            this.compileError = null;
+            for (const file of this.options.files) {
+                this._loadFile(file.path, newModules, { stage: file.stage, id: file.id });
+            }
+            this.modules = newModules;
+            return;
+        }
         
         if (!this.runnerPath || !fs.existsSync(this.runnerPath)) {
             if (this.runnerPath) {
@@ -75,7 +90,8 @@ export class EdgeRunner extends HotRunner {
         }
 
         // Fidelity Fix: Ensure DEFAULT_ENV is always present and merged correctly
-        this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._loadEnv(this.options.envPath) };
+        this._envFileVars = this._loadEnv(this.options.envPath);
+        this.envVars = { ...AWS_RUNTIME.DEFAULT_ENV, ...this._envFileVars };
         this.bakeVars = this._loadBake(this.options.bakePath);
         this.compileError = null;
 
@@ -94,9 +110,10 @@ export class EdgeRunner extends HotRunner {
         this.modules = newModules;
     }
 
-    protected _loadFile(filePath: string, registry: Registry): void {
+    protected _loadFile(filePath: string, registry: Registry, override?: FileOverride): void {
         try {
             let content = fs.readFileSync(filePath, 'utf8');
+            const stage = override?.stage ?? HookUtility.detectStage(content, filePath);
 
             // Production Baking (Strata-Fidelity)
             content = CodeProcessor.bake(content, this.bakeVars);
@@ -113,6 +130,14 @@ export class EdgeRunner extends HotRunner {
             }
 
             // Professional: Sandbox preparation and hook detection
+            const projectDir = this.options.projectDir
+                ?? (this.runnerPath && fs.existsSync(this.runnerPath) && fs.statSync(this.runnerPath).isDirectory() ? this.runnerPath : path.dirname(filePath));
+            const sandboxContext = {
+                hookFile: filePath,
+                projectDir,
+                tmpDir: sandboxTmpDir(projectDir),
+                warn: (message: string) => this._fidelityWarning(message)
+            };
             const exportsObj = {};
             const sandbox: any = {
                 exports: exportsObj,
@@ -125,35 +150,17 @@ export class EdgeRunner extends HotRunner {
                     warn: (...args: any[]) => this._log('warn', args),
                     info: (...args: any[]) => this._log('info', args),
                 },
-                require: (id: string) => {
-                    const type = HookUtility.detectStage(content, filePath);
-                    
-                    for (const forbidden of AWS_RUNTIME.FORBIDDEN_MODULES) {
-                        if (id === forbidden || id.startsWith(forbidden + '/')) {
-                            throw new Error(`Forbidden: ${id} is restricted in Lambda@Edge environment`);
-                        }
-                    }
-
-                    if (type.includes('viewer')) {
-                        const allowed = AWS_RUNTIME.ALLOWED_VIEWER.includes(id as any) || 
-                                        AWS_RUNTIME.ALLOWED_VIEWER.some(a => id.startsWith(a + '/'));
-                        if (!allowed) {
-                            throw new Error(`Forbidden: ${id} is not available in Viewer hooks`);
-                        }
-                    }
-
-                    return hostRequire(id);
-                },
-                process: {
-                    // Stringify environment variables to avoid [object Object] (AWS Fidelity)
-                    env: Object.fromEntries(
-                        Object.entries({ ...process.env, ...this.envVars })
-                            .map(([k, v]) => [k, (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v))])
-                    ),
-                    nextTick: process.nextTick
-                },
-                setTimeout, clearTimeout, setInterval, clearInterval,
-                Buffer, Promise, URL, URLSearchParams
+                // AWS Parity: any module, in every event; fs and networking behave like Lambda's (lambda/sandbox.ts)
+                require: createLambdaRequire(sandboxContext),
+                // AWS Parity: "Lambda environment variables" aren't supported, except reserved ones.
+                // The host's environment is never visible.
+                process: createLambdaProcess(Object.fromEntries(
+                    Object.entries({ ...this.envVars, AWS_EXECUTION_ENV: `AWS_Lambda_${override?.runtime ?? AWS_RUNTIME.DEFAULT_NODE_RUNTIME}`, ...this._envFileVars })
+                        .map(([k, v]) => [k, (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v))])
+                ), sandboxContext),
+                setTimeout, clearTimeout, setInterval, clearInterval, setImmediate, clearImmediate, queueMicrotask, structuredClone,
+                Buffer, Promise, URL, URLSearchParams, TextEncoder, TextDecoder, AbortController, AbortSignal,
+                fetch: wrapFetch(sandboxContext), Headers, Request, Response, FormData, Blob, performance
             };
             sandbox.global = sandbox;
 
@@ -162,21 +169,25 @@ export class EdgeRunner extends HotRunner {
             script.runInNewContext(sandbox);
 
             const mod = sandbox.exports;
-            const finalType = HookUtility.detectStage(content, filePath);
+            const finalType = stage;
 
             if (mod.handler && finalType && registry[finalType]) {
-                // Fidelity Check: AWS only allows one hook per type.
-                if (registry[finalType].length > 0) {
+                // Fidelity Check: AWS only allows one hook per type. (Manifest mode: the manifest enforces one
+                // function per event per behavior, and the same stage may hold functions of different behaviors.)
+                if (!override && registry[finalType].length > 0) {
                     console.warn(`\x1b[33m⚠️  [CloudFrontize] Warning: Multiple files for "${finalType}" detected. Only "${path.basename(registry[finalType][0].filePath)}" will be used.\x1b[0m`);
                     return;
                 }
                 registry[finalType].push({ 
-                    id: `${finalType}-le-${registry[finalType].length}`, 
+                    id: override?.id ?? `${finalType}-le-${registry[finalType].length}`, 
                     handler: mod.handler, 
                     filePath: filePath 
                 });
                 console.log(`\x1b[32m✅ [L@E] Build Success: ${path.basename(filePath)}\x1b[0m`);
-                this.emit('build_success', { type: 'edge', file: filePath });
+                this.emit('build_success', { type: 'edge', file: filePath, size: Buffer.byteLength(content), warnings: [] });
+            } else if (typeof mod.handler !== 'function') {
+                // Lambda calls the exported handler; without one the function can't run
+                throw new Error('The function exports no handler: add exports.handler = async (event) => { ... }');
             }
         } catch (err: any) {
             this.compileError = err.message;
@@ -195,6 +206,15 @@ export class EdgeRunner extends HotRunner {
                 snippet: snippet
             });
         }
+    }
+
+    private warned = new Set<string>();
+
+    /** Each distinct fidelity warning is printed once per runner. */
+    private _fidelityWarning(message: string): void {
+        if (this.warned.has(message)) return;
+        this.warned.add(message);
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${message}\x1b[0m`);
     }
 
     private _log(level: string, args: any[], overrideTimestamp?: number): string {
@@ -242,7 +262,35 @@ export class EdgeRunner extends HotRunner {
         return logLine;
     }
 
+    /** The compiled function with this id, whichever stage registry holds it. */
+    public getModule(id: string): HookModule | undefined {
+        for (const mods of Object.values(this.modules)) {
+            const found = mods.find(m => m.id === id);
+            if (found) return found;
+        }
+        return undefined;
+    }
+
+    public hasModule(id: string): boolean {
+        return this.getModule(id) !== undefined;
+    }
+
+    /** 2.x API: runs every loaded viewer-request then origin-request hook, minus `disabledIds`. */
     public async runRequestHook(req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', disabledIds: string[] = [], bodyTruncated = false): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
+        const plan = (['viewer-request', 'origin-request'] as HookType[]).map(type => ({
+            type,
+            mods: this.modules[type].filter(m => !disabledIds.includes(m.id))
+        }));
+        return this._runRequestModules(req, bodyBuffer, requestID, bodyTruncated, plan);
+    }
+
+    /** Runs the given functions (by id, in order) for one request event. */
+    public async runRequestStage(stage: HookType, ids: string[], req: any, bodyBuffer?: Buffer, requestID = 'UNKNOWN', bodyTruncated = false): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
+        const mods = ids.map(id => this.getModule(id)).filter((m): m is HookModule => !!m);
+        return this._runRequestModules(req, bodyBuffer, requestID, bodyTruncated, [{ type: stage, mods }]);
+    }
+
+    private async _runRequestModules(req: any, bodyBuffer: Buffer | undefined, requestID: string, bodyTruncated: boolean, plan: { type: HookType; mods: HookModule[] }[]): Promise<{ result: any; logs: string[]; exposedHeaders: any }> {
         const request = this._buildRequestRecord(req, bodyBuffer, bodyTruncated);
         // Capture the Exposure Boundary: the exact headers handed to the Lambda at invocation time.
         // This is used by the caller (Orchestrator) to determine which deletions were intentional.
@@ -251,8 +299,7 @@ export class EdgeRunner extends HotRunner {
         const allLogs: string[] = [];
         let finalResult: any = null;
 
-        for (const type of ['viewer-request', 'origin-request'] as HookType[]) {
-            const mods = this.modules[type].filter(m => !disabledIds.includes(m.id));
+        for (const { type, mods } of plan) {
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(request.headers);
 
@@ -311,28 +358,38 @@ export class EdgeRunner extends HotRunner {
                 querystring: request.querystring,
                 body: request.body,
                 totalDurationMs: String(totalDurationMs),
-                type: 'viewer-request' 
+                type: plan.length === 1 ? plan[0].type : 'viewer-request'
             };
         }
 
         return { result: finalResult, logs: allLogs, exposedHeaders };
     }
 
+    /** 2.x API: runs the loaded hooks of `stage` (or both response stages), minus `disabledIds`. */
     public async runResponseHook(req: any, resData: any, requestID = 'UNKNOWN', stage?: HookType, disabledIds: string[] = []): Promise<{ result: any; logs: string[] }> {
+        // If no specific stage is targetted, run both as per legacy behavior
+        const stages = stage ? [stage] : (['origin-response', 'viewer-response'] as HookType[]);
+        const plan = stages.map(type => ({ type, mods: this.modules[type].filter(m => !disabledIds.includes(m.id)) }));
+        return this._runResponseModules(req, resData, requestID, plan);
+    }
+
+    /** Runs the given functions (by id, in order) for one response event. */
+    public async runResponseStage(stage: HookType, ids: string[], req: any, resData: any, requestID = 'UNKNOWN'): Promise<{ result: any; logs: string[] }> {
+        const mods = ids.map(id => this.getModule(id)).filter((m): m is HookModule => !!m);
+        return this._runResponseModules(req, resData, requestID, [{ type: stage, mods }]);
+    }
+
+    private async _runResponseModules(req: any, resData: any, requestID: string, plan: { type: HookType; mods: HookModule[] }[]): Promise<{ result: any; logs: string[] }> {
         const request = this._buildRequestRecord(req);
         let totalDurationMs = 0;
         // AWS Parity: disallowed headers are never exposed to edge functions
         let reconciledHeaders = HeaderManager.withoutDisallowed(this.headerManager.normalizeHeaders(resData.headers || {}));
         const allLogs: string[] = [];
 
-        // If no specific stage is targetted, run both as per legacy behavior
-        // But for forensic accuracy, forensic-aware callers should pass a stage.
-        const stages = stage ? [stage] : (['origin-response', 'viewer-response'] as HookType[]);
-
-        for (const type of stages) {
-            const mods = this.modules[type].filter(m => !disabledIds.includes(m.id));
+        for (const { type, mods } of plan) {
             for (const mod of mods) {
                 const originalHeaders = this._deepClone(reconciledHeaders);
+                const originalQuerystring = request.querystring;
 
                 if (this.options.verbose) {
                     allLogs.push(`\x1b[90m[${requestID}]\x1b[0m \x1b[90m├─\x1b[0m ○ \x1b[35m[L@E: ${type}]\x1b[0m ${path.basename(mod.filePath)}`);
@@ -356,6 +413,13 @@ export class EdgeRunner extends HotRunner {
                 totalDurationMs += durationMs;
 
                 if (timedOut) return { result: this._timeoutResponse(mod.filePath, type), logs: allLogs };
+
+                // AWS Parity: "A function can read a query string, but cannot create or update one, for
+                // origin response and viewer response events." The change is ignored.
+                if (request.querystring !== originalQuerystring) {
+                    request.querystring = originalQuerystring;
+                    EdgeError.reportValidation('lambda', `${path.basename(mod.filePath)}: ${type} functions can't change the query string`, this.options.strict);
+                }
                 if (!result) continue;
 
                 if (result.status) {

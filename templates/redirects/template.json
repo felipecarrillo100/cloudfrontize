@@ -1,0 +1,5 @@
+{
+  "name": "Redirects",
+  "description": "Redirects driven by a CloudFront KeyValueStore: change the list of short links and moved pages without touching the code.",
+  "order": 4
+}

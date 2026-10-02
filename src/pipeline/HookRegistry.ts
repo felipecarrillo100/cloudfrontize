@@ -5,19 +5,47 @@ import { EdgeRunner } from '../core/EdgeRunner';
 import { CFFRunner } from '../core/CFFRunner';
 
 import { Telemetry } from './Telemetry';
+import { CacheBehavior, HookType } from '../core/types';
 
 export class HookRegistry {
     private hooks: any[] = [];
     private disabledHookIds: Set<string> = new Set();
     private buildErrors: Map<string, any> = new Map();
+    private detachListeners: Array<() => void> = [];
 
-    constructor(private edgeRunner: EdgeRunner | null, private cffRunner: CFFRunner | null, private telemetry: Telemetry) {
+    /**
+     * @param behaviors - Project mode: behaviors with explicit function associations. One entry is
+     *   listed per (function, event) attachment; a function attached to several behaviors shares its id.
+     */
+    constructor(private edgeRunner: EdgeRunner | null, private cffRunner: CFFRunner | null, private telemetry: Telemetry, private behaviors: CacheBehavior[] = []) {
         this._initialize();
         this._setupListeners();
     }
 
     private _initialize() {
         const hooks: any[] = [];
+
+        // Manifest mode: the project lists the functions; behaviors say which events they run on
+        const edgeFiles: any[] = this.edgeRunner?.options?.files || [];
+        const cffFiles: any[] = this.cffRunner?.options?.files || [];
+        if (this.edgeRunner?.options?.files || this.cffRunner?.options?.files) {
+            const byId = new Map<string, { type: string; path: string }>();
+            for (const f of edgeFiles) byId.set(f.id, { type: 'Lambda@Edge', path: f.path });
+            for (const f of cffFiles) byId.set(f.id, { type: 'CloudFront Function', path: f.path });
+            const seen = new Set<string>();
+            for (const behavior of this.behaviors) {
+                for (const [stage, ids] of Object.entries(behavior.functions || {}) as [HookType, string[]][]) {
+                    for (const id of ids) {
+                        const fn = byId.get(id);
+                        if (!fn || seen.has(`${id}|${stage}`)) continue;
+                        seen.add(`${id}|${stage}`);
+                        hooks.push({ id, type: fn.type, path: fn.path, stage });
+                    }
+                }
+            }
+            this.hooks = hooks;
+            return;
+        }
         
         // 1. Lambda@Edge Discovery
         const edgePath = this.edgeRunner?.getRunnerPath?.();
@@ -67,24 +95,35 @@ export class HookRegistry {
     private _setupListeners() {
         const runners = [this.edgeRunner, this.cffRunner].filter(Boolean);
         for (const runner of runners) {
-            runner!.on('build_error', (data) => {
+            const onError = (data: any) => {
                 this.buildErrors.set(data.path, data);
                 this.telemetry.broadcast({
                     id: 'SYSTEM_BUILD',
                     type: 'error',
                     details: data
                 });
-            });
-
-            runner!.on('build_success', (data) => {
+            };
+            const onSuccess = (data: any) => {
                 this.buildErrors.delete(data.file);
                 this.telemetry.broadcast({
                     id: 'SYSTEM_BUILD',
                     type: 'success',
                     details: { name: 'Build Success', ...data }
                 });
+            };
+            runner!.on('build_error', onError);
+            runner!.on('build_success', onSuccess);
+            this.detachListeners.push(() => {
+                runner!.off('build_error', onError);
+                runner!.off('build_success', onSuccess);
             });
         }
+    }
+
+    /** Detaches from the runners so a disposed project stops reporting builds. */
+    public dispose(): void {
+        for (const detach of this.detachListeners) detach();
+        this.detachListeners = [];
     }
 
     public getAllHooks() {

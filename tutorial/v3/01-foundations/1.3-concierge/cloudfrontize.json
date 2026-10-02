@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "1.3 The Concierge",
+  "origins": [
+    { "id": "website", "type": "local", "path": "origins/www" }
+  ],
+  "functions": {
+    "concierge": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.concierge.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": { "viewer-request": "concierge" }
+  }
+}

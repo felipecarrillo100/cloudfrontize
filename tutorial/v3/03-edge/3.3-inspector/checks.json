@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a normal form submission reaches the origin",
+      "request": {
+        "method": "POST",
+        "path": "/index.html",
+        "headers": {
+          "content-type": "application/x-www-form-urlencoded"
+        },
+        "body": "q=red+shoes"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "<h1>Search</h1>"
+      }
+    },
+    {
+      "name": "a classic injection is blocked at the edge",
+      "request": {
+        "method": "POST",
+        "path": "/index.html",
+        "headers": {
+          "content-type": "application/x-www-form-urlencoded"
+        },
+        "body": "q=x' OR '1'='1"
+      },
+      "expect": {
+        "status": 403,
+        "bodyContains": "Request blocked."
+      }
+    },
+    {
+      "name": "so is DROP TABLE, whatever the case",
+      "request": {
+        "method": "POST",
+        "path": "/index.html",
+        "headers": {
+          "content-type": "text/plain"
+        },
+        "body": "name=bob; drop TABLE users; --"
+      },
+      "expect": {
+        "status": 403
+      }
+    },
+    {
+      "name": "requests without a body pass",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200
+      }
+    }
+  ]
+}

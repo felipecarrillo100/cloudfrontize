@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "2.2 The Diplomat",
+  "origins": [
+    { "id": "website", "type": "local", "path": "origins/www" }
+  ],
+  "functions": {
+    "diplomat": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/origin-request.diplomat.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": { "origin-request": "diplomat" }
+  },
+  "viewer": { "headers": "viewer-headers.json" }
+}

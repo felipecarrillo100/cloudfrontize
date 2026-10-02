@@ -63,11 +63,13 @@ runner.load();
         const testDir = path.join(baseDir, 'cpu');
         fs.mkdirSync(testDir, { recursive: true });
 
-        // Loop for ~2ms
+        // Burn CPU with a counter: Date is frozen at the function's start time (as in AWS, "you cannot
+        // measure elapsed time in your function"), so a Date-based busy wait would never end.
         fs.writeFileSync(path.join(testDir, 'viewer-request-slow.js'), `
             function handler(event) {
-                var start = Date.now();
-                while(Date.now() - start < 10) {} 
+                var x = 0;
+                for (var i = 0; i < 20000000; i++) { x += i % 7; }
+                event.request.headers['x-work'] = { value: String(x) };
                 return event.request;
             }
         `);

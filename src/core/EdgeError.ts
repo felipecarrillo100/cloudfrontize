@@ -23,4 +23,10 @@ export class EdgeError extends Error {
     static validation(kind: 'lambda' | 'function', message: string): EdgeError {
         return new EdgeError(502, kind === 'lambda' ? 'LambdaValidationError' : 'FunctionValidationError', message);
     }
+
+    /** A validation failure: a 502 under `strict`, otherwise a fidelity warning (and the change is ignored). */
+    static reportValidation(kind: 'lambda' | 'function', message: string, strict = false): void {
+        if (strict) throw EdgeError.validation(kind, message);
+        console.warn(`\x1b[33m⚠️  [Fidelity Warning] ${message}\x1b[0m`);
+    }
 }

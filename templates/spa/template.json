@@ -1,0 +1,5 @@
+{
+  "name": "Single-page app",
+  "description": "A React/Vue/Angular-style app: every route without a file extension is served index.html, so the app's router handles it.",
+  "order": 1
+}

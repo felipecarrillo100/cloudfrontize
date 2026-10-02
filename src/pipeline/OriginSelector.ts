@@ -1,33 +1,46 @@
 import { CacheBehavior } from '../core/types';
 
+/** A cache behavior with its compiled path pattern. */
+export interface ResolvedBehavior extends CacheBehavior {
+    key: string;
+    regex: RegExp;
+}
+
+/**
+ * Matches a request path to a cache behavior, the way CloudFront does: behaviors are evaluated in
+ * order and the first match wins; the default behavior ("*") comes last.
+ */
 export class OriginSelector {
-    private behaviors: { regex: RegExp; targetOriginId: string }[];
+    private behaviors: ResolvedBehavior[];
 
     constructor(behaviors: CacheBehavior[]) {
-        this.behaviors = behaviors.map(b => ({
-            regex: this._patternToRegex(b.pathPattern),
-            targetOriginId: b.targetOriginId
+        this.behaviors = behaviors.map((b, i) => ({
+            ...b,
+            key: b.key ?? (b.pathPattern === '*' && i === behaviors.length - 1 ? 'default' : b.pathPattern),
+            regex: OriginSelector.patternToRegex(b.pathPattern)
         }));
     }
 
-    public select(url: string, defaultOriginId: string): string {
+    /** The behavior that handles `url` (query string ignored), or undefined when none matches. */
+    public match(url: string): ResolvedBehavior | undefined {
         const path = url.split('?')[0];
-        for (const b of this.behaviors) {
-            if (b.regex.test(path)) {
-                return b.targetOriginId;
-            }
-        }
-        return defaultOriginId;
+        return this.behaviors.find(b => b.regex.test(path));
     }
 
-    private _patternToRegex(pattern: string): RegExp {
-        // CloudFront Path Pattern rules:
-        // 1. '*' matches any characters.
-        // 2. Exact matches are allowed.
-        // 3. Patterns are case-sensitive (local choice, though AWS is too).
-        
-        const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&'); // Escape regex special chars except *
-        const regexStr = '^' + escaped.replace(/\*/g, '.*') + '$';
-        return new RegExp(regexStr);
+    public select(url: string, defaultOriginId: string): string {
+        return this.match(url)?.targetOriginId ?? defaultOriginId;
+    }
+
+    public all(): ResolvedBehavior[] {
+        return this.behaviors;
+    }
+
+    /**
+     * CloudFront path patterns: `*` matches zero or more characters, `?` exactly one; everything
+     * else is literal and case-sensitive.
+     */
+    static patternToRegex(pattern: string): RegExp {
+        const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+        return new RegExp('^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
     }
 }

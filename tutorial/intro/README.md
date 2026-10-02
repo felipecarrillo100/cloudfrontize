@@ -1,5 +1,8 @@
 # 🧪 Intro – Run & Debug
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../v3/00-intro/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ### The Forensic Advantage: Edge Development at Warp Speed
 As a CloudFront Architect, testing redirects and geo-routing in the real AWS environment is notoriously slow—often requiring 15+ minutes for CloudFront to propagate changes globally. CloudFrontize collapses this feedback loop to seconds. In this introduction, you’ll learn how to:
 * **Boot the Forensic Environment**: Run CloudFrontize locally with zero cold starts.
@@ -19,7 +22,7 @@ intro/
 ├── www/
 │   ├── index.html
 │   └── index-fr.html
-└── viewer-request-geo.js
+└── origin-request-geo.js
 ```
 
 ### 📂 `www/` – Static Site
@@ -29,12 +32,12 @@ intro/
 
 ---
 
-### ⚡ `viewer-request-geo.js` – Lambda@Edge Logic
+### ⚡ `origin-request-geo.js` – Lambda@Edge Logic
 
 This function rewrites requests based on the viewer’s country:
 
 ```javascript
-exports.hookType = 'viewer-request';
+exports.hookType = 'origin-request';
 
 exports.handler = (event, context, callback) => {
     const request = event.Records[0].cf.request;
@@ -55,6 +58,9 @@ exports.handler = (event, context, callback) => {
 };
 ```
 
+> [!NOTE]
+> **Why origin-request?** `CloudFront-Viewer-Country` is a header **CloudFront adds**, and AWS documents when: *"CloudFront adds the headers after the viewer request event, which means the headers aren't available to Lambda@Edge functions in a viewer request. The headers are only available to Lambda@Edge functions in an origin request and origin response."* CloudFrontize follows the same rule, so this function runs on **origin-request**. (CloudFront Functions can read the header on viewer-request; see the [CloudFront Functions module](../module-5-cff/).)
+
 ---
 
 ## ▶️ Step 1 – Run CloudFrontize
@@ -62,7 +68,7 @@ exports.handler = (event, context, callback) => {
 Start the emulator with debug mode and Web UI enabled:
 
 ```bash
-cloudfrontize www --edge ./viewer-request-geo.js -d --webui 3001
+cloudfrontize www --edge ./origin-request-geo.js -d --webui 3001
 ```
 
 You should see:
@@ -87,8 +93,8 @@ You’ll see the **default page (`index.html`)**, because the country defaults t
 Check your terminal. You should see logs like:
 
 ```text
-[viewer-request] Viewer country: US
-[viewer-request] Serving default page
+[origin-request] Viewer country: US
+[origin-request] Serving default page
 ```
 
 👉 This is your **Lambda@Edge function running locally**.
@@ -138,14 +144,14 @@ Now the behavior changes:
 ### 🖥️ Console
 
 ```text
-[viewer-request] Viewer country: FR
-[viewer-request] Rewriting to French page
+[origin-request] Viewer country: FR
+[origin-request] Rewriting to French page
 ```
 
 ### 🔍 Web UI
 
 *   **Traffic Audit**: In the **Real-time Edge Traffic** list, click the request row to expand the **Execution Journey**.
-*   **Fidelity Analysis**: Click the **[L@E: viewer-request]** station. In the **State Inspector** panel, verify that the **Header Snapshots** (and URI state) show the pivot to `/index-fr.html`.
+*   **Fidelity Analysis**: Click the **[L@E: origin-request]** station. In the **State Inspector** panel, verify that the **Header Snapshots** (and URI state) show the pivot to `/index-fr.html`.
 
 ---
 
@@ -187,7 +193,7 @@ if (country === 'FR') {
 ## 🧠 What You Just Learned
 
 * ✅ How to run CloudFrontize locally
-* ✅ How a **viewer-request hook** works
+* ✅ How an **origin-request hook** works, and why CloudFront's geo headers are only visible there
 * ✅ How to debug using the **console**
 * ✅ How to inspect and override headers in the **Web UI**
 * ✅ How **geo-routing** works at the Edge

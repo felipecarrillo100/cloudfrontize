@@ -51,8 +51,9 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
     });
 
     describe('Mode: website (S3 Website Hosting Fidelity)', () => {
-        beforeEach(() => {
+        beforeEach(async () => {
             server = startServer({ directory: baseDir, port, mode: 'website', noBanner: true });
+            await server.ready;
         });
 
         test('Root (/) should serve index.html', async () => {
@@ -82,6 +83,7 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
     describe('Mode: rest (Strict CloudFront Fidelity)', () => {
         test('Root (/) should STILL serve index.html safely', async () => {
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
+            await server.ready;
             const res = await request(server).get('/');
             expect(res.status).toBe(200);
             expect(res.text).toContain('Root File');
@@ -89,12 +91,14 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
 
         test('Subfolder (/subfolder/) should return 404 (object not found)', async () => {
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
+            await server.ready;
             const res = await request(server).get('/subfolder/');
             expect(res.status).toBe(404);
         });
 
         test('Subfolder without trailing slash (/subfolder) should return 404 (object not found)', async () => {
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true });
+            await server.ready;
             const res = await request(server).get('/subfolder');
             expect(res.status).toBe(404);
         });
@@ -103,6 +107,7 @@ describe('--mode flag and Directory Indexing Fidelity', () => {
             edgeRunner = new EdgeRunner(edgeDir, { watch: false });
             edgeRunner.load();
             server = startServer({ directory: baseDir, port, mode: 'rest', noBanner: true, edgeRunner });
+            await server.ready;
 
             const res = await request(server).get('/subfolder/');
             expect(res.status).toBe(200);

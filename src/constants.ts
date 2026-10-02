@@ -1,3 +1,5 @@
+import { CLOUDFRONT_ADDED_HEADERS } from './api/contract';
+
 /**
  * AWS Lambda@Edge Limits
  *
@@ -33,6 +35,7 @@ export const AWS_LIMITS = {
  */
 export const CFF_LIMITS = {
     MAX_CODE_SIZE_BYTES: 10 * 1024,           // 10 KB (Quotas on CloudFront Functions; not adjustable)
+    MAX_LOG_BYTES: 10 * 1024,                 // 10 KB: logs are truncated beyond it (Restrictions on CloudFront Functions)
     MAX_CPU_TIME_MS: 1,                       // Reference limit: 1ms warning (AWS measures compute utilization)
     RUNAWAY_GUARD_MS: 1000                    // Enforced limit with leeway (emulator-only): stops infinite loops
 } as const;
@@ -72,6 +75,14 @@ export const AWS_HEADERS = {
     LAMBDA_VIEWER_RESPONSE_READ_ONLY: ['content-length', 'content-encoding', 'transfer-encoding'],
     // "If a viewer request function adds the CloudFront-Viewer-Country header, it fails validation" (502)
     VIEWER_REQUEST_CANNOT_ADD: ['cloudfront-viewer-country'],
+    /**
+     * Headers CloudFront adds to the request, when a cache or origin request policy asks for them.
+     * Source: "Add CloudFront request headers". CloudFront adds them after the viewer request event:
+     * Lambda@Edge sees them only in origin request and origin response ("Restrictions on Lambda@Edge ›
+     * CloudFront headers"); CloudFront Functions have access to them ("Differences between CloudFront
+     * Functions and Lambda@Edge › Access to geolocation and device data").
+     */
+    CLOUDFRONT_ADDED: CLOUDFRONT_ADDED_HEADERS,
 
     /** @deprecated Superseded by DISALLOWED / READ_ONLY; kept for programmatic API compatibility. */
     FORBIDDEN: [
@@ -89,23 +100,13 @@ export const AWS_HEADERS = {
  * Sandbox & Runtime Configurations
  */
 export const AWS_RUNTIME = {
-    // Unified whitelist for all Lambda@Edge hook types (Viewer & Origin)
-    ALLOWED_VIEWER: ['crypto', 'buffer', 'util', 'url', 'querystring', 'stream', 'events'],
-    ALLOWED_ORIGIN: [
-        'crypto', 'buffer', 'util', 'path', 'zlib', 'url', 'querystring', 'fs', 'stream', 'events',
-        'aws-sdk', '@aws-sdk/util-utf8', '@aws-sdk/types', '@aws-sdk/util-base64',
-        '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-secrets-manager', '@aws-sdk/client-appconfig',
-        '@aws-sdk/lib-dynamodb'
-    ],
-
-    // Networking modules (only active if --allow-networking is passed)
-    ALLOWED_NETWORKING: ['http', 'https', 'net', 'tls', 'dns', 'stream', 'punycode', 'string_decoder', 'timers', 'events'],
-
-    FORBIDDEN_MODULES: ['child_process', 'os'], // Strict global bans
+    // Lambda@Edge has no module restrictions: "network access" and "file system access" in every event
+    // ("Differences between CloudFront Functions and Lambda@Edge"). See src/core/lambda/sandbox.ts.
+    DEFAULT_NODE_RUNTIME: 'nodejs22.x',
     DEFAULT_ENV: {
         'AWS_REGION': 'us-east-1',
         'AWS_DEFAULT_REGION': 'us-east-1',
-        'AWS_EXECUTION_ENV': 'AWS_Lambda_nodejs20.x',
+        'AWS_EXECUTION_ENV': 'AWS_Lambda_nodejs22.x',
         'AWS_LAMBDA_FUNCTION_NAME': 'cloudfrontize-emulator',
         'AWS_LAMBDA_FUNCTION_VERSION': '1',
         'AWS_LAMBDA_FUNCTION_MEMORY_SIZE': '128'

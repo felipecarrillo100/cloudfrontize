@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a phone is sent to the mobile site, keeping the path and query string",
+      "request": { "path": "/products/index.html?id=7&color=red", "headers": { "cloudfront-is-mobile-viewer": "true" } },
+      "expect": { "status": 302, "headers": { "location": "https://m.example.com/products/index.html?id=7&color=red" } }
+    },
+    {
+      "name": "a desktop browser gets the page",
+      "request": { "path": "/products/index.html", "headers": { "cloudfront-is-mobile-viewer": "false" } },
+      "expect": { "status": 200, "bodyContains": "desktop edition", "headersAbsent": ["location"] }
+    },
+    {
+      "name": "without device headers the request continues to the origin",
+      "request": { "path": "/index.html" },
+      "expect": { "status": 200, "bodyContains": "The desktop site." }
+    }
+  ]
+}

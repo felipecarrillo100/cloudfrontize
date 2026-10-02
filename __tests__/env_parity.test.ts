@@ -33,7 +33,28 @@ describe('Env Var Parity: AWS Mock Environment', () => {
 
         const { result } = await runner.runRequestHook({ url: '/' });
         expect(result.headers['x-aws-region'][0].value).toBe('us-east-1');
-        expect(result.headers['x-aws-env'][0].value).toBe('AWS_Lambda_nodejs20.x');
+        expect(result.headers['x-aws-env'][0].value).toBe('AWS_Lambda_nodejs22.x');
+    });
+
+    // AWS: environment variables aren't supported in Lambda@Edge except reserved ones, so the
+    // host's variables (credentials, tokens, PATH...) must not leak into a function.
+    test('Should NOT expose the host environment', async () => {
+        process.env.CFZ_PARITY_HOST_VAR = 'from-host';
+        fs.writeFileSync(path.join(testDir, 'host.js'), `
+            exports.hookType = 'viewer-request';
+            exports.handler = async (event) => {
+                const req = event.Records[0].cf.request;
+                req.headers['x-host-var'] = [{ key: 'X-Host-Var', value: String(process.env.CFZ_PARITY_HOST_VAR) }];
+                req.headers['x-has-path'] = [{ key: 'X-Has-Path', value: String('PATH' in process.env) }];
+                return req;
+            };
+        `);
+        const runner = new EdgeRunner(testDir, { watch: false });
+        runner.load();
+        const { result } = await runner.runRequestHook({ url: '/' });
+        delete process.env.CFZ_PARITY_HOST_VAR;
+        expect(result.headers['x-host-var'][0].value).toBe('undefined');
+        expect(result.headers['x-has-path'][0].value).toBe('false');
     });
 
     test('Should allow overriding defaults via .env file', async () => {

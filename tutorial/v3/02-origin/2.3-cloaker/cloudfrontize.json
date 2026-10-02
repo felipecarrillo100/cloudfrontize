@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "2.3 The Cloaker",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "cloaker": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/origin-response.cloaker.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "origin-response": "cloaker"
+    }
+  },
+  "viewer": {
+    "headers": "config/origin-headers.json"
+  }
+}

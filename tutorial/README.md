@@ -2,6 +2,9 @@
 
 Welcome to the CloudFrontize Academy! This structured, hands-on tutorial is designed to take you from a **Lambda@Edge Newbie** to a **Production Pro** using the CloudFrontize emulator.
 
+> [!IMPORTANT]
+> **Using CloudFrontize 3? Start with [the project-based tutorials in `v3/`](./v3/README.md).** Each is a folder you open with the workbench, with its checks (`cloudfrontize check`). The modules below are the 2.x versions (command-line flags, the 2.x WebUI), kept for 2.x setups. To check every tutorial automatically, run `npm run tutorials` from the repository root.
+
 ## 🗺️ The Path to Mastery
 
 The tutorial is organized into four thematic modules. Each module contains real-world scenarios, architectural explanations, and hands-on exercises.
@@ -63,7 +66,7 @@ While you can always check your terminal logs, we highly recommend running your 
 ```bash
 cloudfrontize www --edge ./your-code.js --webui 3003
 ```
-![CloudFrontize Pro Dashboard](../assets/cloudfrontize-pro-ui.png)
+![The CloudFrontize 2.x Web UI](../assets/cloudfrontize-2x-ui.png)
 
 Using the **Header Intelligence** panel in the UI, you can simulate different countries, user-agents, or auth tokens without ever stopping the emulator.
 

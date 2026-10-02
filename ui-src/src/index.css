@@ -1,63 +1,73 @@
 @import "tailwindcss";
 
-@theme {
-  --color-border: hsl(240 3.7% 15.9%);
-  --color-input: hsl(240 3.7% 15.9%);
-  --color-ring: hsl(240 4.9% 83.9%);
-  --color-background: hsl(240 10% 3.9%);
-  --color-foreground: hsl(0 0% 98%);
-  --color-primary: hsl(0 0% 98%);
-  --color-primary-foreground: hsl(240 5.9% 10%);
-  --color-secondary: hsl(240 3.7% 15.9%);
-  --color-secondary-foreground: hsl(0 0% 98%);
-  --color-destructive: hsl(0 62.8% 30.6%);
-  --color-destructive-foreground: hsl(0 0% 98%);
-  --color-muted: hsl(240 3.7% 15.9%);
-  --color-muted-foreground: hsl(240 5% 64.9%);
-  --color-accent: hsl(240 3.7% 15.9%);
-  --color-accent-foreground: hsl(0 0% 98%);
-  --color-popover: hsl(240 10% 3.9%);
-  --color-popover-foreground: hsl(0 0% 98%);
-  --color-card: hsl(240 10% 3.9%);
-  --color-card-foreground: hsl(0 0% 98%);
-
-  --radius-lg: 0.5rem;
-  --radius-md: calc(0.5rem - 2px);
-  --radius-sm: calc(0.5rem - 4px);
-}
-
+/* Design tokens. Components use the semantic utilities below (bg-surface, text-muted, border-line...),
+   never raw colors, so light and dark themes come from one place. */
 :root {
-  --pro-modal-overlay: rgba(13, 17, 23, 0.6);
-  --pro-modal-blur: 12px;
-  --pro-modal-bg: #0d1117;
-  --pro-modal-header: #161b22;
-  --pro-modal-border: #30363d;
-  --pro-text-main: #f8fafc;
-  --pro-text-dim: #8b949e;
-  
-  --pro-roadmap-blue: #3b82f6;
-  --pro-warning-amber: #f59e0b;
-  --pro-blocker-coral: #ff6b6b;
-  --pro-success-emerald: #10b981;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --line: #d9dee6;
+  --text: #16202e;
+  --muted: #5b6676;
+  --accent: #ea580c;
+  --accent-fg: #ffffff;
+  --request: #c2410c;
+  --response: #1d4ed8;
+  --ok: #15803d;
+  --warn: #a16207;
+  --danger: #b91c1c;
+  --cff: #0e7490;
+  --lae: #7e22ce;
+  color-scheme: light;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-    scrollbar-width: thin;
-    scrollbar-color: #30363d #0d1117;
-  }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
+:root[data-theme="dark"] {
+  --bg: #0e1117;
+  --surface: #161b22;
+  --surface-2: #1f2630;
+  --line: #2d3540;
+  --text: #e6edf3;
+  --muted: #8b96a5;
+  --accent: #f97316;
+  --accent-fg: #0e1117;
+  --request: #fb923c;
+  --response: #60a5fa;
+  --ok: #4ade80;
+  --warn: #facc15;
+  --danger: #f87171;
+  --cff: #22d3ee;
+  --lae: #c084fc;
+  color-scheme: dark;
 }
 
-/* Glassmorphism utility */
-.glass {
-  @apply bg-white/5 backdrop-blur-md border border-white/10;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-request: var(--request);
+  --color-response: var(--response);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-cff: var(--cff);
+  --color-lae: var(--lae);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
-.glass-accent {
-  @apply bg-primary/10 backdrop-blur-md border border-primary/20;
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

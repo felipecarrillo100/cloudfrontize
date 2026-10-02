@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "5.2 The Header Injector",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "header-injector": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.header-injector.js"
+    },
+    "probe": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/origin-response.probe.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "viewer-request": "header-injector",
+      "origin-response": "probe"
+    }
+  }
+}

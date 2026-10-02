@@ -3,13 +3,14 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 
+// The Developer UI server: static assets, security checks, and the API v2 a 2.x setup gets.
 const testDirBase = path.resolve('.tmp');
 
-describe('Developer UI API (Visual Control Plane)', () => {
+describe('Developer UI server (2.x setup)', () => {
     jest.setTimeout(30000);
     let server: CloudFrontizeServer;
-    const port = Math.floor(Math.random() * 1000) + 7000;
-    const uiPort = Math.floor(Math.random() * 1000) + 8000;
+    let port: number;
+    let uiPort: number;
     const testDir = path.join(testDirBase, 'zzz_ui_test_' + Date.now());
     // Stub UI assets so the suite doesn't depend on a Vite build of ui-src
     const uiDir = path.join(testDir, '_ui');
@@ -20,19 +21,12 @@ describe('Developer UI API (Visual Control Plane)', () => {
         fs.mkdirSync(path.join(uiDir, 'assets'), { recursive: true });
         fs.writeFileSync(path.join(uiDir, 'index.html'), '<!doctype html><title>UI</title>');
         fs.writeFileSync(path.join(uiDir, 'assets', 'app.css'), 'body{}');
+        fs.writeFileSync(path.join(uiDir, 'assets', 'codicon.ttf'), 'font');
 
-        // Cast to our local interface so server.closeGracefully() is recognized
-        server = startServer({
-            port,
-            webui: uiPort,
-            uiDir,
-            directory: testDir,
-            noBanner: true,
-            debug: true
-        }) as CloudFrontizeServer;
-
-        // Wait for servers to be fully ready
-        await new Promise(resolve => setTimeout(resolve, 500));
+        server = startServer({ port: 0, webui: true, uiDir, directory: testDir, noBanner: true }) as CloudFrontizeServer;
+        await server.ready;
+        port = (server.address() as any).port;
+        uiPort = server.webuiPort!;
     });
 
     afterAll(async () => {
@@ -40,159 +34,73 @@ describe('Developer UI API (Visual Control Plane)', () => {
         if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
     });
 
-    test('✅ should serve UI index.html at root', async () => {
-        const res: http.IncomingMessage = await new Promise((resolve, reject) => {
-            http.get(`http://localhost:${uiPort}/`, resolve).on('error', reject);
-        });
-        res.resume();
-        expect(res.statusCode).toBe(200);
-        expect(res.headers['content-type']).toBe('text/html');
-    });
-
-    test('✅ should serve Vite assets from /assets/ directory', async () => {
-        const res: http.IncomingMessage = await new Promise((resolve, reject) => {
-            http.get(`http://localhost:${uiPort}/assets/app.css`, resolve).on('error', reject);
-        });
-        res.resume();
-        expect(res.statusCode).toBe(200);
-        expect(res.headers['content-type']).toMatch(/text\/(css|javascript)/);
-    });
-
-    test('✅ should not serve files outside the UI directory', async () => {
-        // Node sends the path verbatim, so `..` reaches the server un-normalized (browsers would collapse it)
-        const res: http.IncomingMessage = await new Promise((resolve, reject) => {
-            http.request({ host: 'localhost', port: uiPort, path: '/../index.html' }, resolve).on('error', reject).end();
-        });
-        res.resume();
-        expect(res.statusCode).toBe(404);
-    });
-
-    const rawRequest = (opts: http.RequestOptions, body?: string): Promise<http.IncomingMessage> =>
+    const request = (opts: http.RequestOptions, body?: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; text: string }> =>
         new Promise((resolve, reject) => {
-            const r = http.request({ host: 'localhost', port: uiPort, ...opts }, (res) => { res.resume(); resolve(res); });
+            const r = http.request({ host: '127.0.0.1', port: uiPort, ...opts }, (res) => {
+                let text = '';
+                res.on('data', c => { text += c; });
+                res.on('end', () => resolve({ status: res.statusCode!, headers: res.headers, text }));
+            });
             r.on('error', reject);
             r.end(body);
         });
 
-    test('✅ should reject cross-site requests (foreign Origin)', async () => {
-        const res = await rawRequest({
-            method: 'POST', path: '/api/sticky',
-            headers: { Origin: 'http://evil.example', 'Content-Type': 'text/plain' }
-        }, JSON.stringify({ requestHeaders: { 'x-pwned': 'yes' } }));
-        expect(res.statusCode).toBe(403);
-
-        const sticky = await new Promise<any>((resolve) => {
-            http.get(`http://localhost:${uiPort}/api/sticky`, (r) => {
-                let d = ''; r.on('data', c => d += c); r.on('end', () => resolve(JSON.parse(d)));
-            });
-        });
-        expect(sticky.request['x-pwned']).toBeUndefined();
+    test('serves the UI and its assets with their content types', async () => {
+        const index = await request({ path: '/' });
+        expect(index.status).toBe(200);
+        expect(index.headers['content-type']).toBe('text/html');
+        expect((await request({ path: '/assets/app.css' })).headers['content-type']).toBe('text/css');
+        expect((await request({ path: '/assets/codicon.ttf' })).headers['content-type']).toBe('font/ttf');
     });
 
-    test('✅ should reject a foreign Host header (DNS rebinding)', async () => {
-        const res = await rawRequest({ path: '/api/distribution', headers: { Host: `attacker.example:${uiPort}` } });
-        expect(res.statusCode).toBe(403);
+    test('never serves files outside the UI directory', async () => {
+        // Node sends the path verbatim, so `..` reaches the server un-normalized (browsers would collapse it)
+        expect((await request({ path: '/../index.html' })).status).toBe(404);
     });
 
-    test('✅ should refuse to open files that are not loaded hooks', async () => {
-        const target = path.join(testDir, 'index.html'); // exists, but is not a hook
-        const res = await rawRequest({ path: `/api/open-editor?path=${encodeURIComponent(target)}` });
-        expect(res.statusCode).toBe(404);
+    test('the 2.x UI endpoints are gone', async () => {
+        for (const p of ['/events', '/api/distribution', '/api/sticky', '/api/detail/x', '/api/hooks/control', '/api/open-editor?path=/etc/passwd', '/api/production-code?id=x']) {
+            expect([p, (await request({ path: p })).status]).toEqual([p, 404]);
+        }
     });
 
-    test('✅ should accept header overrides via POST /api/sticky', (done) => {
-        const data = JSON.stringify({
-            requestHeaders: { 'X-Sticky-Test': 'Active' },
-            responseHeaders: { 'X-Mock-Cache': 'HIT' }
-        });
-
-        const req = http.request({
-            hostname: 'localhost',
-            port: uiPort,
-            path: '/api/sticky',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(data)
-            }
-        }, (res) => {
-            if (res.statusCode !== 200) {
-                let body = '';
-                res.on('data', c => body += c);
-                res.on('end', () => {
-                    console.error(`❌ POST /api/sticky failed with ${res.statusCode}: ${body}`);
-                    expect(res.statusCode).toBe(200);
-                    done();
-                });
-                return;
-            }
-            expect(res.statusCode).toBe(200);
-
-            http.get(`http://localhost:${port}/`, (res2) => {
-                expect(res2.headers['x-mock-cache']).toBe('HIT');
-                done();
-            });
-        });
-
-        req.write(data);
-        req.end();
+    test('rejects cross-site requests (foreign Origin), even simple ones', async () => {
+        const res = await request({ method: 'PUT', path: '/api/v2/viewer/simulation', headers: { Origin: 'http://evil.example', 'Content-Type': 'application/json' } },
+            JSON.stringify({ requestHeaders: { 'x-pwned': 'yes' } }));
+        expect(res.status).toBe(403);
+        const sim = JSON.parse((await request({ path: '/api/v2/viewer/simulation' })).text);
+        expect(sim.requestHeaders['x-pwned']).toBeUndefined();
     });
 
-    test('✅ should provide detailed request forensic via /api/detail/{id}', (done) => {
-        let requestId = '';
-        const eventReq = http.get(`http://localhost:${uiPort}/events`, (eventRes) => {
-            eventRes.on('data', (chunk: Buffer) => {
-                const str = chunk.toString();
-                const lines = str.split('\n');
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const eventData = JSON.parse(line.replace('data: ', ''));
-                            if (eventData.type === 'request') {
-                                requestId = eventData.id;
-                                setTimeout(() => {
-                                    http.get(`http://localhost:${uiPort}/api/detail/${requestId}`, (historyRes) => {
-                                        expect(historyRes.statusCode).toBe(200);
-                                        let body = '';
-                                        historyRes.on('data', c => body += c);
-                                        historyRes.on('end', () => {
-                                            const details = JSON.parse(body);
-                                            expect(Array.isArray(details)).toBe(true);
-                                            expect(details.some((d: any) => d.id === requestId)).toBe(true);
-                                            eventReq.destroy();
-                                            done();
-                                        });
-                                    });
-                                }, 100);
-                            }
-                        } catch (e) { }
-                    }
-                }
-            });
-        });
-
-        setTimeout(() => {
-            http.get(`http://localhost:${port}/forensic-test`, () => { });
-        }, 300);
+    test('rejects a foreign Host header (DNS rebinding)', async () => {
+        expect((await request({ path: '/api/v2/distribution', headers: { Host: `attacker.example:${uiPort}` } })).status).toBe(403);
     });
 
-    test('✅ should provide SSE endpoint at /events with init handshake', (done) => {
-        const req = http.get(`http://localhost:${uiPort}/events`, (res) => {
-            expect(res.statusCode).toBe(200);
-            expect(res.headers['content-type']).toBe('text/event-stream');
+    test('only opens loaded functions in the editor', async () => {
+        const res = await request({ method: 'POST', path: '/api/v2/functions/..%2F..%2Fetc%2Fpasswd/open-in-editor', headers: { 'Content-Type': 'application/json' } }, '{}');
+        expect(res.status).toBe(404);
+    });
 
-            res.on('data', (chunk: Buffer) => {
-                const str = chunk.toString();
-                if (str.includes('"type":"init"')) {
-                    const line = str.split('\n').find(l => l.includes('"type":"init"'));
-                    if (line) {
-                        const data = JSON.parse(line.replace('data: ', ''));
-                        expect(data.port).toBe(port);
-                        req.destroy();
-                        done();
-                    }
-                }
-            });
-        });
+    test('a 2.x setup sets the viewer simulation for the session, and it applies to traffic', async () => {
+        const put = await request({ method: 'PUT', path: '/api/v2/viewer/simulation', headers: { 'Content-Type': 'application/json' } },
+            JSON.stringify({ requestHeaders: { 'X-Sticky-Test': 'Active' }, responseHeaders: { 'X-Mock-Cache': 'HIT' } }));
+        expect(put.status).toBe(204);
+        const sim = JSON.parse((await request({ path: '/api/v2/viewer/simulation' })).text);
+        expect(sim).toEqual({ source: 'session', requestHeaders: { 'X-Sticky-Test': 'Active' }, responseHeaders: { 'X-Mock-Cache': 'HIT' } });
+
+        const res = await new Promise<http.IncomingMessage>(resolve => http.get(`http://127.0.0.1:${port}/`, r => { r.resume(); resolve(r); }));
+        expect(res.headers['x-mock-cache']).toBe('HIT');
+
+        const bad = await request({ method: 'PUT', path: '/api/v2/viewer/simulation', headers: { 'Content-Type': 'application/json' } }, JSON.stringify({ requestHeaders: { a: 1 } }));
+        expect(bad.status).toBe(400);
+    });
+
+    test('recorded traffic is available as v2 journeys', async () => {
+        await new Promise<void>(resolve => http.get(`http://127.0.0.1:${port}/forensic-test`, r => { r.resume(); r.on('end', () => resolve()); }));
+        const list = JSON.parse((await request({ path: '/api/v2/requests?limit=5' })).text);
+        const entry = list.items.find((r: any) => r.url === '/forensic-test');
+        expect(entry).toBeDefined();
+        const detail = JSON.parse((await request({ path: `/api/v2/requests/${entry.id}` })).text);
+        expect(detail.events[0].type).toBe('request.started');
     });
 });

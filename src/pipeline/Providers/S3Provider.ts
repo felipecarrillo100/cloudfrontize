@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { OriginProvider } from './base';
 import { OriginConfig } from '../../core/types';
 
@@ -29,15 +29,37 @@ export class S3Provider implements OriginProvider {
             s3Options.forcePathStyle = config.forcePathStyle !== undefined ? config.forcePathStyle : true; 
         }
 
-        if (config.credentials) {
+        if (config.credentials?.profile) {
+            // Named profile from the AWS shared config/credentials files
+            s3Options.profile = config.credentials.profile;
+        } else if (config.credentials?.accessKeyId) {
+            // Literal keys (2.x --origins files only; project manifests can't contain them)
             s3Options.credentials = {
                 accessKeyId: config.credentials.accessKeyId,
                 secretAccessKey: config.credentials.secretAccessKey,
                 sessionToken: config.credentials.sessionToken
             };
         }
+        // { fromEnv: true } or nothing: the SDK's default credential chain
 
         this.client = new S3Client(s3Options);
+    }
+
+    /** HeadBucket: proves the endpoint answers, the bucket exists and the credentials may read it. */
+    public async check(): Promise<{ ok: boolean; message: string }> {
+        const where = `s3://${this.config.bucket}${this.config.endpoint ? ` at ${this.config.endpoint}` : ''}`;
+        try {
+            await this.client.send(new HeadBucketCommand({ Bucket: this.config.bucket }), { abortSignal: AbortSignal.timeout(8000) });
+            return { ok: true, message: `${where} is reachable` };
+        } catch (err: any) {
+            const status = err?.$metadata?.httpStatusCode;
+            const reason = status === 404 ? "the bucket doesn't exist"
+                : status === 403 ? "access denied (check the credentials or the bucket policy)"
+                : err?.name === 'TimeoutError' || err?.name === 'AbortError' ? 'no answer within 8 seconds'
+                : err?.name === 'CredentialsProviderError' ? 'no AWS credentials found (set a profile or use the environment)'
+                : err?.message || String(err);
+            return { ok: false, message: `${where}: ${reason}` };
+        }
     }
 
     private async fetchWebsite(req: any, res: any): Promise<void> {

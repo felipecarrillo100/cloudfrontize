@@ -31,8 +31,9 @@ describe('AWS Edge Function Restrictions', () => {
         return runner;
     };
 
-    const serve = (opts: any) => {
+    const serve = async (opts: any) => {
         const server = startServer({ port: 0, directory: path.join(tmpDir, 'www'), noBanner: true, ...opts });
+        await server.ready;
         servers.push(server);
         return server;
     };
@@ -64,7 +65,7 @@ describe('AWS Edge Function Restrictions', () => {
                     body: JSON.stringify(Object.keys(event.Records[0].cf.request.headers))
                 });
             ` });
-            const res = await request(serve({ edgeRunner: runner }))
+            const res = await request(await serve({ edgeRunner: runner }))
                 .get('/').set('X-Forwarded-Proto', 'https').set('X-Edge-Location', 'test').set('X-Visible', 'yes');
             const seen = JSON.parse(res.text);
             expect(seen).toContain('x-visible');
@@ -82,7 +83,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return res;
                 };
             ` }, { strict: true });
-            const res = await request(serve({ edgeRunner: runner, strict: true })).get('/index.html');
+            const res = await request(await serve({ edgeRunner: runner, strict: true })).get('/index.html');
             expect(res.status).toBe(502);
             expect(res.text).toContain('LambdaValidationError');
             expect(res.text).toContain('x-cache inside origin-response: disallowed header');
@@ -97,11 +98,11 @@ describe('AWS Edge Function Restrictions', () => {
                     return req;
                 };
             `;
-            const viewer = await request(serve({ edgeRunner: edgeRunner({ 'h.js': mutateHost('viewer-request') }, { strict: true }), strict: true })).get('/index.html');
+            const viewer = await request(await serve({ edgeRunner: edgeRunner({ 'h.js': mutateHost('viewer-request') }, { strict: true }), strict: true })).get('/index.html');
             expect(viewer.status).toBe(502);
             expect(viewer.text).toContain('host inside viewer-request: read-only header');
 
-            const origin = await request(serve({ edgeRunner: edgeRunner({ 'h.js': mutateHost('origin-request') }, { strict: true }), strict: true })).get('/index.html');
+            const origin = await request(await serve({ edgeRunner: edgeRunner({ 'h.js': mutateHost('origin-request') }, { strict: true }), strict: true })).get('/index.html');
             expect(origin.status).toBe(200);
         });
 
@@ -114,7 +115,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return req;
                 };
             ` }, { strict: true });
-            const res = await request(serve({ edgeRunner: runner, strict: true })).get('/index.html');
+            const res = await request(await serve({ edgeRunner: runner, strict: true })).get('/index.html');
             expect(res.status).toBe(502);
             expect(res.text).toContain('cloudfront-viewer-country');
         });
@@ -126,7 +127,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return event.request;
                 }
             ` }, { strict: true });
-            const res = await request(serve({ cffRunner: runner, strict: true })).get('/index.html');
+            const res = await request(await serve({ cffRunner: runner, strict: true })).get('/index.html');
             expect(res.status).toBe(502);
             expect(res.text).toContain('FunctionValidationError');
             expect(res.text).toContain('x-edge-origin');
@@ -139,11 +140,11 @@ describe('AWS Edge Function Restrictions', () => {
                 exports.hookType = '${stage}';
                 exports.handler = async () => ({ status: '200', headers: {}, body: 'x'.repeat(41 * 1024) });
             `;
-            const viewer = await request(serve({ edgeRunner: edgeRunner({ 'g.js': generate('viewer-request') }, { strict: true }), strict: true })).get('/');
+            const viewer = await request(await serve({ edgeRunner: edgeRunner({ 'g.js': generate('viewer-request') }, { strict: true }), strict: true })).get('/');
             expect(viewer.status).toBe(502);
             expect(viewer.text).toContain('Generated response too large');
 
-            const origin = await request(serve({ edgeRunner: edgeRunner({ 'g.js': generate('origin-request') }, { strict: true }), strict: true })).get('/');
+            const origin = await request(await serve({ edgeRunner: edgeRunner({ 'g.js': generate('origin-request') }, { strict: true }), strict: true })).get('/');
             expect(origin.status).toBe(200);
             expect(origin.text.length).toBe(41 * 1024);
         });
@@ -157,7 +158,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return req;
                 };
             ` }, { strict: true });
-            const res = await request(serve({ edgeRunner: runner, strict: true })).post('/index.html').send('small');
+            const res = await request(await serve({ edgeRunner: runner, strict: true })).post('/index.html').send('small');
             expect(res.status).toBe(502);
             expect(res.text).toContain('Replaced request body too large');
         });
@@ -165,7 +166,7 @@ describe('AWS Edge Function Restrictions', () => {
         test('a CloudFront Function over 10 KB is a build error in strict mode', async () => {
             const padding = '// ' + 'p'.repeat(11 * 1024);
             const runner = cffRunner({ 'viewer-request-big.js': `${padding}\nfunction handler(event) { return event.request; }` }, { strict: true });
-            const res = await request(serve({ cffRunner: runner, strict: true })).get('/index.html');
+            const res = await request(await serve({ cffRunner: runner, strict: true })).get('/index.html');
             expect(res.status).toBe(502);
             expect(res.text).toContain('10 KB');
         });
@@ -181,7 +182,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return res;
                 };
             ` });
-            const server = serve({ edgeRunner: runner });
+            const server = await serve({ edgeRunner: runner });
             const ok = await request(server).get('/index.html');
             expect(ok.headers['x-viewer-response']).toBe('ran');
 
@@ -199,7 +200,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return res;
                 };
             ` });
-            const res = await request(serve({ edgeRunner: runner })).get('/index.html');
+            const res = await request(await serve({ edgeRunner: runner })).get('/index.html');
             expect(res.status).toBe(200);
         });
 
@@ -228,7 +229,7 @@ describe('AWS Edge Function Restrictions', () => {
                     return req;
                 };
             ` });
-            const res = await request(serve({ edgeRunner: runner, origins: configPath })).get('/');
+            const res = await request(await serve({ edgeRunner: runner, origins: configPath })).get('/');
             expect(res.text).toBe('{"from":"local"}');
         });
 
@@ -239,11 +240,11 @@ describe('AWS Edge Function Restrictions', () => {
                 exports.handler = async (event) => event.Records[0].cf.response;
             ` }, opts);
 
-            const strict = await request(serve({ cffRunner: cff(), edgeRunner: lae({ strict: true }), strict: true })).get('/index.html');
+            const strict = await request(await serve({ cffRunner: cff(), edgeRunner: lae({ strict: true }), strict: true })).get('/index.html');
             expect(strict.status).toBe(502);
             expect(strict.text).toContain('InvalidFunctionAssociation');
 
-            const lenient = await request(serve({ cffRunner: cff(), edgeRunner: lae() })).get('/index.html');
+            const lenient = await request(await serve({ cffRunner: cff(), edgeRunner: lae() })).get('/index.html');
             expect(lenient.status).toBe(200);
         });
     });

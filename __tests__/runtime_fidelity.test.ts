@@ -30,15 +30,17 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         if (fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
     });
 
-    test('🛡️ Sandbox Isolation: Should prevent "child_process" access', async () => {
+    // AWS has no module bans in Lambda@Edge (child_process included); isolation from the host is about
+    // its environment: "Lambda environment variables" aren't supported, except reserved ones.
+    test('🛡️ Sandbox Isolation: the host environment is not visible', async () => {
         const jailDir = path.join(baseDir, 'jailbreak');
         if (!fs.existsSync(jailDir)) fs.mkdirSync(jailDir, { recursive: true });
+        process.env.CFZ_JAIL_SECRET = 'host-secret';
 
         fs.writeFileSync(path.join(jailDir, 'jail.js'), `
             exports.hookType = 'viewer-request';
             exports.handler = async (e) => {
-                let status = "shield_held";
-                try { require('child_process'); status = "escaped"; } catch(err) {}
+                const status = process.env.CFZ_JAIL_SECRET ? "escaped" : "shield_held";
                 const req = e.Records[0].cf.request;
                 req.headers['x-status'] = [{key:'X-Status', value: status}];
                 return req;
@@ -48,6 +50,7 @@ describe('Runtime Fidelity: Stress Testing the Sandbox', () => {
         const runner = new EdgeRunner(jailDir, { watch: false });
         runner.load();
         const { result } = await runner.runRequestHook({ method: 'GET', url: '/', headers: {} });
+        delete process.env.CFZ_JAIL_SECRET;
 
         expect(result).toBeDefined();
         expect(result.headers['x-status'][0].value).toBe('shield_held');

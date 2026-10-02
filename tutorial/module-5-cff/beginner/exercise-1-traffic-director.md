@@ -1,5 +1,8 @@
 # Exercise 1.1: The Traffic Director
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.1-traffic-director/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 
 Your marketing team has launched a new campaign and renamed a popular landing page.

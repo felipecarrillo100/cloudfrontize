@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "a new visitor is assigned a variant",
+      "request": {
+        "path": "/"
+      },
+      "expect": {
+        "status": 302,
+        "headers": {
+          "location": "/",
+          "cache-control": "no-store"
+        },
+        "headersContain": {
+          "set-cookie": "experiment-home="
+        }
+      }
+    },
+    {
+      "name": "variant A sees the current page",
+      "request": {
+        "path": "/",
+        "headers": {
+          "cookie": "experiment-home=a"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Variant A"
+      }
+    },
+    {
+      "name": "variant B sees the new page",
+      "request": {
+        "path": "/",
+        "headers": {
+          "cookie": "experiment-home=b"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Variant B"
+      }
+    },
+    {
+      "name": "pages outside the experiment are untouched",
+      "request": {
+        "path": "/about.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Not part of the experiment"
+      }
+    }
+  ]
+}

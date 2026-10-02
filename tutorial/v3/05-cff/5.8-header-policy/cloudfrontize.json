@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "5.8 The Header Policy",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "header-policy": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-response.header-policy.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "viewer-response": "header-policy"
+    }
+  }
+}

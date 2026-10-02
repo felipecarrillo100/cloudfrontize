@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "parameters are sorted by name",
+      "request": {
+        "path": "/index.html?z=9&a=1&m=5"
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "x-query": "a=1&m=5&z=9"
+        }
+      }
+    },
+    {
+      "name": "an already sorted query is unchanged",
+      "request": {
+        "path": "/index.html?a=1&z=9"
+      },
+      "expect": {
+        "headers": {
+          "x-query": "a=1&z=9"
+        }
+      }
+    },
+    {
+      "name": "no query string, nothing to do",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "x-query": ""
+        }
+      }
+    }
+  ]
+}

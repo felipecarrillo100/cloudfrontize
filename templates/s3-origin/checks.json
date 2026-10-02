@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the page comes from the bucket",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "Served from S3"
+      }
+    },
+    {
+      "name": "HTML gets a short cache lifetime",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "headers": {
+          "cache-control": "public, max-age=60"
+        }
+      }
+    }
+  ]
+}

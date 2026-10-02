@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "tracking parameters never reach the origin",
+      "request": { "path": "/?utm_source=google&id=123&utm_campaign=spring_sale" },
+      "expect": { "status": 200, "headers": { "x-origin-query": "id=123" }, "bodyContains": "Products" }
+    },
+    {
+      "name": "functional parameters are kept",
+      "request": { "path": "/?id=7&color=red" },
+      "expect": { "headers": { "x-origin-query": "id=7&color=red" } }
+    },
+    {
+      "name": "a link made only of trackers becomes a clean URL",
+      "request": { "path": "/?utm_medium=email&utm_content=banner" },
+      "expect": { "headers": { "x-origin-query": "(none)" } }
+    }
+  ]
+}

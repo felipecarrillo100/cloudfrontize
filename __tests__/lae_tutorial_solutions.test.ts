@@ -77,6 +77,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('1.1-security-guard.js')
         });
+        await server.ready;
 
         const res = await request(server).get('/index.html');
         expect(res.headers['strict-transport-security']).toBe('max-age=63072000; includeSubDomains; preload');
@@ -89,6 +90,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('1.2-librarian.js')
         });
+        await server.ready;
 
         const res = await request(server).get('/index.html?z=9&a=1');
         expect(res.status).toBe(200);
@@ -100,6 +102,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('1.3-concierge.js')
         });
+        await server.ready;
 
         const res = await request(server)
             .get('/index.html')
@@ -117,6 +120,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('2.1-scientist.js')
         });
+        await server.ready;
 
         const res = await request(server)
             .get('/')
@@ -131,6 +135,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('2.2-diplomat.js')
         });
+        await server.ready;
 
         const res = await request(server)
             .get('/index.html')
@@ -158,6 +163,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             headers: headersPath,
             edgeRunner: setupIsolatedRunner('2.3-cloaker.js')
         });
+        await server.ready;
 
         const res = await request(server).get('/index.html');
         expect(res.headers['server']).toBeUndefined();
@@ -172,6 +178,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('3.1-bouncer.js')
         });
+        await server.ready;
 
         const resFail = await request(server).get('/');
         expect(resFail.status).toBe(401);
@@ -188,6 +195,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('3.2-architect.js')
         });
+        await server.ready;
 
         const res = await request(server).get('/any-path');
         expect(res.status).toBe(503);
@@ -200,6 +208,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
             directory: wwwDir,
             edgeRunner: setupIsolatedRunner('3.3-inspector.js')
         });
+        await server.ready;
 
         const res = await request(server)
             .post('/api')
@@ -220,6 +229,7 @@ describe('Lambda@Edge Tutorial Solutions Verification', () => {
                 bakePath: varsPath
             })
         });
+        await server.ready;
 
         const res = await request(server).get('/');
         // The reflector hook copies x-baked-end-point from request to response

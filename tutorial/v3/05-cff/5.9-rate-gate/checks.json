@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "clients under the limit pass",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "x-request-count": "42"
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "clients over it get 429 and when to retry",
+      "request": {
+        "path": "/index.html",
+        "headers": {
+          "x-request-count": "101"
+        }
+      },
+      "expect": {
+        "status": 429,
+        "headers": {
+          "retry-after": "60"
+        },
+        "bodyContains": "Limit of 100"
+      }
+    },
+    {
+      "name": "no header, no limit",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200
+      }
+    }
+  ]
+}

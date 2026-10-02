@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "3.3 The Inspector",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "inspector": {
+      "type": "lambda-edge",
+      "runtime": "nodejs22.x",
+      "file": "functions/lambda-edge/viewer-request.inspector.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "viewer-request": "inspector"
+    }
+  }
+}

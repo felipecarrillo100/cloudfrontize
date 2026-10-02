@@ -1,5 +1,8 @@
 # Exercise 2.1: The Geo Router (URI Rewrite Edition)
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/05-cff/5.5-geo-router/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 
 Your marketing team wants to **serve localized content** without changing the URL in the user's browser. They've requested that visitors from **France (`FR`)** see the French version of the site, while everyone else sees the default version.

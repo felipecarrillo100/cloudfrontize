@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the server and framework versions are gone",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "headersAbsent": [
+          "server",
+          "x-powered-by"
+        ]
+      }
+    },
+    {
+      "name": "other origin headers are kept",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "headers": {
+          "x-request-time": "12ms"
+        }
+      }
+    }
+  ]
+}

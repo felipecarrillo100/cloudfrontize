@@ -1,0 +1,5 @@
+{
+  "name": "Geo routing",
+  "description": "Serves each country its own version of the site from a Lambda@Edge origin-request function, using CloudFront's country header.",
+  "order": 5
+}

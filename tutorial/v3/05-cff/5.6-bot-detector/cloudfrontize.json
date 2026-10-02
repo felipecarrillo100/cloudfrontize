@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/cloudfrontize.schema.json",
+  "version": 1,
+  "name": "5.6 The Bot Detector",
+  "origins": [
+    {
+      "id": "website",
+      "type": "local",
+      "path": "origins/www"
+    }
+  ],
+  "functions": {
+    "bot-detector": {
+      "type": "cloudfront-function",
+      "runtime": "cloudfront-js-2.0",
+      "file": "functions/cloudfront/viewer-request.bot-detector.js"
+    }
+  },
+  "defaultBehavior": {
+    "origin": "website",
+    "functions": {
+      "viewer-request": "bot-detector"
+    }
+  }
+}

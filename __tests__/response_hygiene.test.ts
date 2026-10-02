@@ -10,7 +10,7 @@ describe('Generated Response Hygiene', () => {
     const edgeDir = path.join(tmpDir, 'edge');
     let server: any;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
         fs.mkdirSync(edgeDir, { recursive: true });
         fs.writeFileSync(path.join(tmpDir, 'index.html'), 'origin');
@@ -27,6 +27,7 @@ describe('Generated Response Hygiene', () => {
         const runner = new EdgeRunner(edgeDir, { watch: false });
         runner.load();
         server = startServer({ port: 0, directory: tmpDir, edgeRunner: runner, noBanner: true });
+        await server.ready;
     });
 
     afterAll(async () => {

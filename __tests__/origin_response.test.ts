@@ -63,6 +63,7 @@ describe('Origin-Response & Strict Header Fidelity', () => {
 runner.load();
         runner.load();
         server = startServer({ port, directory: dir, edgeRunner: runner, noBanner: true, strict: true, debug: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port}/`);
         expect(res.status).toBe(200);
@@ -84,6 +85,7 @@ runner.load();
 runner.load();
         runner.load();
         server = startServer({ port: port + 1, directory: dir, edgeRunner: runner, noBanner: true, strict: true, debug: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port + 1}/`);
         const body = await res.text();
@@ -106,6 +108,7 @@ runner.load();
 runner.load();
         runner.load();
         server = startServer({ port: port + 2, directory: dir, edgeRunner: runner, noBanner: true, strict: false });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port + 2}/`);
         expect(res.status).toBe(200);
@@ -126,6 +129,7 @@ runner.load();
 runner.load();
         runner.load();
         server = startServer({ port: port + 3, directory: dir, edgeRunner: runner, noBanner: true, strict: true, debug: true });
+        await server.ready;
 
         const res = await fetch(`http://localhost:${port + 3}/`);
         expect(res.status).toBe(200);

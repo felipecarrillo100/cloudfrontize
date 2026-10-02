@@ -1,5 +1,8 @@
 # Exercise 2.1: The Scientist
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/02-origin/2.1-scientist/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 You are running an A/B test. Users in the experiment group have a cookie `experiment=true`. You want them to see the content in the `/experimental/` folder, but they should keep browsing the same URLs (no external redirect).
 

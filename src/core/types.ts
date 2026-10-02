@@ -1,6 +1,30 @@
 export type HookType = 'viewer-request' | 'origin-request' | 'origin-response' | 'viewer-response';
 
+/** A function file with its stage decided by the project manifest (no stage detection). */
+export interface RunnerFile {
+    path: string;
+    stage: HookType;
+    /** Stable id (the manifest function id); used for enable/disable and telemetry. */
+    id: string;
+    /** CloudFront Functions runtime ('cloudfront-js-1.0' by default). */
+    runtime?: string;
+    /** CloudFront Functions: the associated KeyValueStore file (runtime 2.0). */
+    kvsFile?: string;
+}
+
+/** Stage and id a manifest assigns to a file, bypassing HookUtility.detectStage. */
+export interface FileOverride {
+    stage: HookType;
+    id: string;
+    runtime?: string;
+    kvsFile?: string;
+}
+
 export interface RunnerOptions {
+    /** Manifest mode: load exactly these files, with these stages, instead of scanning runnerPath. */
+    files?: RunnerFile[];
+    /** The project folder: files outside it wouldn't be in a Lambda deployment package. */
+    projectDir?: string;
     envPath?: string;
     bakePath?: string;
     outputPath?: string;
@@ -36,10 +60,16 @@ export interface OriginConfig {
     domain?: string;
     protocol?: 'http' | 'https';
     forcePathStyle?: boolean;
+    /**
+     * Project manifests use `{ profile }` or `{ fromEnv: true }`; literal keys are accepted only from
+     * 2.x `--origins` files.
+     */
     credentials?: {
-        accessKeyId: string;
-        secretAccessKey: string;
+        accessKeyId?: string;
+        secretAccessKey?: string;
         sessionToken?: string;
+        profile?: string;
+        fromEnv?: boolean;
     };
     mode?: 'website' | 'rest';
 }
@@ -47,10 +77,24 @@ export interface OriginConfig {
 export interface CacheBehavior {
     pathPattern: string;
     targetOriginId: string;
+    /** Stable key for telemetry and the UI: 'default' or the path pattern. */
+    key?: string;
+    /**
+     * Function ids attached to each event of this behavior (project manifests: at most one per event).
+     * Undefined means 2.x mode: every loaded hook of the event runs, on every path.
+     */
+    functions?: Partial<Record<HookType, string[]>>;
 }
 
 export interface CloudFrontizeOptions {
     port: number;
+    /**
+     * Address the main server listens on. Default: every interface, except for an ephemeral port
+     * (port 0, used programmatically), which listens on 127.0.0.1 only: a wildcard socket on an
+     * ephemeral port can have its 127.0.0.1 traffic taken by another program bound to 127.0.0.1 on
+     * the same port (SO_REUSEADDR lets the kernel allow both).
+     */
+    host?: string;
     /** Developer UI port. `true` (a bare `--webui`) means the main port + 1; 0 picks an ephemeral port. */
     webui?: string | number | boolean;
     /** Overrides the directory the Developer UI assets are served from (defaults to the bundled `ui/`). */

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "locally, the relaxed policy from config/bake.env",
+      "request": {
+        "path": "/index.html"
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "content-security-policy": "default-src 'self' 'unsafe-inline' ws://localhost:*"
+        }
+      }
+    }
+  ]
+}

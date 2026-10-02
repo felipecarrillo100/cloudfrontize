@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/schema/checks.schema.json",
+  "checks": [
+    {
+      "name": "the home page is the app",
+      "request": {
+        "path": "/"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "/assets/app.js"
+      }
+    },
+    {
+      "name": "a deep link gets the app too, so reloading works",
+      "request": {
+        "path": "/users/42"
+      },
+      "expect": {
+        "status": 200,
+        "bodyContains": "<main id=\"app\">"
+      }
+    },
+    {
+      "name": "files are served as they are",
+      "request": {
+        "path": "/assets/app.js"
+      },
+      "expect": {
+        "status": 200,
+        "headersContain": {
+          "content-type": "javascript"
+        },
+        "bodyContains": "client-side router"
+      }
+    }
+  ]
+}

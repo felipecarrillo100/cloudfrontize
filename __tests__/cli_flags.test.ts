@@ -10,8 +10,9 @@ describe('CLI Flag Behavior', () => {
     const tmpDir = path.join(__dirname, '.tmp/', 'cli_flags');
     const servers: any[] = [];
 
-    const serve = (opts: any) => {
+    const serve = async (opts: any) => {
         const server = startServer({ port: 0, directory: tmpDir, noBanner: true, mode: 'rest', ...opts });
+        await server.ready;
         servers.push(server);
         return server;
     };
@@ -32,19 +33,19 @@ describe('CLI Flag Behavior', () => {
     });
 
     test('compression is on by default and -u (compression:false) disables it', async () => {
-        const on = await request(serve({})).get('/data.json').set('Accept-Encoding', 'gzip');
+        const on = await request(await serve({})).get('/data.json').set('Accept-Encoding', 'gzip');
         expect(on.headers['content-encoding']).toBe('gzip');
 
-        const off = await request(serve({ compression: false })).get('/data.json').set('Accept-Encoding', 'gzip');
+        const off = await request(await serve({ compression: false })).get('/data.json').set('Accept-Encoding', 'gzip');
         expect(off.headers['content-encoding']).toBeUndefined();
     });
 
     test('ETag and Last-Modified are sent by default; --no-etag removes the ETag', async () => {
-        const on = await request(serve({})).get('/data.json');
+        const on = await request(await serve({})).get('/data.json');
         expect(on.headers['etag']).toBeDefined();
         expect(on.headers['last-modified']).toBeDefined();
 
-        const off = await request(serve({ etag: false })).get('/data.json');
+        const off = await request(await serve({ etag: false })).get('/data.json');
         expect(off.headers['etag']).toBeUndefined();
         expect(off.headers['last-modified']).toBeDefined();
     });
@@ -53,20 +54,20 @@ describe('CLI Flag Behavior', () => {
         const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
         const accessLogged = () => logSpy.mock.calls.some((args: any[]) => String(args[0]).includes('GET /data.json'));
 
-        await request(serve({ noBanner: false })).get('/data.json');
+        await request(await serve({ noBanner: false })).get('/data.json');
         expect(accessLogged()).toBe(true);
 
         logSpy.mockClear();
-        await request(serve({ noBanner: false, requestLogging: false })).get('/data.json');
+        await request(await serve({ noBanner: false, requestLogging: false })).get('/data.json');
         expect(accessLogged()).toBe(false);
         logSpy.mockRestore();
     });
 
     test('--cors adds Access-Control-Allow-Origin and answers preflights', async () => {
-        const plain = await request(serve({})).get('/data.json');
+        const plain = await request(await serve({})).get('/data.json');
         expect(plain.headers['access-control-allow-origin']).toBeUndefined();
 
-        const server = serve({ cors: true });
+        const server = await serve({ cors: true });
         const res = await request(server).get('/data.json');
         expect(res.headers['access-control-allow-origin']).toBe('*');
 
@@ -81,10 +82,10 @@ describe('CLI Flag Behavior', () => {
     });
 
     test('--single serves index.html for missing paths', async () => {
-        const plain = await request(serve({})).get('/app/route/42');
+        const plain = await request(await serve({})).get('/app/route/42');
         expect(plain.status).toBe(404);
 
-        const spa = await request(serve({ single: true })).get('/app/route/42');
+        const spa = await request(await serve({ single: true })).get('/app/route/42');
         expect(spa.status).toBe(200);
         expect(spa.text).toContain('spa-shell');
     });

@@ -3,9 +3,12 @@ import path from 'path';
 import vm from 'vm';
 import * as acorn from 'acorn';
 import { HotRunner } from './HotRunner';
-import { Registry, RunnerOptions, HookType } from './types';
+import { FileOverride, Registry, RunnerOptions, HookType } from './types';
 import { CFFValidator } from './CFFValidator';
 import { EdgeError } from './EdgeError';
+import { KeyValueStore } from './KeyValueStore';
+import { CFFRuntime } from './CFFValidator';
+import { FROZEN_DATE_PRELUDE, LOOP_GUARD, RUNTIME2_TAIL, cloudfrontModule, createLoopGuard, instrumentLoops, rewriteImports, runtime2Globals } from './cff2/runtime2';
 import { HeaderManager } from './HeaderManager';
 import { CodeProcessor } from './CodeProcessor';
 import { SnippetExtractor } from './SnippetExtractor';
@@ -16,6 +19,9 @@ import { HookUtility } from './HookUtility';
 // process, including load-time warmup. It's set far above AWS's limit so slow local hardware never
 // trips it; the 1ms reference limit only warns. Calibration uses the same options so overhead stays accurate.
 const CFF_VM_OPTIONS = { timeout: CFF_LIMITS.RUNAWAY_GUARD_MS };
+// Runtime 2.0: loops are stopped by the injected loop guard at RUNAWAY_GUARD_MS; the VM timeout is
+// only a backstop, set later so it doesn't fire while async continuations run (that crashes Node).
+const CFF2_VM_OPTIONS = { timeout: CFF_LIMITS.RUNAWAY_GUARD_MS * 2 };
 
 /**
  * A ultra-low-latency runtime for AWS CloudFront Functions (CFF).
@@ -30,7 +36,35 @@ const CFF_VM_OPTIONS = { timeout: CFF_LIMITS.RUNAWAY_GUARD_MS };
  * 
  * @see {@link https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html | AWS CloudFront Functions}
  */
+/**
+ * "Function logs in CloudFront Functions are truncated at 10 KB" (Restrictions on CloudFront
+ * Functions): one invocation's log messages, up to 10 KB of text (UTF-8); the message that crosses
+ * the limit is cut, later ones are dropped, and a last line says so.
+ */
+export function truncateLogs(entries: Array<{ level: string; args: any[]; ts: number }>, limit = CFF_LIMITS.MAX_LOG_BYTES): Array<{ level: string; message: string; ts: number }> {
+    const messages = entries.map(e => ({ level: e.level, ts: e.ts, message: e.args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }));
+    const sizes = messages.map(m => Buffer.byteLength(m.message));
+    const out: typeof messages = [];
+    let used = 0;
+    for (let i = 0; i < messages.length; i++) {
+        if (used + sizes[i] <= limit) {
+            out.push(messages[i]);
+            used += sizes[i];
+            continue;
+        }
+        // Cut at a character boundary within the remaining bytes
+        const rest = Buffer.from(messages[i].message).subarray(0, limit - used).toString('utf8').replace(/\uFFFD$/, '');
+        if (rest) out.push({ ...messages[i], message: rest });
+        const total = sizes.reduce((n, b) => n + b, 0);
+        out.push({ level: 'warn', ts: messages[i].ts, message: `[CloudFrontize] Function logs truncated at 10 KB, as in CloudFront (this run logged ${(total / 1024).toFixed(1)} KB)` });
+        break;
+    }
+    return out;
+}
+
 export class CFFRunner extends HotRunner {
+    /** KeyValueStores by file, shared by the functions that use them; reloaded with the functions. */
+    private stores = new Map<string, KeyValueStore>();
     private headerManager = new HeaderManager();
     private validator: CFFValidator;
     private compileError: string | null = null;
@@ -85,6 +119,17 @@ export class CFFRunner extends HotRunner {
         }
 
         const stagedRegistry = this._createEmptyRegistry();
+
+        // Manifest mode: the project decides which files run, at which stage, with which runtime
+        if (this.options.files) {
+            this.stores.clear();
+            for (const file of this.options.files) {
+                this._loadFile(file.path, stagedRegistry, { stage: file.stage, id: file.id, runtime: file.runtime, kvsFile: file.kvsFile });
+            }
+            this.modules = stagedRegistry;
+            return;
+        }
+
         if (!this.runnerPath || !fs.existsSync(this.runnerPath)) {
             if (this.runnerPath) {
                 console.error(`\n\x1b[31m🛑 [CFFRunner] Hook file or directory not found: ${this.runnerPath}\x1b[0m`);
@@ -100,7 +145,7 @@ export class CFFRunner extends HotRunner {
 
         const stat = fs.statSync(this.runnerPath);
         const files = stat.isDirectory()
-            ? fs.readdirSync(this.runnerPath).filter(f => f.endsWith('.js'))
+            ? fs.readdirSync(this.runnerPath).filter(f => f.endsWith('.js')).sort()
             : [this.runnerPath];
 
         for (const file of files) {
@@ -114,15 +159,17 @@ export class CFFRunner extends HotRunner {
         }
     }
 
-    protected _loadFile(filePath: string, registry: Registry): void {
+    protected _loadFile(filePath: string, registry: Registry, override?: FileOverride): void {
         const filename = path.basename(filePath);
         try {
             let fileCode = fs.readFileSync(filePath, 'utf8');
-            const type = HookUtility.detectStage(fileCode, filename);
+            const type = override?.stage ?? HookUtility.detectStage(fileCode, filename);
             
             fileCode = CodeProcessor.bake(fileCode, this.bakeVars);
 
-            const { valid, violations } = this.validator.validate(filename, fileCode);
+            const runtime = (override?.runtime ?? 'cloudfront-js-1.0') as CFFRuntime;
+            const isRuntime2 = runtime === 'cloudfront-js-2.0';
+            const { valid, violations } = this.validator.validate(filename, fileCode, runtime);
             const codeLines = fileCode.split('\n');
 
             for (const v of violations) {
@@ -152,9 +199,13 @@ export class CFFRunner extends HotRunner {
                 return;
             }
 
+            // Runtime 2.0: `import cf from 'cloudfront'` becomes a sandbox binding; functions run in strict mode
+            // ("Functions operate in strict mode by default"). Prefixed on line 1 so line numbers don't move.
+            const runnableCode = isRuntime2 ? `'use strict';${instrumentLoops(rewriteImports(fileCode))}` : fileCode;
+
             // VM Syntax Check
             try {
-                new vm.Script(fileCode, { filename: filePath });
+                new vm.Script(runnableCode, { filename: filePath });
             } catch (err: any) {
                 const { line } = SnippetExtractor.parseError(err, filePath);
                 const snippet = SnippetExtractor.extract(filePath, line);
@@ -163,7 +214,7 @@ export class CFFRunner extends HotRunner {
                     type: 'CloudFront Function', 
                     file: path.basename(filePath),
                     path: filePath,
-                    error: this.compileError,
+                    error: err.message,
                     line: line,
                     snippet: snippet
                 });
@@ -189,6 +240,11 @@ export class CFFRunner extends HotRunner {
                 }
                 console.warn(`⚠️  [CFF] ${filename}: ${sizeError}`);
             }
+            // Reported with the build, so editors can show them next to the code
+            const warnings = violations.filter(v => v.level !== 'error').map(v => ({ message: v.message, line: v.lineNum ?? null }));
+            if (codeSize > CFF_LIMITS.MAX_CODE_SIZE_BYTES) {
+                warnings.push({ message: `Function size ${codeSize} bytes exceeds the ${CFF_LIMITS.MAX_CODE_SIZE_BYTES}-byte (10 KB) CloudFront Functions limit`, line: null });
+            }
 
             if (this.options.outputPath) {
                 const outFilePath = path.join(this.options.outputPath, filename);
@@ -197,10 +253,14 @@ export class CFFRunner extends HotRunner {
             }
 
             const mod = { 
-                id: `${type}-cff-${registry[type].length}`, 
+                id: override?.id ?? `${type}-cff-${registry[type].length}`, 
                 handler: fileCode, 
                 filePath: filePath,
-                script: new vm.Script(`${fileCode}\nhandler(event);`, { filename: path.basename(filePath) })
+                runtime,
+                store: override?.kvsFile ? this._store(override.kvsFile) : undefined,
+                script: isRuntime2
+                    ? new vm.Script(`${runnableCode}\n${RUNTIME2_TAIL}`, { filename: path.basename(filePath) })
+                    : new vm.Script(`${fileCode}\nhandler(event);`, { filename: path.basename(filePath) })
             };
             
             // Professional Fidelity: Pre-heat the JIT compiler to ensure "Hot" execution for the first request
@@ -208,33 +268,71 @@ export class CFFRunner extends HotRunner {
             
             registry[type].push(mod);
             console.log(`\x1b[32m✅ [CFF] Build Success: ${path.basename(filePath)}\x1b[0m`);
-            this.emit('build_success', { type: 'cff', file: filePath });
+            this.emit('build_success', { type: 'cff', file: filePath, size: codeSize, warnings });
 
         } catch (err: any) {
             console.error(`🛑 [CFF] Load Error: ${err.message}`);
         }
     }
 
+    /** The compiled function with this id, whichever stage registry holds it. */
+    public getModule(id: string): any | undefined {
+        for (const mods of Object.values(this.modules)) {
+            const found = mods.find(m => m.id === id);
+            if (found) return found;
+        }
+        return undefined;
+    }
+
+    public hasModule(id: string): boolean {
+        return this.getModule(id) !== undefined;
+    }
+
+    /** 2.x API: runs every loaded function of `type` in order, minus `disabledIds`. */
     public async runChain(type: HookType, event: any, disabledIds: string[] = [], onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
+        const mods = this.modules[type].filter(mod => {
+            if (!disabledIds.includes((mod as any).id)) return true;
+            if (this.options.debug) {
+                console.log(`\x1b[90m[${event.context.requestId}] \x1b[36m[CFF]\x1b[0m Bypassing ${path.basename(mod.filePath)} (Manual Override)`);
+            }
+            return false;
+        });
+        return this._runModules(type, mods, event, onHookComplete);
+    }
+
+    /** Runs the given functions (by id, in order) for one viewer event. */
+    public async runStage(type: HookType, ids: string[], event: any, onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
+        const mods = ids.map(id => this.getModule(id)).filter(Boolean);
+        return this._runModules(type, mods, event, onHookComplete);
+    }
+
+    private async _runModules(type: HookType, mods: any[], event: any, onHookComplete?: (mod: any, result: any) => void): Promise<{ result: any; logs: string[] }> {
         let currentEvent = event;
         const allLogs: string[] = [];
 
-        for (const mod of this.modules[type]) {
-            if (disabledIds.includes((mod as any).id)) {
-                if (this.options.debug) {
-                    console.log(`\x1b[90m[${event.context.requestId}] \x1b[36m[CFF]\x1b[0m Bypassing ${path.basename(mod.filePath)} (Manual Override)`);
-                }
-                continue;
-            }
+        for (const mod of mods) {
 
             if (this.options.verbose) {
                 allLogs.push(`\x1b[90m[${event.context.requestId}] \x1b[90m├─\x1b[0m \x1b[36m○ [CFF: ${type}] ${path.basename(mod.filePath)}\x1b[0m`);
             }
             // Snapshot what the function is given, to validate its header mutations afterwards
             const givenHeaders = HeaderManager.normalizeHeaders(type === 'viewer-request' ? currentEvent.request?.headers : currentEvent.response?.headers);
+            const givenQuerystring = type === 'viewer-response' ? JSON.stringify(currentEvent.request?.querystring ?? {}) : '';
 
             const { result, logs } = this._executeSync(mod, currentEvent, path.basename(mod.filePath), type);
             allLogs.push(...logs);
+
+            // AWS Parity: "A function can read a query string, but cannot create or update one, for
+            // origin response and viewer response events." The change is ignored.
+            if (type === 'viewer-response') {
+                const returnedRequest = result?.request ?? currentEvent.request;
+                if (JSON.stringify(returnedRequest?.querystring ?? {}) !== givenQuerystring) {
+                    const original = JSON.parse(givenQuerystring);
+                    if (currentEvent.request) currentEvent.request.querystring = original;
+                    if (result?.request) result.request.querystring = original;
+                    EdgeError.reportValidation('function', `${path.basename(mod.filePath)}: viewer-response functions can't change the query string`, this.options.strict);
+                }
+            }
 
             if (result) {
                 // AWS Parity: header restrictions apply to all edge functions. A viewer-request function
@@ -266,20 +364,36 @@ export class CFFRunner extends HotRunner {
             request: { method: req.method, uri: url.pathname, headers: {}, querystring: {}, cookies: {} }
         };
 
-        // Fidelity Query String Mapping: Convert string to CFF object structure
-        url.searchParams.forEach((value, key) => {
-            if (!event.request.querystring[key]) {
-                event.request.querystring[key] = { value, multiValue: [{ value }] };
-            } else {
-                event.request.querystring[key].multiValue.push({ value });
-            }
-        });
+        // AWS event structure: each field has the FIRST `value`; `multiValue` (all values) appears
+        // only when the name is repeated ("Duplicate query strings, headers, and cookies").
+        const addField = (target: Record<string, any>, name: string, field: any) => {
+            const existing = target[name];
+            if (!existing) { target[name] = field; return; }
+            if (!existing.multiValue) existing.multiValue = [{ ...existing }];
+            existing.multiValue.push(field);
+        };
+
+        url.searchParams.forEach((value, key) => addField(event.request.querystring, key, { value }));
 
         if (resData) {
             event.response = { statusCode: resData.status || 200, statusDescription: resData.statusDescription || 'OK', headers: {}, cookies: {} };
             for (const [key, value] of Object.entries(resData.headers || {})) {
-                if (HeaderManager.isDisallowed(key.toLowerCase())) continue; // AWS Parity: never exposed to functions
-                event.response.headers[key.toLowerCase()] = { value: String(Array.isArray(value) ? (value[0]?.value || value[0]) : value) };
+                const lowerKey = key.toLowerCase();
+                if (HeaderManager.isDisallowed(lowerKey)) continue; // AWS Parity: never exposed to functions
+                const values = (Array.isArray(value) ? value : [value]).map((v: any) => String(v?.value ?? v));
+                // "If the response contains any Set-Cookie headers, those headers are not part of the headers object"
+                if (lowerKey === 'set-cookie') {
+                    for (const line of values) {
+                        const [pair, ...attributes] = line.split(';');
+                        const eq = pair.indexOf('=');
+                        if (eq <= 0) continue;
+                        const cookie: any = { value: pair.slice(eq + 1).trim() };
+                        if (attributes.length) cookie.attributes = attributes.map(a => a.trim()).join('; ');
+                        addField(event.response.cookies, pair.slice(0, eq).trim(), cookie);
+                    }
+                    continue;
+                }
+                event.response.headers[lowerKey] = { value: values[0] };
             }
         }
 
@@ -287,20 +401,17 @@ export class CFFRunner extends HotRunner {
             const lowerKey = key.toLowerCase();
             if (HeaderManager.isDisallowed(lowerKey)) continue; // AWS Parity: never exposed to functions
             const value = String(Array.isArray(val) ? (val[0]?.value || val[0]) : val);
-            event.request.headers[lowerKey] = { value };
 
+            // "If the request contains any Cookie headers, those headers are not part of the headers object"
             if (lowerKey === 'cookie') {
                 value.split(';').forEach(cookieStr => {
-                    const parts = cookieStr.split('=');
-                    if (parts.length >= 2) {
-                        const name = parts[0].trim();
-                        const val = parts.slice(1).join('=').trim();
-                        event.request.cookies[name] = { value: val };
-                    }
+                    const eq = cookieStr.indexOf('=');
+                    if (eq > 0) addField(event.request.cookies, cookieStr.slice(0, eq).trim(), { value: cookieStr.slice(eq + 1).trim() });
                 });
+                continue;
             }
+            event.request.headers[lowerKey] = { value };
         }
-        url.searchParams.forEach((v, k) => { event.request.querystring[k] = { value: v }; });
         return event;
     }
 
@@ -309,28 +420,36 @@ export class CFFRunner extends HotRunner {
         let target = cffResponse.response ? cffResponse.response : (cffResponse.request ? cffResponse.request : cffResponse);
         
         const headers = { ...target.headers };
+        const isResponse = !!(target.statusCode || target.status);
 
-        // Map CFF cookies back to Set-Cookie headers
+        // Cookies live in `cookies`, not `headers`: rebuild Set-Cookie (responses) or Cookie (requests).
+        // A cookie with `multiValue` contributes every one of its values.
         if (target.cookies) {
-            const setCookies: string[] = [];
-            for (const [name, cookie] of Object.entries(target.cookies)) {
-                const c = cookie as any;
-                let str = `${name}=${c.value}`;
-                if (c.attributes) str += `; ${c.attributes}`;
-                setCookies.push(str);
-            }
-            if (setCookies.length > 0) {
-                headers['set-cookie'] = setCookies.map(v => ({ key: 'Set-Cookie', value: v }));
+            const expand = (name: string, c: any): any[] => (Array.isArray(c?.multiValue) && c.multiValue.length ? c.multiValue : [c]).map((v: any) => ({ name, ...v }));
+            const all = Object.entries(target.cookies).flatMap(([name, c]) => expand(name, c));
+            if (isResponse) {
+                const setCookies = all.map(c => `${c.name}=${c.value}${c.attributes ? `; ${c.attributes}` : ''}`);
+                if (setCookies.length > 0) headers['set-cookie'] = setCookies.map(v => ({ key: 'Set-Cookie', value: v }));
+            } else if (all.length > 0) {
+                headers['cookie'] = [{ key: 'Cookie', value: all.map(c => `${c.name}=${c.value}`).join('; ') }];
             }
         }
 
-        if (target.statusCode || target.status) {
-            return {
+        if (isResponse) {
+            const response: any = {
                 status: target.statusCode || target.status,
                 statusDescription: target.statusDescription || 'OK',
                 headers,
                 _isResponse: true
             };
+            // "specify the body content in the data field, and the body encoding in the encoding field",
+            // or, as a shortcut, a plain string in `body` (treated as text). No body: the original is kept.
+            if (target.body !== undefined) {
+                response.body = typeof target.body === 'string'
+                    ? { data: target.body, encoding: 'text' }
+                    : { data: target.body.data ?? '', encoding: target.body.encoding === 'base64' ? 'base64' : 'text' };
+            }
+            return response;
         }
         if (target.method || target.uri || target.querystring) {
             let querystring = '';
@@ -386,33 +505,47 @@ export class CFFRunner extends HotRunner {
 
     private _executeSync(mod: { handler: string; filePath: string }, event: any, filename: string, stage: string = 'viewer-request'): { result: any; cpuTimeMs: number; logs: string[] } {
         const logBuffer: Array<{ level: string; args: any[]; ts: number }> = [];
+        // High Fidelity: Use Date.now() (numeric) to avoid expensive ISO string formatting inside the timed block
+        const record = (level: string) => (...args: any[]) => logBuffer.push({ level, args, ts: Date.now() });
+        const isRuntime2 = (mod as any).runtime === 'cloudfront-js-2.0';
 
-        const sandbox: any = {
-            event: event,
-            console: {
-                // High Fidelity: Use Date.now() (numeric) to avoid expensive ISO string formatting inside the timed block
-                log: (...args: any[]) => logBuffer.push({ level: 'log', args, ts: Date.now() }),
-                error: (...args: any[]) => logBuffer.push({ level: 'error', args, ts: Date.now() }),
-                warn: (...args: any[]) => logBuffer.push({ level: 'warn', args, ts: Date.now() }),
-                info: (...args: any[]) => logBuffer.push({ level: 'info', args, ts: Date.now() }),
-            },
-            Math, JSON, Object, String, Array, Number, Date,
-            Buffer: undefined, process: undefined, require: undefined
-        };
+        const sandbox: any = isRuntime2
+            ? { event, ...runtime2Globals({ log: record('log') }), __done__: { state: 'pending' } }
+            : {
+                event: event,
+                console: { log: record('log'), error: record('error'), warn: record('warn'), info: record('info') },
+                Math, JSON, Object, String, Array, Number, Date,
+                Buffer: undefined, process: undefined, require: undefined
+            };
+        sandbox.__startTime__ = Date.now();
 
-        const context = vm.createContext(sandbox);
+        // Runtime 2.0: promise jobs run inside the guarded evaluation (see cff2/runtime2.ts)
+        const context = isRuntime2 ? vm.createContext(sandbox, { microtaskMode: 'afterEvaluate' }) : vm.createContext(sandbox);
+        if (isRuntime2) {
+            sandbox.__cloudfront__ = cloudfrontModule(context, (mod as any).store);
+            sandbox[LOOP_GUARD] = createLoopGuard(CFF_LIMITS.RUNAWAY_GUARD_MS, `${path.basename(mod.filePath)} did not complete within the ${CFF_LIMITS.RUNAWAY_GUARD_MS}ms emulator guard`);
+        }
+        FROZEN_DATE_PRELUDE.runInContext(context);
+
         const script = (mod as any).script;
         const start = process.hrtime.bigint();
         try {
             // The VM timeout throws on runaway code; its setup cost is subtracted via CFF_OVERHEAD_MS.
-            const result = script.runInContext(context, CFF_VM_OPTIONS);
+            let result = script.runInContext(context, isRuntime2 ? CFF2_VM_OPTIONS : CFF_VM_OPTIONS);
+            if (isRuntime2) {
+                const done = sandbox.__done__;
+                if (done.state === 'error') throw done.error;
+                if (done.state !== 'ok') throw new Error('The handler returned a promise that never settled (CloudFront Functions can only await KeyValueStore reads)');
+                result = done.value;
+            }
             const end = process.hrtime.bigint();
             let cpuTimeMs = Number(end - start) / 1e6;
 
             // Fidelity Adjustment: Subtract simulator overhead (VM runInContext base cost)
             cpuTimeMs = Math.max(0.01, cpuTimeMs - CFFRunner.CFF_OVERHEAD_MS);
 
-            if (cpuTimeMs > CFF_LIMITS.MAX_CPU_TIME_MS) {
+            // Warm-up runs (cold, before any traffic) don't count against the reference limit
+            if (cpuTimeMs > CFF_LIMITS.MAX_CPU_TIME_MS && event.context?.requestId !== 'warmup') {
                 console.warn(`⚠️  [CFF] ${path.basename(mod.filePath)} exceeded 1ms CPU limit (${cpuTimeMs.toFixed(2)}ms).`);
             }
 
@@ -420,9 +553,9 @@ export class CFFRunner extends HotRunner {
             // Clinical Alignment: No direct console.log here. Instead, return logs to orchestrator 
             // for atomic flushing alongside the request header.
             if (logBuffer.length > 0 && event.context.requestId !== 'warmup') {
-                logBuffer.forEach(log => {
-                    formattedLogs.push(this._log(log.level, log.args, event.context.requestId, filename, stage, log.ts));
-                });
+                for (const log of truncateLogs(logBuffer)) {
+                    formattedLogs.push(this._log(log.level, log.message, event.context.requestId, filename, stage, log.ts));
+                }
             }
 
             return { result, cpuTimeMs, logs: formattedLogs };
@@ -432,13 +565,13 @@ export class CFFRunner extends HotRunner {
             const formattedLogs: string[] = [];
             // Still flush any logs that occurred before the crash
             if (logBuffer.length > 0 && event.context.requestId !== 'warmup') {
-                logBuffer.forEach(log => {
-                    formattedLogs.push(this._log(log.level, log.args, event.context.requestId, filename, stage, log.ts));
-                });
+                for (const log of truncateLogs(logBuffer)) {
+                    formattedLogs.push(this._log(log.level, log.message, event.context.requestId, filename, stage, log.ts));
+                }
             }
 
             // Runaway code is stopped in every mode; other errors fail only under --strict
-            if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+            if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT' || err?.__runaway__) {
                 throw EdgeError.execution('function', `${path.basename(mod.filePath)} did not complete within the ${CFF_LIMITS.RUNAWAY_GUARD_MS}ms emulator guard`);
             }
             if (this.options.strict) throw EdgeError.execution('function', `Unhandled error in ${path.basename(mod.filePath)}: ${err.message}`);
@@ -446,11 +579,23 @@ export class CFFRunner extends HotRunner {
         }
     }
 
-    private _log(level: string, args: any[], requestId: string, filename: string, stage: string, overrideTimestamp?: number): string {
+    /** One KeyValueStore per file, loaded on first use (and again after a reload). */
+    private _store(file: string): KeyValueStore {
+        let store = this.stores.get(file);
+        if (!store) {
+            store = new KeyValueStore(file);
+            for (const problem of store.load(!!this.options.strict)) {
+                const line = `[CFF] KeyValueStore ${path.basename(file)}: ${problem.message}`;
+                if (problem.severity === 'error') console.error(`🛑 ${line}`); else console.warn(`⚠️  ${line}`);
+            }
+            this.stores.set(file, store);
+        }
+        return store;
+    }
+
+    private _log(level: string, message: string, requestId: string, filename: string, stage: string, overrideTimestamp?: number): string {
         const timestamp = overrideTimestamp ? new Date(overrideTimestamp).toISOString() : new Date().toISOString();
         const type = `[CFF: ${stage}] ${filename}`;
-
-        const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
         
         // No direct console.log here! We return the formatted line to the caller for atomic alignment.
         // Clinical Spine: Using vertical connector and indented level marker.

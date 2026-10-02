@@ -1,5 +1,8 @@
 # Exercise 3.1: The Bouncer
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/03-edge/3.1-bouncer/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Your `/admin/` dashboard is currently public. You need to add a quick layer of security using Basic Auth, but you don't want to modify your backend code.
 

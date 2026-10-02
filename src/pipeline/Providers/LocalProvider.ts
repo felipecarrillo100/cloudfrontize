@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 // @ts-ignore - serve-handler doesn't have good types
 import serveHandler from 'serve-handler';
 import { OriginProvider } from './base';
@@ -14,10 +15,22 @@ import { OriginProvider } from './base';
 export class LocalProvider implements OriginProvider {
     /**
      * @param directory - The base directory to serve files from.
+     * @param mode - Per-origin S3 behavior (project manifests); falls back to the request-level mode (2.x `-m`).
      */
-    constructor(private directory: string) {}
+    constructor(private directory: string, private mode?: 'rest' | 'website') {}
+
+    public async check(): Promise<{ ok: boolean; message: string }> {
+        try {
+            if (!fs.statSync(this.directory).isDirectory()) return { ok: false, message: `${this.directory} isn't a folder` };
+            const count = fs.readdirSync(this.directory).length;
+            return { ok: true, message: `${this.directory} (${count} ${count === 1 ? 'entry' : 'entries'})` };
+        } catch {
+            return { ok: false, message: `${this.directory} doesn't exist` };
+        }
+    }
 
     public async fetch(req: any, res: any, options: any, body?: Buffer): Promise<void> {
+        const mode = this.mode ?? options.mode;
         // If we have a mutated or captured body buffer, we must ensure the provider
         // (and its sub-handlers like serve-handler) can read it as a stream.
         if (body) {
@@ -44,7 +57,7 @@ export class LocalProvider implements OriginProvider {
         // High Fidelity Logging: Show the preserved query string in the console output
         const [, qs] = req.url.split('?');
         const displayQs = qs ? `?${qs}` : '';
-        res.resolvedUri = `file://${fullPath}${isActuallyDir ? '/index.html' : ''}${displayQs}`.replace(/(?<!:)\/\//g, '/');
+        res.resolvedUri = `${pathToFileURL(isActuallyDir ? path.join(fullPath, 'index.html') : fullPath).href}${displayQs}`;
 
         if (fs.existsSync(fullPath)) {
             if (fullPath.endsWith('.br')) res.setHeader('content-encoding', 'br');
@@ -52,7 +65,7 @@ export class LocalProvider implements OriginProvider {
         }
 
         // S3 Website Fidelity: Handle trailing slash redirects and index documents
-        if (options.mode === 'website' && isActuallyDir) {
+        if (mode === 'website' && isActuallyDir) {
             if (!cleanPath.endsWith('/')) {
                 // Redirect /folder to /folder/
                 res.statusCode = 301;
@@ -66,7 +79,7 @@ export class LocalProvider implements OriginProvider {
         }
 
         // CloudFront (REST) Fidelity: Non-root directories always 404 (object not found)
-        if (options.mode === 'rest' && isActuallyDir && cleanPath !== '/') {
+        if (mode === 'rest' && isActuallyDir && cleanPath !== '/') {
             res.statusCode = 404;
             res.end();
             return;

@@ -1,5 +1,91 @@
 # Changelog
 
+## [2.2.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.2.0...v2.2.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **cli:** `--output` without a directory now writes the baked files; it previously reported success and wrote nothing. A function that fails to build now exits with an error instead of reporting success.
+* **webui:** `--webui` without a port no longer crashes the server; it defaults to the main port + 1. An invalid port is rejected with a clear error.
+* **webui:** S3 origin credentials (`accessKeyId`, `secretAccessKey`, `sessionToken`) are no longer sent to the WebUI; `/api/distribution` and the live event stream show only that credentials are configured.
+
+## [2.2.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.1.0...v2.2.0) (2026-09-30)
+
+AWS fidelity release: limits and rules re-checked against the current CloudFront Developer Guide (quotas and edge-function restrictions). Some results change in default mode too — see **Behavior changes**.
+
+
+### Features
+
+* **headers:** header rules follow AWS's per-event tables: disallowed headers (e.g. `Connection`, `X-Cache`, `X-Forwarded-Proto`, `X-Edge-*`, `X-Amz-Cf-*`) are hidden from functions and can't be added; read-only headers can't be added, changed or deleted. `Host` is now editable in origin-request.
+* **cff:** CloudFront Functions get the same header validation as Lambda@Edge (`FunctionValidationError`)
+* **edge:** generated responses are limited to 40 KB (headers + body) on viewer events and 1 MB on origin events; replaced request bodies to 40 KB / 1 MB (text) or 53.2 KB / 1.33 MB (base64)
+* **cff:** the 10 KB function size limit is a build error under `--strict`
+* **pipeline:** combining CloudFront Functions and Lambda@Edge on viewer events is flagged (`InvalidFunctionAssociation` 502 under `--strict`, a warning otherwise)
+
+
+### Bug Fixes
+
+* **edge:** the Lambda@Edge timeout is 30 seconds for all events (was 5 s for viewer events)
+* **edge:** a viewer-request body over 40 KB is truncated (`inputTruncated: true`) instead of failing with 502
+* **pipeline:** a URI rewrite no longer changes the origin a request is routed to
+* **pipeline:** viewer-response functions no longer run when the origin returns 400 or higher
+* **edge:** Lambda@Edge viewer-response functions can no longer change the status code
+* **tutorial:** the CFF header-injector exercise used `X-Edge-Powered-By`, which AWS disallows; it now uses `X-Powered-By`
+
+
+### Behavior changes
+
+* **Timing only warns, in every mode.** `--strict` no longer fails a request when a Lambda@Edge function exceeds its 30 s limit, because local hardware isn't AWS hardware. Only runaway code is stopped with a 503: a handler still running after 60 s, or a CloudFront Function after 1 s (previously 50 ms). A runaway CloudFront Function now returns 503 in default mode too, instead of being skipped.
+* **Routing:** requests that relied on a function rewriting the URI to reach a different origin now stay on the origin matched by the original URI, as in CloudFront.
+
+## [2.1.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.3...v2.1.0) (2026-09-30)
+
+
+### Features
+
+* **cli:** `--cors` adds `Access-Control-Allow-Origin: *` and answers CORS preflight requests (previously a no-op)
+* **cli:** `--single` serves `index.html` (status 200) when the origin returns 404 or 403, for local and S3 origins (previously a no-op)
+* **cli:** `-u/--no-compression`, `--no-etag` and `-L/--no-request-logging` now take effect (previously no-ops); `-L` disables per-request access logs
+* **origin:** local origins send `ETag` alongside `Last-Modified`, like S3
+
+
+### Bug Fixes
+
+* **edge:** strict-mode Lambda@Edge timeouts return 503 `LambdaLimitExceeded` instead of silently continuing to the origin
+* **edge:** without `--strict`, a handler that never settles fails with 503 at twice its timeout instead of hanging the request
+* **edge:** hook exceptions and rejections return 503 `LambdaExecutionError` / `FunctionExecutionError`; strict forbidden-header mutations return 502 `LambdaValidationError`
+* **cff:** CloudFront Functions run with a 50ms VM timeout, so an infinite loop no longer freezes the process (including at startup)
+* **edge:** a request body replaced on a returned new request object is forwarded, and `encoding: 'text'` bodies are no longer base64-decoded
+* **edge:** internal fields (`id`, `type`, `uri`, `totalDurationMs`) no longer leak as response headers, and `bodyEncoding: 'base64'` generated responses are decoded
+* **cli:** `--version`, the startup banner and the WebUI report the real package version (previously 1.10.x)
+
+
+### Security
+
+* **webui:** the WebUI listens on `127.0.0.1` only and rejects requests with a foreign `Host` or `Origin` (blocks cross-site requests and DNS rebinding). It is no longer reachable from other machines.
+* **webui:** "open in editor" only opens loaded hook and config files, and no longer runs through a shell
+* **webui:** static assets can no longer be read from outside the UI directory using `..` paths
+
+
+### Maintenance
+
+* CI typechecks the project, including tests, on every pull request; `prepublishOnly` runs the typecheck before building
+* Tests no longer depend on local machine state (a busy port 9999, or a built UI)
+
+## [2.0.3](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.2...v2.0.3) (2026-05-06)
+
+
+### Bug Fixes
+
+* **doc:** Install also ui-src dependencies ([70115b7](https://github.com/felipecarrillo100/cloudfrontize/commit/70115b714dba5763be9618c79defc73a24e2392d))
+
+## [2.0.2](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.1...v2.0.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* **doc:** Fixed documentation ([d698bc7](https://github.com/felipecarrillo100/cloudfrontize/commit/d698bc7253ae49d500efcc561a52a86392c648e6))
+
 ## [2.0.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.0...v2.0.1) (2026-05-06)
 
 

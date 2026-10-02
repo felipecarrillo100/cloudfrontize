@@ -1,5 +1,8 @@
 # Exercise 4.1: The Baker
 
+> [!NOTE]
+> **CloudFrontize 3 version:** [this tutorial as a project](../../v3/04-production/4.1-baker/README.md), with the workbench and automatic checks. The steps below use the 2.x command line, and their WebUI instructions describe the 2.x UI.
+
 ## 🎭 The Scenario
 Official Lambda@Edge functions do not support environment variables. However, you need to point your logic to different API endpoints depending on where it's deployed. 
 

@@ -27,6 +27,7 @@ describe('End-to-End Case Fidelity', () => {
             noBanner: true,
             mode: 'rest'
         });
+        await server.ready;
 
         // We use a custom hook to "sniff" the headers that would be sent to the origin
         const res = await request(server)

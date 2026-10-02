@@ -1,0 +1,6 @@
+{
+  "name": "DynamoDB auth (LocalStack)",
+  "description": "A Lambda@Edge origin-request function that checks Basic credentials against a DynamoDB table, with LocalStack locally.",
+  "order": 8,
+  "requires": "Docker (LocalStack)"
+}

@@ -24,15 +24,40 @@ jobs:
           node-version: 24 # Changed from 20 to 24 to match the new standard
           registry-url: https://registry.npmjs.org/
 
+      # Versions already on npm (e.g. a release created later for a manual publish) are skipped
+      - name: Check version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "cloudfrontize@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::cloudfrontize@$VERSION is already on npm; nothing to publish"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Dependencies
+        if: steps.version.outputs.published == 'false'
         run: |
           npm ci
           npm ci --prefix ui-src
 
       - name: Build
+        if: steps.version.outputs.published == 'false'
         run: npm run build
 
+      # Prereleases (3.1.0-beta.1) go to the `next` tag, so `npm install cloudfrontize` keeps
+      # getting the stable release; a stable release becomes `latest` and `next` too
       - name: Publish to npm
-        run: npm publish
+        if: steps.version.outputs.published == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$VERSION" == *-* ]]; then
+            npm publish --tag next
+          else
+            npm publish
+            npm dist-tag add "cloudfrontize@$VERSION" next
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

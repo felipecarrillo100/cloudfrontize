@@ -1,11 +1,11 @@
 import EventEmitter from 'events';
 
-import { IHistoryStore } from './HistoryStore';
+import { IHistoryStore, NullHistoryStore } from './HistoryStore';
 
 export interface TelemetryEvent {
     id: string;
     timestamp: string;
-    type: 'request' | 'hook' | 'response' | 'error' | 'rewrite' | 'stage' | 'success';
+    type: 'request' | 'hook' | 'response' | 'error' | 'rewrite' | 'stage' | 'success' | 'project';
     hookType?: string;
     durationMs?: number;
     details: any;
@@ -14,6 +14,11 @@ export interface TelemetryEvent {
 export class Telemetry extends EventEmitter {
     constructor(private store: IHistoryStore) {
         super();
+    }
+
+    /** False when nothing is kept (no WebUI): the pipeline then skips body snapshots, which only telemetry uses. */
+    public get recording(): boolean {
+        return !(this.store instanceof NullHistoryStore) || this.listenerCount('event') > 0;
     }
 
     public broadcast(event: Omit<TelemetryEvent, 'timestamp'>): void {
@@ -34,6 +39,11 @@ export class Telemetry extends EventEmitter {
 
     public getById(id: string): TelemetryEvent[] {
         return this.store.getById(id);
+    }
+
+    /** Stored ids (requests and SYSTEM_* streams), oldest first. */
+    public getIds(): string[] {
+        return this.store.getIds();
     }
 
     public clearHistory(): void {
