@@ -16,7 +16,7 @@ Build a distribution, write its functions and test them locally, with CloudFront
 
 | The terminal | The workbench |
 |---|---|
-| ![CloudFrontize serving a project in the terminal: the functions it built, the URLs, and one line per request](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png) | ![The CloudFrontize workbench: a cache behavior's four events with their functions, a function's settings, and a request's journey through each function](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-pro-ui.png) |
+| ![CloudFrontize serving a project in the terminal: the functions it built, the URLs, and one line per request](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize.png?v=3) | ![The CloudFrontize workbench: a cache behavior's four events with their functions, a function's settings, and a request's journey through each function](https://raw.githubusercontent.com/felipecarrillo100/cloudfrontize/main/assets/cloudfrontize-pro-ui.png?v=3) |
 
 ---
 ## 📦 Getting started
