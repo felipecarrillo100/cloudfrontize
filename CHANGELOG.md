@@ -1,5 +1,48 @@
 # Changelog
 
+## [3.0.0](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.0.3...v3.0.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* CloudFront Functions logs are truncated at 10 KB per run.
+* require('cloudfrontize') loads the library instead of running the CLI, and paths inside dist/ are no longer importable; import from the package name.
+* **ui:** the 2.x WebUI endpoints are removed; the WebUI API is /api/v2 only.
+* Lambda@Edge viewer-request and viewer-response functions no longer see simulated CloudFront-added headers (CloudFront-Viewer-Country, CloudFront-Is-*-Viewer, ...) from --headers, viewer.headers or the WebUI presets; only values the client sent. Move such logic to origin-request or to a CloudFront Function. Changing the query string in a response event is now a validation error under --strict.
+* Lambda@Edge functions no longer see the host's environment variables (only reserved AWS variables and the project's .env). The per-event module allow-lists and bans are removed, so every module loads in every event. Writes outside /tmp fail with EROFS, and /tmp is a per-project sandbox folder. The default AWS_EXECUTION_ENV is AWS_Lambda_nodejs22.x.
+* in CloudFront Functions, Date no longer advances during a run, and the Cookie header is no longer in request.headers (use request.cookies), as in AWS.
+* Node.js 22 or later is required.
+
+### Features
+
+* 3.0 M1 — projects, manifest validation, project runtime, tutorial runner ([4230e63](https://github.com/felipecarrillo100/cloudfrontize/commit/4230e638577579e01d0019715dd205b770673371))
+* 3.0 M2.1 — functions per cache behavior ([6af8147](https://github.com/felipecarrillo100/cloudfrontize/commit/6af814795816899833562012009516e76b826c85))
+* 3.0 M2.2 — CloudFront Functions runtime 2.0 and KeyValueStore ([ef795de](https://github.com/felipecarrillo100/cloudfrontize/commit/ef795de8702cd5f7a34b8fa1f56ecc28f0b8304a))
+* 3.0 M2.3 — Lambda@Edge sandbox follows AWS ([11bc170](https://github.com/felipecarrillo100/cloudfrontize/commit/11bc1703f8caf7a5b1a87bd3bab10c34d67934b3))
+* 3.0 M2.4 — CloudFront-added headers follow AWS visibility ([ff5eff6](https://github.com/felipecarrillo100/cloudfrontize/commit/ff5eff63478913dae699366b09a4ca7f7c59efcb))
+* 3.0 M3.1 — WebUI API v2 foundation and typed event stream ([57b758d](https://github.com/felipecarrillo100/cloudfrontize/commit/57b758d54ba5910a1a885cae47fa13eb85337829))
+* 3.0 M3.2 — project and manifest API with conflict detection ([0830d82](https://github.com/felipecarrillo100/cloudfrontize/commit/0830d821d1cc0a55ecf168353595a5129a3a90c3))
+* 3.0 M3.3 — functions, behaviors, KVS and viewer-headers API ([2e46aa1](https://github.com/felipecarrillo100/cloudfrontize/commit/2e46aa134678d1be7dc3551b7e9037bf38a05237))
+* 3.0 M3.4 — folder browsing, recent projects, new projects, test requests ([8e576cb](https://github.com/felipecarrillo100/cloudfrontize/commit/8e576cbd32fb80be8bc152c9e4189118b5de7f55))
+* 3.0 M5.1 — starter templates, init, check ([1f5b31f](https://github.com/felipecarrillo100/cloudfrontize/commit/1f5b31f26cc8382da91ed9d42c07394bd9bd0a00))
+* 3.0 M5.2 — build and import commands ([a847297](https://github.com/felipecarrillo100/cloudfrontize/commit/a8472973c1d8d3d49fcfeb5667cbaf3b4b71fd07))
+* 3.0 M6 — beta release preparation ([3877311](https://github.com/felipecarrillo100/cloudfrontize/commit/38773117413f754e72240e8f90d25cd7b81f900e))
+* 3.0 M6.2 — --set, CloudFront Functions log limit, bounded history ([82ccb7e](https://github.com/felipecarrillo100/cloudfrontize/commit/82ccb7e0b1203a114b80e1fc93f51cec3c04d8f9))
+* AWS fidelity — doc-based header rules, size limits, pipeline behavior ([ce81523](https://github.com/felipecarrillo100/cloudfrontize/commit/ce8152314402999ff88efc700955f7d61fddb53c))
+* Phase 1 hardening — working CLI flags, AWS-parity hook errors, WebUI security ([09b149e](https://github.com/felipecarrillo100/cloudfrontize/commit/09b149e5eada0482525eb69747f40c4eb4cd14a1))
+* **ui:** 3.0 M4.1 — new WebUI foundation, start screen and workbench shell ([94048b7](https://github.com/felipecarrillo100/cloudfrontize/commit/94048b739c66798813c828f235293d82879d5513))
+* **ui:** 3.0 M4.2 — schematic, inspectors and AWS-aware slot menus ([119653e](https://github.com/felipecarrillo100/cloudfrontize/commit/119653e3708eb49ebfbe6d3b04422c0c75ffa5fe))
+* **ui:** 3.0 M4.3 — Monaco code editor with saves, conflicts and typings ([fc7687b](https://github.com/felipecarrillo100/cloudfrontize/commit/fc7687b6cc2d58c02fc9bba4fa194c8a010ac7f4))
+* **ui:** 3.0 M4.4 — traffic inspector, test requests, 2.x UI API removed ([1ba97e6](https://github.com/felipecarrillo100/cloudfrontize/commit/1ba97e62eceeef838d63fc066c3a592004e5a947))
+
+
+### Bug Fixes
+
+* 2.2.1 — bake-only output, --webui default port, credential redaction ([bfb2e3f](https://github.com/felipecarrillo100/cloudfrontize/commit/bfb2e3f5c4c01e718574bd1411924b18131c54b3))
+* clearer terminal output; publish workflow, 3.0 README and screenshots ([fa7eeeb](https://github.com/felipecarrillo100/cloudfrontize/commit/fa7eeeb8839e5b71972b1c457d51af01bf9e16e7))
+* **edge:** return 503 on strict-mode Lambda@Edge timeouts; add CI typecheck ([97e9e11](https://github.com/felipecarrillo100/cloudfrontize/commit/97e9e1110a664d95c8d5baf31d3e9ef55c40f89e))
+* **ui:** commit the UI components and favicon that .gitignore hid ([6c21706](https://github.com/felipecarrillo100/cloudfrontize/commit/6c21706fa9b07213ca6c33fbce4acc3c1546eed9))
+
 ## [2.2.1](https://github.com/felipecarrillo100/cloudfrontize/compare/v2.2.0...v2.2.1) (2026-09-30)
 
 
